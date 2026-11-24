@@ -32,6 +32,8 @@ from pathlib import Path
 import numpy as np
 import osmium
 import shapely
+import shapely.affinity
+import shapely.ops
 from shapely.geometry import LineString, Point, Polygon
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -1002,15 +1004,24 @@ def main():
     out_dir = ROOT / "public" / "data"
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    # ---- real-building models, registered in the original frame ----
+    models, _ = load_city_models(cfg)
+    regs, reg_polys = register_city_models(cfg, osm, proj, models) if models else ([], None)
+    model_obstacles = [r["sil_o"] for r in regs
+                       if not (r["cfg"].get("landmark") and not r["cfg"].get("replaceLandmark") and not r["cfg"].get("part"))]
+
     # ---- buildings (view corridors run after the fillers so fillers cannot re-block) ----
     blds, hs, obstacles = build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms)
-    fill = procedural_fill(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, obstacles, lms)
+    fill = procedural_fill(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, obstacles + model_obstacles, lms)
     blds = sorted(blds + fill, key=lambda r: (r["s"], r["id"]))
     final_s = lambda v: v if isinstance(v, (int, float)) else (  # noqa: E731
         sf(resolve_anchor({"at": v} if isinstance(v, str) else v, xs_map, lm_s, R)) + (v.get("offset", 0.0) if isinstance(v, dict) else 0.0))
     blds, zones = apply_view_corridors(cfg, route, blds, F, final_s)
     if zones:
         route["clearZones"] = zones
+    city_records, model_report = [], None
+    if regs:
+        city_records, blds, model_report = finalize_city_models(cfg, regs, reg_polys, route, blds, sp, U, F, L, route["oppositeOffset"])
     lap = lap_time(cl, step, cfg["race"], route["finish"]["s"])
     print(f"[lap] optimal lap estimate {lap['time'] // 60:.0f}:{lap['time'] % 60:05.2f} "
           f"(top {lap['vmax'] * 3.6:.0f} km/h, slowest corner {lap['vmin_corner'] * 3.6:.0f} km/h, "
@@ -1026,11 +1037,15 @@ def main():
     )
     write_json(out_dir / "buildings.json", bdata, compact=True)
     print(f"[out] buildings.json {(out_dir / 'buildings.json').stat().st_size / 1024:.0f} KB, {len(blds)} buildings, {hs}")
+    if cfg.get("cityModelDefaults"):
+        write_city_models(cfg, city_records, now)
 
     ok = validate(route, bdata, cfg)
     coverage_report(cfg, osm, proj, U, sp, R)
     if not args.no_plot:
         plot(route, bdata, sp, U, F, ROOT / "evidence" / "route_plot.png")
+        if model_report:
+            plot_city_models(route, bdata, model_report, ROOT / "evidence" / "city_models_registration.png")
     print(f"done in {time.time() - t0:.1f}s")
     if not ok:
         sys.exit(1)
@@ -1383,6 +1398,508 @@ def apply_view_corridors(cfg, route, blds, F, final_s):
         print(f"[view] {k}: capped {st['capped']}, dropped {st['dropped']} (removed {st['lost']:.0f} m of height in total)")
     print(f"[view] {len(zones)} clear-zone polygons, {sum(len(z) for z in zones)} vertices")
     return keep, zones
+
+
+# ----------------------------------------------------------------------------
+# real-building models: register processed GLBs (public/models/city/index.json, written by
+# scripts/process_city_models.mjs) against OSM footprints, splice, filter, replace
+# ----------------------------------------------------------------------------
+
+
+def rot_y(theta):
+    """2x2 matrix on (x, z) column vectors matching three.js rotation.y = theta (z points south)."""
+    c, s = math.cos(theta), math.sin(theta)
+    return np.array([[c, s], [-s, c]])
+
+
+def place(geom, theta, t):
+    """Model-local x/z geometry -> world: rotation.y = theta about the model origin, then + t."""
+    R = rot_y(theta)
+    return shapely.affinity.affine_transform(geom, [R[0, 0], R[0, 1], R[1, 0], R[1, 1], float(t[0]), float(t[1])])
+
+
+def iou(a, b):
+    i = a.intersection(b).area
+    return i / (a.area + b.area - i) if i > 0 else 0.0
+
+
+def valid_poly(rings):
+    polys = []
+    for r in rings:
+        if len(r) >= 3:
+            p = Polygon(r)
+            polys.append(p if p.is_valid else p.buffer(0))
+    g = shapely.union_all(polys) if polys else Polygon()
+    return g if g.is_valid else g.buffer(0)
+
+
+def fit_pose(model, target, t_init, rc, yaw0=0.0, yaw_range=None):
+    """Maximise IoU(model placed at (theta, t), target) - yawPrior * |theta - yaw0| / pi.
+    Coarse yaw grid with centroid alignment, pattern search on the translation for the best few,
+    then a fine yaw sweep. Returns (theta, t, IoU)."""
+    mc = np.array(model.centroid.coords[0])
+    tc = np.array(target.centroid.coords[0])
+
+    def score(th, v):
+        return v - rc["yawPrior"] * abs(wrap(th - yaw0)) / math.pi
+
+    def refine(th, t, step):
+        best = iou(place(model, th, t), target)
+        while step >= 0.25:
+            moved = False
+            for dx, dz in ((step, 0), (-step, 0), (0, step), (0, -step)):
+                tt = t + np.array([dx, dz])
+                v = iou(place(model, th, tt), target)
+                if v > best + 1e-6:
+                    best, t, moved = v, tt, True
+            if not moved:
+                step /= 2
+        return best, t
+
+    degs = np.arange(0.0, 360.0, rc["yawCoarse"])
+    if yaw_range is not None:
+        degs = np.arange(yaw_range[0], yaw_range[1] + 1e-9, rc["yawFine"])
+    coarse = []
+    for deg in degs:
+        th = math.radians(deg)
+        t = tc - rot_y(th) @ mc
+        coarse.append((score(th, iou(place(model, th, t), target)), th, t))
+    coarse.sort(key=lambda c: -c[0])
+    best = None
+    for _, th, t in coarse[:4]:
+        v, t = refine(th, t, 8.0)
+        if best is None or score(th, v) > best[0]:
+            best = (score(th, v), th, t, v)
+    _, th_b, t_b, _ = best
+    for dd in np.arange(-rc["yawCoarse"], rc["yawCoarse"] + 1e-9, rc["yawFine"]):
+        th = th_b + math.radians(dd)
+        v, t = refine(th, t_b, 2.0)
+        if score(th, v) > best[0]:
+            best = (score(th, v), th, t, v)
+    return wrap(best[1]), best[2], best[3]
+
+
+def load_city_models(cfg):
+    dflt = cfg.get("cityModelDefaults")
+    entries = [e for e in cfg.get("cityModels", []) if e.get("enabled", True)]
+    if not dflt or not entries:
+        return [], {}
+    path = ROOT / dflt["index"]
+    if not path.exists():
+        print(f"[models] {path.relative_to(ROOT)} missing; run node scripts/process_city_models.mjs")
+        return [], {}
+    index = json.loads(path.read_text())["models"]
+    out = []
+    for e in entries:
+        mid = e["file"].removesuffix(".glb")
+        if mid not in index:
+            print(f"[models] WARNING {mid} not processed yet (node scripts/process_city_models.mjs)")
+            continue
+        out.append(dict(cfg=e, id=mid, meta=index[mid]))
+    return out, index
+
+
+def register_city_models(cfg, osm, proj, models):
+    """Original-frame registration: lat/lon -> local, best OSM target(s) within matchRadius, yaw +
+    translation maximising IoU between the model silhouette and the target footprint union."""
+    rc = cfg["cityModelDefaults"]["register"]
+    t0 = time.time()
+    # OSM building polygons near any model (one STRtree)
+    centers = np.array([[m["meta"]["lon"], m["meta"]["lat"]] for m in models])
+    recs, polys = [], []
+    for b in osm["buildings"]:
+        r0 = b["ring"][0]
+        if np.min(np.abs(centers[:, 0] - r0[0]) * 103000 + np.abs(centers[:, 1] - r0[1]) * 111000) > 700:
+            continue
+        ring = proj.fwd(b["ring"])
+        if len(ring) < 4:
+            continue
+        p = Polygon(ring)
+        if not p.is_valid:
+            p = p.buffer(0)
+            if p.geom_type == "MultiPolygon":
+                p = max(p.geoms, key=lambda g: g.area)
+        if p.is_empty or p.area < 20:
+            continue
+        recs.append(b)
+        polys.append(p)
+    polys = np.array(polys, dtype=object)
+    tree = shapely.STRtree(polys)
+    ref_of = [f"{b['kind']}{b['id']}" for b in recs]
+    by_ref = {r: i for i, r in enumerate(ref_of)}
+    out = []
+    for m in models:
+        meta, e = m["meta"], m["cfg"]
+        sil_full = valid_poly(meta["silhouette"])
+        # registerBy=tower: fit only the parts above half the model height (towers whose podium
+        # differs from the OSM one); the footprint and keep-out still use the full silhouette
+        sil = valid_poly(meta["towerSilhouette"]) if e.get("registerBy") == "tower" else sil_full
+        hull = Polygon(meta["footprint"])
+        P0 = proj.fwd(np.array([meta["lon"], meta["lat"]]))
+        t_init = P0 - np.array(meta["nativeOrigin"])
+        init = place(sil, 0.0, t_init)
+        reg = dict(m, sil=sil_full, hull=hull, P0=P0, theta=0.0, t=t_init, iou=None, targets=[], note="")
+        if e.get("register", True) is False:
+            reg["note"] = "manifest pose (register=false)"
+            out.append(reg)
+            continue
+        forced = e.get("osm")
+        if forced:
+            forced = [forced] if isinstance(forced, str) else forced
+            idx = [by_ref[r] for r in forced if r in by_ref]
+            if len(idx) != len(forced):
+                print(f"[models] WARNING {m['id']}: forced OSM {forced} not all found")
+            cands = [idx] if idx else []
+        else:
+            near = tree.query(init.buffer(rc["matchRadius"]))
+            near = sorted(near, key=lambda i: init.distance(polys[i]))[:6]
+            cands = [[i] for i in near]
+            # multi-building models (towers on a shared podium, A/B/C blocks): everything the
+            # manifest pose covers substantially, as one target
+            cover = sorted(i for i in tree.query(init) if init.intersection(polys[i]).area >= rc["candidateMinOverlap"] * polys[i].area)
+            if len(cover) > 1:
+                cands.append(cover)
+        if not cands:
+            reg["note"] = f"no OSM footprint within {rc['matchRadius']} m: manifest position, native orientation"
+            print(f"[models] {m['id']}: {reg['note']}")
+            out.append(reg)
+            continue
+        yr = e.get("yawRange")
+        best = None
+        for c in cands:
+            target = shapely.union_all(list(polys[c]))
+            th, t, v = fit_pose(sil, target, t_init, rc, yaw_range=yr)
+            # prefer targets near the manifest position (manifest positions are ~30 m off at worst)
+            dist = float(np.hypot(*(np.array(place(sil, th, t).centroid.coords[0]) - np.array(init.centroid.coords[0]))))
+            sc = v - 0.002 * dist
+            if best is None or sc > best[0]:
+                best = (sc, c, th, t, v)
+        _, members, th, t, v = best
+        if not forced:
+            # grow the target with every OSM footprint the placed model covers substantially
+            for _ in range(3):
+                placed = place(sil, th, t)
+                cover = [i for i in tree.query(placed.buffer(2.0))
+                         if placed.intersection(polys[i]).area >= rc["candidateMinOverlap"] * polys[i].area]
+                grown = sorted(set(members) | set(cover))
+                if grown == sorted(members):
+                    break
+                members = grown
+                th, t, v = fit_pose(sil, shapely.union_all(list(polys[members])), t, rc, yaw_range=yr)
+        reg.update(theta=th, t=t, iou=v, targets=[ref_of[i] for i in members],
+                   target_poly=shapely.union_all(list(polys[members])))
+        out.append(reg)
+    for reg in out:
+        e = reg["cfg"]
+        if e.get("yaw"):
+            reg["theta"] = wrap(reg["theta"] + math.radians(e["yaw"]))
+        if e.get("shift"):
+            reg["t"] = reg["t"] + np.array(e["shift"], float)
+        reg["sil_o"] = place(reg["sil"], reg["theta"], reg["t"])
+        reg["hull_o"] = place(reg["hull"], reg["theta"], reg["t"])
+        moved = float(np.hypot(*(np.asarray(reg["sil_o"].centroid.coords[0]) - np.asarray(place(reg["sil"], 0.0, reg["P0"] - np.array(reg["meta"]["nativeOrigin"])).centroid.coords[0]))))
+        reg["moved"] = moved
+        iou_s = f"IoU {reg['iou']:.2f}" if reg["iou"] is not None else "unregistered"
+        print(f"[models] {reg['id'][:44]:44} {iou_s:12} yaw {math.degrees(reg['theta']):+7.1f} deg, moved {moved:5.1f} m, "
+              f"targets {','.join(reg['targets'][:5])}{'...' if len(reg['targets']) > 5 else ''}{(' (' + reg['note'] + ')') if reg['note'] else ''}")
+    reg_polys = dict(polys=polys, refs=ref_of, tree=tree)
+    print(f"[models] registered {len(out)} models in {time.time() - t0:.1f}s")
+    return out, reg_polys
+
+
+def model_footprint(geom):
+    """Single-ring keep-out footprint: the silhouette ring when the model is one connected part,
+    else the convex hull of its parts."""
+    if geom.geom_type == "Polygon":
+        return Polygon(geom.exterior).simplify(0.5)
+    return geom.convex_hull
+
+
+def finalize_city_models(cfg, regs, reg_polys, route, blds, sp, U, F, L, opp_final):
+    """Splice to the final frame, drop models in cuts / on the road corridor / in clear zones
+    (unless replacing a landmark) / overlapping a higher-priority model, then remove the replaced
+    OSM footprints and procedural fillers under the models. Returns (records, buildings, report)."""
+    dflt = cfg["cityModelDefaults"]
+    rc = dflt["register"]
+    road = route["road"]
+    zones = [Polygon(z) for z in route.get("clearZones") or []]
+    zones = [z if z.is_valid else z.buffer(0) for z in zones]
+    half = max(road["halfWidthLeft"], road["halfWidthRight"])
+    kept, skipped = [], []
+    # landmark parts (e.g. the Civic Square columns) follow their landmark's replacement: placed first
+    # are the models that replace a hand-built landmark
+    regs = sorted(regs, key=lambda r: r["cfg"].get("part") is not None)
+    replaced = set()
+    for r in regs:
+        e, meta = r["cfg"], r["meta"]
+        lm = e.get("landmark")
+        replaces = lm if (lm and e.get("replaceLandmark")) else None
+        if e.get("part") in replaced:
+            replaces = e["part"]
+        r["replacesLandmark"] = replaces
+        # replacements may come as close as the real building (roof overhangs, 1 m off the road edge)
+        margin = rc["roadMarginLandmark"] if replaces else rc["roadMargin"]
+        road_buf = F.line.buffer(half + margin)
+        if lm and not e.get("replaceLandmark") and not e.get("part"):
+            skipped.append((r, f"hand-built landmark '{lm}' kept (replaceLandmark=false)"))
+            continue
+        if r["iou"] is not None and r["iou"] < rc["minIoU"]:
+            print(f"[models] WARNING {r['id']}: low IoU {r['iou']:.2f}")
+        s_o, _ = U.project(np.asarray(r["t"])[None])
+        k = int(sp.piece(np.clip(s_o, 0, U.length))[0])
+        ring_o = np.asarray(model_footprint(r["sil_o"]).exterior.coords)[:-1]
+        s_v, d_v = U.project(ring_o)
+        in_cut = (sp.piece(np.clip(s_v, 0, U.length)) < 0).any() or k < 0
+        if in_cut and e["role"] != "skyline":
+            skipped.append((r, "inside a cut interval"))
+            continue
+        if k < 0:
+            # far skyline model abeam a cut: keep it with the transform of the piece before the cut
+            k = int(np.searchsorted(sp.starts, s_o[0], side="right") - 1)
+        R = rot_y(-sp.rot[k])
+        aff = [R[0, 0], R[0, 1], R[1, 0], R[1, 1], float(sp.trans[k][0]), float(sp.trans[k][1])]
+        r["k"] = k
+        r["origin_f"] = sp.apply(np.asarray(r["t"])[None], k)[0]
+        r["yaw_f"] = wrap(r["theta"] - sp.rot[k])
+        r["sil_f"] = shapely.affinity.affine_transform(r["sil_o"], aff)
+        r["fp_f"] = model_footprint(r["sil_f"])
+        if r.get("target_poly") is not None:
+            r["target_f"] = shapely.affinity.affine_transform(r["target_poly"], aff)
+        sf, df = F.project(r["origin_f"][None])
+        r["s_f"], r["d_f"] = float(np.clip(sf[0], 0, L)), float(df[0])
+        if e["role"] != "skyline":
+            if r["fp_f"].intersects(road_buf):
+                near = shapely.ops.nearest_points(r["fp_f"].exterior, F.line)[1]
+                sn, _ = F.project(np.array(near.coords[0])[None])
+                skipped.append((r, f"on the drivable road ({r['fp_f'].exterior.distance(F.line):.1f} m from the centerline at s {sn[0]:.0f})"))
+                continue
+            ring = LineString(np.asarray(r["fp_f"].exterior.coords))
+            pts = np.array([ring.interpolate(x).coords[0] for x in np.arange(0, ring.length, 1.0)])
+            sp_, dp_ = F.project(pts)
+            opp = np.interp(sp_, np.arange(len(opp_final)) * route["meta"]["sampleSpacing"], opp_final)
+            right = road["halfWidthRight"] + margin if replaces else rc["roadMarginRight"]
+            inside = (dp_ >= opp - rc["roadMarginOpposite"]) & (dp_ <= right) & (sp_ > 0.5) & (sp_ < L - 0.5)
+            if inside.any():
+                skipped.append((r, f"road corridor (d {dp_[inside].min():.0f}..{dp_[inside].max():.0f} m at s {sp_[inside].mean():.0f})"))
+                continue
+        if not replaces:
+            hit = [z for z in zones if r["fp_f"].intersection(z).area > rc["clearZoneMinArea"]]
+            if hit:
+                a = sum(r["fp_f"].intersection(z).area for z in hit)
+                skipped.append((r, f"inside a landmark clear zone ({a:.0f} m2)"))
+                continue
+        if replaces and not e.get("part"):
+            replaced.add(replaces)
+        kept.append(r)
+    # mutual overlaps: landmark replacements > landmarks > frontage > skyline, then IoU, then config order
+    prio = {"landmark": 2, "frontage": 1, "skyline": 0}
+    order = {id(r): i for i, r in enumerate(kept)}
+    kept.sort(key=lambda r: (-(r["replacesLandmark"] is not None), -prio[r["cfg"]["role"]], -(r["iou"] or 0), order[id(r)]))
+    final = []
+    for r in kept:
+        clash = next((q for q in final if r["fp_f"].intersection(q["fp_f"]).area > 1.0), None)
+        if clash:
+            skipped.append((r, f"overlaps {clash['id']}"))
+            continue
+        final.append(r)
+    # replaced OSM footprints: targets + any building mostly covered by (or centred in) a model
+    polys, refs = reg_polys["polys"], reg_polys["refs"]
+    for r in final:
+        rep = set(r["targets"])
+        for i in reg_polys["tree"].query(r["sil_o"].buffer(1.0)):
+            p = polys[i]
+            inter = r["sil_o"].intersection(p).area
+            if inter >= rc["replaceMinOverlap"] * p.area or r["sil_o"].contains(p.centroid):
+                rep.add(refs[i])
+            elif inter > 0.05 * p.area:
+                print(f"[models] note {r['id']}: partial overlap {inter / p.area:.0%} with {refs[i]} (kept)")
+        r["replacesOsm"] = sorted(int(x[1:]) for x in rep)
+    rep_ids = {i for r in final for i in r["replacesOsm"]}
+    fps = [r["fp_f"].buffer(rc["fillerGap"]) for r in final]
+    keep, n_osm, n_fill = [], 0, 0
+    for b in blds:
+        if b["id"] > 0 and b["id"] in rep_ids:
+            n_osm += 1
+            continue
+        if b["id"] < 0:
+            p = Polygon(b["fp"])
+            if any(p.intersects(f) for f in fps):
+                n_fill += 1
+                continue
+        keep.append(b)
+    records = []
+    for r in sorted(final, key=lambda r: r["s_f"]):
+        meta = r["meta"]
+        rec = dict(id=r["id"], file=meta["file"], role=r["cfg"]["role"],
+                   x=round(float(r["origin_f"][0]), 2), z=round(float(r["origin_f"][1]), 2), yaw=round(float(r["yaw_f"]), 4),
+                   s=round(r["s_f"], 1), d=round(r["d_f"], 1), height=meta["height"],
+                   footprint=round_pts(np.asarray(r["fp_f"].exterior.coords)[:-1], 1), replacesOsm=r["replacesOsm"])
+        if r["replacesLandmark"]:
+            rec["replacesLandmark"] = r["replacesLandmark"]
+        rec.update(photoTextured=meta["photoTextured"], tris=meta["tris"], drawCalls=meta["drawCalls"], bytes=meta["bytes"],
+                   credit=meta["credit"])
+        records.append(rec)
+    for r, why in skipped:
+        print(f"[models] skip {r['id'][:44]:44} {why}")
+    print(f"[models] placed {len(records)} of {len(regs)}; removed {n_osm} replaced OSM footprints and {n_fill} procedural fillers")
+    return records, keep, dict(final=final, skipped=skipped)
+
+
+def write_city_models(cfg, records, now):
+    dflt = cfg["cityModelDefaults"]
+    data = dict(meta=dict(generatedAt=now, count=len(records), totalBytes=sum(r["bytes"] for r in records)), models=records)
+    path = ROOT / dflt["output"]
+    write_json(path, data)
+    print(f"[out] {path.relative_to(ROOT)}: {len(records)} models, {data['meta']['totalBytes'] / 1048576:.2f} MB of GLB")
+    missing = [r["id"] for r in records if not (ROOT / "public" / r["file"]).exists()]
+    if missing:
+        print(f"[models] ERROR placed models without a processed GLB; run node scripts/process_city_models.mjs --only {','.join(missing)}")
+    # processed GLBs that ship must be placed (or be a landmark alternative kept for comparison)
+    used = {Path(r["file"]).name for r in records}
+    alt = {e["file"] for e in cfg.get("cityModels", []) if e.get("landmark") and e.get("enabled", True)}
+    for f in sorted((ROOT / dflt["outDir"]).glob("*.glb")):
+        if f.name not in used and f.name not in alt:
+            f.unlink()
+            print(f"[out] removed unused {f.relative_to(ROOT)}")
+    if data["meta"]["totalBytes"] > dflt["maxTotalBytes"]:
+        print(f"[models] WARNING city models exceed the download budget ({dflt['maxTotalBytes'] / 1048576:.0f} MB)")
+    update_credits(cfg, records)
+
+
+LANDMARK_NAMES = {"tencent": "腾讯大厦", "eiffel": "世界之窗 埃菲尔铁塔", "pingan": "平安金融中心", "civic_center": "深圳市民中心",
+                  "kingkey100": "京基100"}
+ROLE_NAMES = {"landmark": "地标", "frontage": "沿街建筑", "skyline": "远景"}
+
+
+def update_credits(cfg, records):
+    """Rewrites the 3D Warehouse table in docs/asset-credits.md (between the city-models markers)
+    from what ships: placed models plus landmark alternatives kept in public/models/city."""
+    path = ROOT / "docs" / "asset-credits.md"
+    start, end = "<!-- city-models:start -->", "<!-- city-models:end -->"
+    if not path.exists() or start not in path.read_text(encoding="utf-8"):
+        return
+    dflt = cfg["cityModelDefaults"]
+    index = json.loads((ROOT / dflt["index"]).read_text())["models"]
+    entries = {e["file"].removesuffix(".glb"): e for e in cfg.get("cityModels", [])}
+    shipped = sorted(f.stem for f in (ROOT / dflt["outDir"]).glob("*.glb"))
+    placed = {r["id"]: r for r in records}
+    rows = []
+    for mid in shipped:
+        meta, e = index.get(mid), entries.get(mid, {})
+        if meta is None:
+            continue
+        cr = meta["credit"]
+        r = placed.get(mid)
+        if r is None:
+            use = f"未放置：手工地标 {LANDMARK_NAMES.get(e.get('landmark'), e.get('landmark'))} 的备选（replaceLandmark=false），保留供对比"
+        else:
+            use = ROLE_NAMES[r["role"]]
+            if r.get("replacesLandmark"):
+                use += f"，替换手工地标 {LANDMARK_NAMES.get(r['replacesLandmark'], r['replacesLandmark'])}"
+        extra = e.get("credit", "")
+        rows.append(f"| `public/{meta['file']}` | {cr['title']} | {cr['author']} | [3D Warehouse]({cr['url']}) | {use} | {extra} |")
+    body = "\n".join([
+        start,
+        f"共 {len(rows)} 个文件（{sum(1 for m in shipped if m in placed)} 个由 `public/data/city_models.json` 放置）。本表由 `scripts/build_city_data.py` 按实际随游戏分发的文件自动生成。",
+        "",
+        "| 文件 | 模型（原标题） | 作者 | 来源 | 用途 | 个别改动 |",
+        "|---|---|---|---|---|---|",
+        *rows,
+        end,
+    ])
+    txt = path.read_text(encoding="utf-8")
+    a, b = txt.index(start), txt.index(end) + len(end)
+    path.write_text(txt[:a] + body + txt[b:], encoding="utf-8")
+    print(f"[out] {path.relative_to(ROOT)}: {len(rows)} 3D Warehouse models credited")
+
+
+def plot_city_models(route, bdata, report, path):
+    import logging
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.collections import PolyCollection
+
+    logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
+    plt.rcParams["font.sans-serif"] = ["Arial Unicode MS", "Heiti SC", "PingFang SC", "Hiragino Sans GB", "DejaVu Sans"]
+    plt.rcParams["axes.unicode_minus"] = False
+    cl = np.array(route["centerline"])
+    step = route["meta"]["sampleSpacing"]
+    ss = np.arange(len(cl)) * step
+    Fp = Polyline(cl)
+    final, skipped = report["final"], report["skipped"]
+    allm = final + [r for r, _ in skipped if "fp_f" in r]
+    if not allm:
+        return
+    groups = []
+    for r in sorted(allm, key=lambda r: r["s_f"]):
+        x, z = r["origin_f"]
+        for g in groups:
+            xs = [q["origin_f"][0] for q in g] + [x]
+            zs = [q["origin_f"][1] for q in g] + [z]
+            if np.ptp(xs) < 420 and np.ptp(zs) < 420:
+                g.append(r)
+                break
+        else:
+            groups.append([r])
+    n = len(groups)
+    cols = min(3, n)
+    rows = math.ceil(n / cols)
+    fig, axes = plt.subplots(rows, cols, figsize=(8 * cols, 8 * rows), squeeze=False)
+    bpolys = [np.array(b["fp"]) for b in bdata["buildings"]]
+    for ax, grp in zip(axes.flat, groups):
+        xs = np.concatenate([np.asarray(r["fp_f"].exterior.coords)[:, 0] for r in grp])
+        zs = np.concatenate([np.asarray(r["fp_f"].exterior.coords)[:, 1] for r in grp])
+        cx, cz = (xs.min() + xs.max()) / 2, (zs.min() + zs.max()) / 2
+        rr = max(np.ptp(xs), np.ptp(zs)) / 2 + 60
+        ax.add_collection(PolyCollection(bpolys, facecolors=[(0.55, 0.55, 0.55, 0.35) if b["id"] > 0 else (0.75, 0.75, 0.75, 0.25)
+                                                             for b in bdata["buildings"]], edgecolors=(0.4, 0.4, 0.4, 0.5), linewidths=0.4))
+        if route.get("clearZones"):
+            ax.add_collection(PolyCollection([np.array(z) for z in route["clearZones"]], facecolors=(0.0, 0.75, 0.85, 0.08),
+                                             edgecolors=(0.0, 0.6, 0.7, 0.8), linewidths=0.8, linestyles="--"))
+        nn = np.array([[-t[1], t[0]] for t in Fp.tangent(np.clip(ss, 1, ss[-1] - 1), 2.0)])
+        for side in (-route["road"]["halfWidthLeft"], route["road"]["halfWidthRight"]):
+            e = cl + nn * side
+            ax.plot(e[:, 0], e[:, 1], color="0.2", lw=0.8)
+        ax.plot(cl[:, 0], cl[:, 1], color="k", lw=0.6, ls=":")
+        for lm in route["landmarks"]:
+            if lm.get("footprint"):
+                fp = np.array(lm["footprint"] + [lm["footprint"][0]])
+                ax.plot(fp[:, 0], fp[:, 1], color="gold", lw=1.5)
+        for r in grp:
+            ok = r in final
+            for g in getattr(r.get("target_f"), "geoms", [r.get("target_f")]):
+                if g is not None and not g.is_empty:
+                    tp = np.asarray(g.exterior.coords)
+                    ax.plot(tp[:, 0], tp[:, 1], color="#1f5fbf", lw=1.6)
+            fp = np.asarray(r["fp_f"].exterior.coords)
+            ax.fill(fp[:, 0], fp[:, 1], color=("#e15759" if ok else "#f2a93b"), alpha=0.35 if ok else 0.2)
+            ax.plot(fp[:, 0], fp[:, 1], color=("#b22222" if ok else "#d4801f"), lw=1.0, ls="-" if ok else "--")
+            for g in getattr(r["sil_f"], "geoms", [r["sil_f"]]):
+                sp_ = np.asarray(g.exterior.coords)
+                ax.plot(sp_[:, 0], sp_[:, 1], color="#7a1010", lw=0.5)
+            o = r["origin_f"]
+            why = next((w for q, w in skipped if q is r), "")
+            lab = f"{r['id'][:24]}\nIoU {r['iou']:.2f}" if r["iou"] is not None else f"{r['id'][:24]}\n(manifest pose)"
+            if not ok:
+                lab += f"\nSKIP: {why[:30]}"
+            ax.annotate(lab, o, fontsize=8, ha="center", va="center", color=("#600" if ok else "#8a4b00"), weight="bold",
+                        bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="none", alpha=0.6))
+        ax.set_xlim(cx - rr, cx + rr)
+        ax.set_ylim(cz + rr, cz - rr)
+        ax.set_aspect("equal")
+        ax.grid(alpha=0.2)
+        ax.set_title(f"s {min(r['s_f'] for r in grp):.0f}-{max(r['s_f'] for r in grp):.0f}: red = placed model footprint "
+                     f"(thin = silhouette), blue = OSM target, orange dashed = skipped, grey = buildings.json", fontsize=9)
+    for ax in list(axes.flat)[n:]:
+        ax.axis("off")
+    fig.tight_layout()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=100)
+    plt.close(fig)
+    print(f"[out] {path.relative_to(ROOT)}")
 
 
 # ----------------------------------------------------------------------------

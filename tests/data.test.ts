@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Route } from '../src/route/Route';
 import { makeSyntheticRoute } from '../src/route/synthetic';
-import type { BuildingsData, RouteData, SectionId, Vec2 } from '../src/route/types';
+import type { BuildingsData, CityModelsData, RouteData, SectionId, Vec2 } from '../src/route/types';
 
 // Globs resolve to {} when the pipeline has not produced the file yet.
 const routeJson =
@@ -10,6 +10,10 @@ const routeJson =
 const buildingsJson =
   Object.values(
     import.meta.glob<BuildingsData>('../public/data/buildings.json', { eager: true, import: 'default' }),
+  )[0] ?? null;
+const cityModelsJson =
+  Object.values(
+    import.meta.glob<CityModelsData>('../public/data/city_models.json', { eager: true, import: 'default' }),
   )[0] ?? null;
 
 const SECTION_IDS: readonly string[] = ['nanshan', 'oct', 'chegongmiao', 'futian'] satisfies SectionId[];
@@ -232,6 +236,89 @@ function buildingErrors(b: BuildingsData): string[] {
   return e;
 }
 
+const CITY_MODEL_BUDGET_BYTES = 20 * 1024 * 1024;
+const LANDMARK_IDS = ['tencent', 'eiffel', 'pingan', 'civic_center', 'kingkey100'];
+
+function pointInPolygon(x: number, z: number, fp: readonly Vec2[]): boolean {
+  let inside = false;
+  for (let i = 0, j = fp.length - 1; i < fp.length; j = i++) {
+    const [xi, zi] = fp[i];
+    const [xj, zj] = fp[j];
+    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+function bbox(fp: readonly Vec2[]): [number, number, number, number] {
+  let [x0, z0, x1, z1] = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const [x, z] of fp) {
+    x0 = Math.min(x0, x);
+    z0 = Math.min(z0, z);
+    x1 = Math.max(x1, x);
+    z1 = Math.max(z1, z);
+  }
+  return [x0, z0, x1, z1];
+}
+
+/** Area shared by two polygons, sampled on a `cell` m grid over their bounding-box overlap. */
+function overlapArea(a: readonly Vec2[], b: readonly Vec2[], cell = 0.5): number {
+  const [ax0, az0, ax1, az1] = bbox(a);
+  const [bx0, bz0, bx1, bz1] = bbox(b);
+  const [x0, z0, x1, z1] = [Math.max(ax0, bx0), Math.max(az0, bz0), Math.min(ax1, bx1), Math.min(az1, bz1)];
+  if (x0 >= x1 || z0 >= z1) return 0;
+  let n = 0;
+  for (let x = x0 + cell / 2; x < x1; x += cell) {
+    for (let z = z0 + cell / 2; z < z1; z += cell) if (pointInPolygon(x, z, a) && pointInPolygon(x, z, b)) n++;
+  }
+  return n * cell * cell;
+}
+
+/** Footprint outline resampled every `step` m (vertices included). */
+function outline(fp: readonly Vec2[], step = 1): Vec2[] {
+  const out: Vec2[] = [];
+  for (let i = 0; i < fp.length; i++) {
+    const [x0, z0] = fp[i];
+    const [x1, z1] = fp[(i + 1) % fp.length];
+    const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, z1 - z0) / step));
+    for (let k = 0; k < n; k++) out.push([x0 + ((x1 - x0) * k) / n, z0 + ((z1 - z0) * k) / n]);
+  }
+  return out;
+}
+
+function cityModelErrors(c: CityModelsData): string[] {
+  const e: string[] = [];
+  const m = c.meta;
+  if (!(m && isStr(m.generatedAt) && !Number.isNaN(Date.parse(m.generatedAt)))) e.push('meta.generatedAt must be a date string');
+  if (!Array.isArray(c.models)) return [...e, 'models array missing'];
+  if (m?.count !== c.models.length) e.push(`meta.count ${m?.count} != models.length ${c.models.length}`);
+  const total = c.models.reduce((a, r) => a + r.bytes, 0);
+  if (m?.totalBytes !== total) e.push(`meta.totalBytes ${m?.totalBytes} != sum of bytes ${total}`);
+  const ids = new Set<string>();
+  for (const r of c.models) {
+    const why: string[] = [];
+    if (!isStr(r.id) || ids.has(r.id)) why.push('id missing or duplicated');
+    ids.add(r.id);
+    if (r.file !== `models/city/${r.id}.glb`) why.push(`file ${r.file}`);
+    if (!['landmark', 'frontage', 'skyline'].includes(r.role)) why.push(`role ${r.role}`);
+    if (![r.x, r.z, r.yaw, r.s, r.d].every(isNum)) why.push('x/z/yaw/s/d');
+    if (!(isNum(r.height) && r.height > 0 && r.height <= 650)) why.push(`height ${r.height}`);
+    if (!(Array.isArray(r.footprint) && r.footprint.length >= 3 && r.footprint.every(isVec2) && polygonArea(r.footprint) > 1)) {
+      why.push('footprint needs >= 3 points and area > 1 m2');
+    }
+    if (!(Array.isArray(r.replacesOsm) && r.replacesOsm.every((v) => Number.isInteger(v) && v > 0))) why.push('replacesOsm');
+    if (r.replacesLandmark !== undefined && !LANDMARK_IDS.includes(r.replacesLandmark)) why.push(`replacesLandmark ${r.replacesLandmark}`);
+    if (typeof r.photoTextured !== 'boolean') why.push('photoTextured');
+    if (!(Number.isInteger(r.tris) && r.tris > 0)) why.push(`tris ${r.tris}`);
+    const maxCalls = r.role === 'landmark' ? 8 : 2;
+    if (!(Number.isInteger(r.drawCalls) && r.drawCalls >= 1 && r.drawCalls <= maxCalls)) why.push(`drawCalls ${r.drawCalls} (max ${maxCalls})`);
+    if (!(Number.isInteger(r.bytes) && r.bytes > 0)) why.push(`bytes ${r.bytes}`);
+    const cr = r.credit;
+    if (!(cr && [cr.title, cr.author, cr.url, cr.license].every(isStr) && /3D Warehouse/.test(cr.license))) why.push('credit');
+    if (why.length) e.push(`model ${r.id}: ${why.join(', ')}`);
+  }
+  return e;
+}
+
 describe('data validators (self-check on synthetic data)', () => {
   const synth = makeSyntheticRoute();
 
@@ -323,5 +410,83 @@ describe.skipIf(!routeJson)('public/data/route.json', () => {
 describe.skipIf(!buildingsJson)('public/data/buildings.json', () => {
   it('has finite footprints (>= 3 points) and heights in [3, 650] m', () => {
     expect(buildingErrors(buildingsJson as BuildingsData)).toEqual([]);
+  });
+});
+
+describe.skipIf(!cityModelsJson || !routeJson)('public/data/city_models.json', () => {
+  const c = cityModelsJson as CityModelsData;
+  const r = routeJson as RouteData;
+  const route = new Route(r);
+
+  it('matches the CityModelsData shape (ids, files, budgets per model, credits)', () => {
+    expect(cityModelErrors(c)).toEqual([]);
+  });
+
+  it('references processed GLBs that exist under public/ with the recorded size', async () => {
+    const fsId = 'node:fs';
+    const fs = (await import(/* @vite-ignore */ fsId)) as {
+      existsSync(p: string): boolean;
+      statSync(p: string): { size: number };
+    };
+    const bad: string[] = [];
+    for (const m of c.models) {
+      const path = decodeURIComponent(new URL(`../public/${m.file}`, import.meta.url).pathname);
+      if (!fs.existsSync(path)) bad.push(`${m.file} missing`);
+      else if (fs.statSync(path).size !== m.bytes) bad.push(`${m.file}: ${fs.statSync(path).size} bytes on disk, ${m.bytes} recorded`);
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it(`stays within the ${CITY_MODEL_BUDGET_BYTES / 1048576} MB download budget`, () => {
+    expect(c.meta.totalBytes).toBeLessThanOrEqual(CITY_MODEL_BUDGET_BYTES);
+  });
+
+  it('keeps every footprint off the drivable carriageway', () => {
+    const { halfWidthLeft, halfWidthRight } = r.road;
+    const bad: string[] = [];
+    for (const m of c.models) {
+      const hit = outline(m.footprint).find(([x, z]) => {
+        const p = route.project(x, z);
+        return p.s > 0 && p.s < route.length && p.d > -halfWidthLeft && p.d < halfWidthRight;
+      });
+      const crossed = r.centerline.some(([x, z]) => pointInPolygon(x, z, m.footprint));
+      if (hit || crossed) bad.push(`${m.id}${hit ? ` touches the road at (${hit[0].toFixed(1)}, ${hit[1].toFixed(1)})` : ' straddles the centerline'}`);
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it('keeps models out of the landmark clear zones unless they replace the landmark', () => {
+    const bad: string[] = [];
+    for (const m of c.models) {
+      if (m.replacesLandmark) continue;
+      const a = (r.clearZones ?? []).reduce((acc, z) => acc + overlapArea(m.footprint, z), 0);
+      if (a > 2) bad.push(`${m.id}: ${a.toFixed(0)} m2 inside clear zones`);
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it('has no mutually overlapping models', () => {
+    const bad: string[] = [];
+    c.models.forEach((a, i) => {
+      for (const b of c.models.slice(i + 1)) {
+        const area = overlapArea(a.footprint, b.footprint);
+        if (area > 2) bad.push(`${a.id} / ${b.id}: ${area.toFixed(0)} m2`);
+      }
+    });
+    expect(bad).toEqual([]);
+  });
+
+  it.skipIf(!buildingsJson)('removed the OSM footprints it replaces and the fillers under each model', () => {
+    const blds = (buildingsJson as BuildingsData).buildings;
+    const ids = new Set(blds.map((b) => b.id));
+    const bad: string[] = [];
+    for (const m of c.models) {
+      const kept = m.replacesOsm.filter((id) => ids.has(id));
+      if (kept.length) bad.push(`${m.id}: replaced OSM ${kept.join(', ')} still in buildings.json`);
+      for (const b of blds) {
+        if (b.id < 0 && overlapArea(m.footprint, b.fp, 1) > 2) bad.push(`${m.id}: procedural filler ${b.id} overlaps`);
+      }
+    }
+    expect(bad).toEqual([]);
   });
 });
