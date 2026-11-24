@@ -100,6 +100,39 @@ export interface BuildingRecord {
   fp: Vec2[];
 }
 
+/** A processed real-building model (public/models/city/) placed by the data pipeline. */
+export interface CityModelRecord {
+  id: string;
+  /** Path relative to the public root, e.g. 'models/city/tencent_1c412809.glb'. */
+  file: string;
+  role: 'landmark' | 'frontage' | 'skyline';
+  /** World position of the processed model's origin (ground level) after the cut transform. */
+  x: number;
+  z: number;
+  /** rotation.y (radians) to apply to the processed model. */
+  yaw: number;
+  s: number;
+  d: number;
+  height: number;
+  /** Ground footprint in world coordinates; keep-out for procedural buildings and props. */
+  footprint: Vec2[];
+  /** OSM building ids removed from buildings.json because this model replaces them. */
+  replacesOsm: number[];
+  /** Hand-built landmark id (src/city/landmarks) this model replaces, if chosen. */
+  replacesLandmark?: string;
+  /** Old photo-textured model (needs the photo facade material) vs clean geometry. */
+  photoTextured: boolean;
+  tris: number;
+  drawCalls: number;
+  bytes: number;
+  credit: { title: string; author: string; url: string; license: string };
+}
+
+export interface CityModelsData {
+  meta: { generatedAt: string; count: number; totalBytes: number };
+  models: CityModelRecord[];
+}
+
 export interface BuildingsData {
   meta: {
     generatedAt: string;

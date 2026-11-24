@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
 import type { Route } from '../route/Route';
-import type { BuildingsData } from '../route/types';
+import type { BuildingsData, CityModelsData } from '../route/types';
 
 /** Everything scenery/render modules need at construction time. */
 export interface WorldContext {
@@ -10,6 +10,12 @@ export interface WorldContext {
   route: Route;
   /** null when public/data/buildings.json is missing. */
   buildings: BuildingsData | null;
+  /**
+   * Real-building models placed by the pipeline (public/data/city_models.json), loaded by
+   * createCity before the scenery modules are built; null when the file is missing.
+   * Their footprints are keep-out zones for procedural buildings and props.
+   */
+  cityModels?: CityModelsData | null;
   debug: boolean;
 }
 
