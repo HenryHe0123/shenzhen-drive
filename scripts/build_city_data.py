@@ -1794,6 +1794,8 @@ def update_credits(cfg, records):
         r = placed.get(mid)
         if r is None:
             use = f"未放置：手工地标 {LANDMARK_NAMES.get(e.get('landmark'), e.get('landmark'))} 的备选（replaceLandmark=false），保留供对比"
+        elif e.get("part") and r.get("replacesLandmark"):
+            use = f"{LANDMARK_NAMES.get(e['part'], e['part'])}的组成部分，随其模型一同替换手工地标"
         else:
             use = ROLE_NAMES[r["role"]]
             if r.get("replacesLandmark"):

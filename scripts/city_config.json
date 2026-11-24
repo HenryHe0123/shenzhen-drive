@@ -241,6 +241,9 @@
       "note": "2.2 m tall and ~460 m from the route: a few pixels on screen, not worth shipping" },
     { "file": "yitian_holiday_plaza_u5b41a7d.glb", "role": "frontage", "batch": 2, "process": { "atlas": 1024 },
       "note": "60 textures; a 512 atlas leaves 0.7 px/m" },
-    { "file": "oct_tower_dc36d710.glb", "role": "landmark", "batch": 2 }
+    { "file": "oct_tower_dc36d710.glb", "role": "landmark", "batch": 2 },
+    { "file": "kk100_b7451df0.glb", "role": "skyline", "landmark": "kingkey100", "replaceLandmark": false, "batch": 4 },
+    { "file": "resources_tower_abfd8c29.glb", "role": "skyline", "batch": 4 },
+    { "file": "diwang_builiding_f2c8db34.glb", "role": "skyline", "batch": 4 }
   ]
 }
