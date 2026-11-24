@@ -13,17 +13,20 @@ import {
 } from 'postprocessing';
 import { CONFIG } from '../config';
 import type { RenderPipeline, WorldContext } from '../game/contracts';
+import { LIGHTING } from './presets';
+import { getTimeOfDay, onTimeOfDayChange, type TimeOfDay } from './timeOfDay';
 
 const R = CONFIG.render;
 
 /**
  * HDR scene → bloom (only emissive highlights pass the threshold) → ACES tone
  * mapping + vignette → SMAA on the tone-mapped image. No motion blur.
+ * Exposure lives on renderer.toneMappingExposure (set by the environment);
+ * bloom and vignette follow the time-of-day preset.
  */
 export function createRenderPipeline(ctx: WorldContext): RenderPipeline {
   const { renderer, scene, camera } = ctx;
   renderer.toneMapping = THREE.NoToneMapping;
-  renderer.toneMappingExposure = R.exposure;
 
   const composer = new EffectComposer(renderer, {
     frameBufferType: THREE.HalfFloatType,
@@ -48,6 +51,16 @@ export function createRenderPipeline(ctx: WorldContext): RenderPipeline {
   const aaPass = new EffectPass(camera, smaa);
   aaPass.dithering = true;
   composer.addPass(aaPass);
+
+  const apply = (time: TimeOfDay) => {
+    const p = LIGHTING[time];
+    bloom.intensity = p.bloomIntensity;
+    bloom.luminanceMaterial.threshold = p.bloomThreshold;
+    bloom.luminanceMaterial.smoothing = p.bloomSmoothing;
+    vignette.darkness = p.vignette;
+  };
+  apply(getTimeOfDay());
+  onTimeOfDayChange(apply);
 
   return {
     render(dt: number) {

@@ -133,31 +133,32 @@ export class AudioEngine {
     const set = (p: AudioParam, v: number, tc = SMOOTH) => p.setTargetAtTime(v, now, tc);
 
     const v = Math.abs(frame.speed) || 0;
-    const sn = Math.min(v / A.refSpeed, 1.2);
+    const sn = Math.min(v / A.refSpeed, 1.05);
     const sn1 = Math.min(sn, 1);
     const thr = clamp01(frame.throttle);
     const moving = smoothstep(0.15, 2.5, v);
     const braking = frame.braking && v > 0.5 ? 1 : 0;
 
     // Motor: pitch tracks speed (single-ratio EV drivetrain), throttle adds level and brightness.
-    const f = A.motorHzMin + (A.motorHzMax - A.motorHzMin) * Math.min(sn, 1.1);
+    const f = A.motorHzMin + (A.motorHzMax - A.motorHzMin) * sn;
     for (const [ratio, osc] of L.motorOsc) set(osc.frequency, f * ratio, 0.04);
-    set(L.motorFilter.frequency, Math.min(f * (1.6 + 1.6 * thr), 9000));
-    set(L.motorGain.gain, A.motorGain * moving * (0.35 + 0.65 * thr) * (0.6 + 0.4 * sn1));
+    set(L.motorFilter.frequency, Math.min(f * (1.6 + 1.6 * thr), 7000));
+    set(L.motorGain.gain, A.motorGain * moving * (0.35 + 0.65 * thr) * (0.6 + 0.4 * Math.sqrt(sn1)));
     // Inverter: faint high tone, most audible when pulling away.
     set(L.inverterOsc.frequency, 2300 + f * 1.5, 0.04);
     set(L.inverterGain.gain, A.inverterGain * moving * (0.25 + 0.75 * thr) * (1 - 0.5 * sn1));
 
-    // Wind: level ∝ speed², band opens with speed; slow gusts scale with the level.
-    const wind = A.windGain * sn * sn;
+    // Wind: level rises steeply with speed, band opens with speed; slow gusts scale with the level.
+    const wind = A.windGain * sn1 ** A.windExponent;
     set(L.windFilter.frequency, 250 + 1900 * sn1);
     set(L.windGain.gain, wind, 0.15);
     set(L.windGustDepth.gain, wind * 0.2, 0.15);
 
-    // Tyres: low rumble ∝ speed plus a little hiss; both rise while braking.
+    // Tyres: low rumble plus a little hiss, both rising with speed and while braking.
+    const tyre = A.tyreGain * sn1 ** A.tyreExponent;
     set(L.tyreFilter.frequency, 150 + 550 * sn1 + 200 * braking);
-    set(L.tyreGain.gain, A.tyreGain * sn1 * moving * (1 + 0.6 * braking), 0.1);
-    set(L.hissGain.gain, A.tyreGain * 0.25 * sn1 * (1 + 1.0 * braking), 0.1);
+    set(L.tyreGain.gain, tyre * moving * (1 + 0.6 * braking), 0.1);
+    set(L.hissGain.gain, tyre * 0.25 * (1 + 1.0 * braking), 0.1);
 
     set(this.drive.gain, frame.driving ? 1 : A.idleLevel, 0.3);
   }

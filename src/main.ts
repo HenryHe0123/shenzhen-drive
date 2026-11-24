@@ -38,8 +38,6 @@ async function boot() {
     startName: '南山科技园',
     finishName: data.finish.name,
     checkpointFractions: data.checkpoints.map((c) => c.s / data.finish.s),
-    turnName: data.turn.name,
-    turnDirection: data.turn.direction,
     onStart: () => game?.startRace(),
     onRetry: () => game?.startRace(),
   });

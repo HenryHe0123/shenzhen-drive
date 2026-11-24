@@ -76,7 +76,7 @@ export class DebugOverlay {
       `geo ${r.memory.geometries}  tex ${r.memory.textures}`,
       `phase ${info.phase}  t ${info.time.toFixed(2)}  cp ${info.passed}/${info.count}${info.assisted ? ' (assisted)' : ''}`,
       `s ${info.s.toFixed(1)}  d ${info.d.toFixed(2)}  v ${(info.speed * 3.6).toFixed(0)} km/h${info.contact ? '  WALL' : ''}`,
-      `1-9 checkpoint  0 turn  F free cam${this.freeCam ? ' (on)' : ''}`,
+      `1-${Math.min(9, info.count)} checkpoint  0 next turn (cycles)  F free cam${this.freeCam ? ' (on)' : ''}`,
     ].join('\n');
   }
 }

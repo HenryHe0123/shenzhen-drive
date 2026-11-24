@@ -28,19 +28,69 @@ function seedFromId(id: number): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
+/** Facade family by zone: tech-park glass, OCT stone and tile, Chegongmiao mixed, CBD glass towers. */
 function styleFor(zone: SectionId, h: number, r: number): number {
-  if (h < 18) return r < 0.6 ? STYLE.stone : STYLE.mixed;
+  if (h < 18) return r < 0.45 ? STYLE.stone : r < 0.7 ? STYLE.residential : STYLE.mixed;
   switch (zone) {
     case 'nanshan':
-      return r < 0.6 ? STYLE.tealGlass : r < 0.85 ? STYLE.mixed : STYLE.blueGlass;
+      return r < 0.3 ? STYLE.tealGlass : r < 0.55 ? STYLE.blueGlass : r < 0.7 ? STYLE.silverGlass : r < 0.88 ? STYLE.mixed : STYLE.residential;
     case 'oct':
-      return r < 0.55 ? STYLE.stone : r < 0.85 ? STYLE.mixed : STYLE.tealGlass;
+      if (h < 90 && r < 0.6) return r < 0.32 ? STYLE.stone : STYLE.residential;
+      return r < 0.75 ? STYLE.mixed : r < 0.88 ? STYLE.bronzeGlass : STYLE.tealGlass;
     case 'chegongmiao':
-      return r < 0.45 ? STYLE.mixed : r < 0.85 ? STYLE.blueGlass : STYLE.stone;
+      if (h < 120 && r < 0.25) return STYLE.residential;
+      return r < 0.45 ? STYLE.mixed : r < 0.65 ? STYLE.blueGlass : r < 0.8 ? STYLE.silverGlass : r < 0.9 ? STYLE.bronzeGlass : STYLE.stone;
     case 'futian':
     default:
-      return r < 0.65 ? STYLE.blueGlass : r < 0.82 ? STYLE.tealGlass : STYLE.mixed;
+      return r < 0.35 ? STYLE.blueGlass : r < 0.55 ? STYLE.silverGlass : r < 0.7 ? STYLE.tealGlass : r < 0.82 ? STYLE.bronzeGlass : STYLE.mixed;
   }
+}
+
+interface KeepOut {
+  ring: Vec2[];
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+}
+
+function keepOut(ring: Vec2[], margin: number): KeepOut {
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (const [x, z] of ring) {
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minZ = Math.min(minZ, z);
+    maxZ = Math.max(maxZ, z);
+  }
+  return { ring, minX: minX - margin, maxX: maxX + margin, minZ: minZ - margin, maxZ: maxZ + margin };
+}
+
+function segmentsCross(a: Vec2, b: Vec2, c: Vec2, d: Vec2): boolean {
+  const side = (p: Vec2, q: Vec2, r: Vec2) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+  return side(c, d, a) > 0 !== side(c, d, b) > 0 && side(a, b, c) > 0 !== side(a, b, d) > 0;
+}
+
+/** True when two simple polygons overlap (containment either way or crossing edges). */
+function ringsOverlap(a: Vec2[], b: Vec2[]): boolean {
+  if (a.some(([x, z]) => pointInRing(b, x, z)) || b.some(([x, z]) => pointInRing(a, x, z))) return true;
+  for (let i = 0; i < a.length; i++) {
+    const p = a[i];
+    const q = a[(i + 1) % a.length];
+    for (let j = 0; j < b.length; j++) if (segmentsCross(p, q, b[j], b[(j + 1) % b.length])) return true;
+  }
+  return false;
+}
+
+/** Ring pushed outward from its centroid by about `m` meters. */
+function inflate(ring: Vec2[], m: number): Vec2[] {
+  const [cx, cz] = ringCentroid(ring);
+  return ring.map(([x, z]) => {
+    const l = Math.hypot(x - cx, z - cz) || 1;
+    return [x + ((x - cx) / l) * m * 1.42, z + ((z - cz) / l) * m * 1.42] as Vec2;
+  });
 }
 
 const HEIGHT_RANGE: Record<SectionId, [number, number]> = {
@@ -159,6 +209,35 @@ export async function createBuildings(ctx: WorldContext): Promise<SceneryModule>
 
   const onHill = (x: number, z: number) => !!hill && Math.hypot(x - hill.x, z - hill.z) < hill.hx;
 
+  // Sight-line corridors (route.data.clearZones) and landmark footprints stay free of procedural blocks.
+  const zones = (route.data.clearZones ?? []).filter((z) => z.length >= 3).map((z) => keepOut(z, 0));
+  const FOOTPRINT_MARGIN = 8;
+  const footprints = (route.data.landmarks ?? [])
+    .filter((l) => l.footprint && l.footprint.length >= 3)
+    .map((l) => keepOut(l.footprint!, FOOTPRINT_MARGIN));
+  for (const m of ctx.cityModels?.models ?? []) {
+    if (m.footprint.length >= 3) footprints.push(keepOut(m.footprint, FOOTPRINT_MARGIN));
+  }
+  const hitsAny = (ring: Vec2[], list: KeepOut[], margin: number) => {
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
+    for (const [x, z] of ring) {
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minZ = Math.min(minZ, z);
+      maxZ = Math.max(maxZ, z);
+    }
+    for (const k of list) {
+      if (maxX < k.minX || minX > k.maxX || maxZ < k.minZ || minZ > k.maxZ) continue;
+      if (ringsOverlap(margin > 0 ? inflate(ring, margin) : ring, k.ring)) return true;
+    }
+    return false;
+  };
+  const keptClear = (ring: Vec2[]) => hitsAny(ring, zones, 0) || hitsAny(ring, footprints, FOOTPRINT_MARGIN);
+  let skippedForSightLines = 0;
+
   /** Extrudes one building with roof equipment / crown details. */
   const addBuilding = (b: FacadeBuilder, ring: Vec2[], h: number, seed: number, style: number, podium: number, y0 = 0) => {
     b.addPrism(ring, y0, h, [seed, style, podium, h]);
@@ -216,6 +295,10 @@ export async function createBuildings(ctx: WorldContext): Promise<SceneryModule>
     const chamfer = rng() < 0.3 ? Math.min(len, dep) * 0.15 : 0;
     const ring = rectRing(p.x, p.z, t.x, t.z, len / 2, dep / 2, chamfer);
     if (!clearOfRoad(ring, sc, 24, 20)) return false;
+    if (keptClear(ring)) {
+      skippedForSightLines++;
+      return false;
+    }
     occ.add(p.x, p.z, r * 0.9);
     const seed = rng();
     const b = builderFor(s, isFar);
@@ -240,6 +323,7 @@ export async function createBuildings(ctx: WorldContext): Promise<SceneryModule>
 
   // --- Real OSM buildings -------------------------------------------------
   let farCount = 0;
+  let osmInZones = 0;
   if (ctx.buildings) {
     for (const rec of ctx.buildings.buildings) {
       if (!rec.fp || rec.fp.length < 3 || !(rec.h > 2)) continue;
@@ -261,6 +345,7 @@ export async function createBuildings(ctx: WorldContext): Promise<SceneryModule>
         }
         if (!ok || (minSide && maxSide && Math.abs(rec.d) < 60)) continue;
       }
+      if (hitsAny(rec.fp, zones, 0)) osmInZones++;
       const seed = seedFromId(rec.id);
       const style = styleFor(rec.zone, rec.h, seed);
       const podium = rec.far ? 0 : rec.h > 24 ? 5.5 + seed * 6 : rec.h > 8 ? 5 : 0;
@@ -346,6 +431,13 @@ export async function createBuildings(ctx: WorldContext): Promise<SceneryModule>
         s += 90 + rng() * 160;
       }
     }
+  }
+
+  if (ctx.debug) {
+    console.info(
+      `[buildings] ${zones.length} clear zones, ${footprints.length} landmark footprints: ` +
+        `${skippedForSightLines} procedural blocks skipped, ${osmInZones} OSM footprints overlap a zone`,
+    );
   }
 
   // --- Meshes --------------------------------------------------------------

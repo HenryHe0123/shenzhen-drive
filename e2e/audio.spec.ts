@@ -1,4 +1,7 @@
 import { expect, test } from '@playwright/test';
+import { CONFIG } from '../src/config';
+
+const A = CONFIG.audio;
 
 /**
  * Runs the real AudioEngine in Chrome on a blank same-origin page (Vite serves the module;
@@ -77,9 +80,9 @@ test('procedural audio: silent at rest, pitch tracks speed, mute/suspend work', 
     await page.waitForTimeout(300);
     return measure();
   };
-  // Motor fundamental: 150 Hz + 1650 Hz · |v| / 50 m/s.
+  // Motor fundamental: linear from motorHzMin at rest to motorHzMax at refSpeed (350 km/h).
   const pitched = (v: number) => (m: Measure) => {
-    const expected = 150 + (1650 * Math.abs(v)) / 50;
+    const expected = A.motorHzMin + ((A.motorHzMax - A.motorHzMin) * Math.abs(v)) / A.refSpeed;
     return Math.abs(m.peakHz - expected) / expected < 0.04;
   };
 
@@ -87,10 +90,14 @@ test('procedural audio: silent at rest, pitch tracks speed, mute/suspend work', 
   const slow = await settle(10, 1, 'pitch at 10 m/s', pitched(10));
   const cruise = await settle(25, 1, 'pitch at 25 m/s', pitched(25));
   const fast = await settle(40, 1, 'pitch at 40 m/s', pitched(40));
+  const top = await settle(95, 1, 'pitch at 95 m/s', pitched(95));
   const reverse = await settle(-5, 1, 'pitch at -5 m/s', pitched(-5));
-  console.log('[audio]', JSON.stringify({ rest, slow, cruise, fast, reverse }));
+  console.log('[audio]', JSON.stringify({ rest, slow, cruise, fast, top, reverse }));
   expect(cruise.rms).toBeGreaterThan(0.01);
   expect(fast.rms).toBeGreaterThan(slow.rms);
+  expect(top.rms).toBeGreaterThan(fast.rms);
+  // still under the limiter's ceiling at 350 km/h with full wind
+  expect(top.rms).toBeLessThan(0.5);
 
   await page.evaluate(() => (window as any).__audio.engine.setMuted(true));
   await settle(40, 1, 'silent while muted', (m) => m.rms < 1e-4);

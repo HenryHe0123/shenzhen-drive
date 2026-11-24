@@ -1,6 +1,6 @@
 # SHENZHEN DRIVE｜深圳极速穿越
 
-浏览器 3D 城市计时驾驶。黄昏时分驾驶小米 SU7，沿深南大道从南山科技园一路向东，穿过世界之窗、华侨城、车公庙 / 香蜜湖，进入福田中心区后绕行 CBD：右转益田路直奔平安金融中心脚下，左转福华三路、左转金田路平交穿过深南大道，最后左转福中三路，沿深圳市民中心正立面冲线。基于真实 OpenStreetMap 数据，Three.js + TypeScript + Vite。
+浏览器 3D 城市计时驾驶。驾驶小米 SU7（极速 350 km/h，可选白天 / 日落 / 入夜三种时段），沿深南大道从南山科技园一路向东，穿过世界之窗、华侨城、车公庙 / 香蜜湖，进入福田中心区后绕行 CBD：右转益田路直奔平安金融中心脚下，左转福华三路、左转金田路平交穿过深南大道，最后左转福中三路，沿深圳市民中心正立面冲线。基于真实 OpenStreetMap 数据，Three.js + TypeScript + Vite。
 
 *A browser 3D time-trial: drive a Xiaomi SU7 east along Shenzhen's Shennan Boulevard at dusk, from Nanshan Science Park to the Civic Center.*
 

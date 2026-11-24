@@ -1,5 +1,6 @@
 import { CONFIG } from '../../config';
 import type { Route } from '../../route/Route';
+import type { Vec2 } from '../../route/types';
 
 export type Interval = [number, number];
 
@@ -23,6 +24,8 @@ export const XWALK = { near: 1.5, far: 6.5, stop0: 8.1, stop1: 8.5 };
 export interface CrossStreet {
   s: number;
   name: string;
+  /** Half width of the cross street (m). */
+  hw: number;
 }
 
 export interface TurnLayout {
@@ -30,6 +33,7 @@ export interface TurnLayout {
   s1: number;
   name: string;
   left: boolean;
+  radius: number;
   /** Approach frame: origin pointAt(s0), unit tangent (tx, tz), right normal (-tz, tx). */
   ox: number;
   oz: number;
@@ -51,6 +55,8 @@ export interface TurnLayout {
   /** Route s where the approach scenery stops and where the exit scenery resumes. */
   sA: number;
   sB: number;
+  /** Name of the road being left (shown as "straight ahead"). */
+  fromName: string;
 }
 
 export interface RoadLayout {
@@ -67,7 +73,7 @@ export interface RoadLayout {
   edgeL: number;
   edgeR: number;
   cross: CrossStreet[];
-  turn: TurnLayout | null;
+  turns: TurnLayout[];
   /** Effective opposite carriageway centerline (always leaves room for a median). */
   opp(s: number): number;
   gaps: {
@@ -79,7 +85,15 @@ export interface RoadLayout {
     opp: Interval[];
     marks: Interval[];
   };
+  /** Landmark footprints (world x/z) with bounding boxes, for keeping props clear. */
+  footprints: { pts: Vec2[]; x0: number; x1: number; z0: number; z1: number }[];
 }
+
+/** Half width of wide boulevards crossed at grade (default CONFIG.city.crossHalfWidth). */
+const WIDE_CROSS: Record<string, number> = { 深南大道: 27 };
+
+/** Name of the road the route follows before its first turn. */
+export const FIRST_ROAD = '深南大道';
 
 const cache = new WeakMap<Route, RoadLayout>();
 
@@ -101,9 +115,12 @@ function computeLayout(route: Route): RoadLayout {
   const oppMax = route.dMin - 9;
   const opp = (s: number) => Math.min(route.oppositeOffsetAt(Math.min(route.length, Math.max(0, s))), oppMax);
 
-  let turn: TurnLayout | null = null;
-  const tr = route.data.turn;
-  if (tr && tr.s1 > tr.s0 && tr.s0 > 60 && tr.s1 < route.length - 5) {
+  const turns: TurnLayout[] = [];
+  let fromName = FIRST_ROAD;
+  for (const tr of route.turns) {
+    const prevName = fromName;
+    fromName = tr.name;
+    if (!(tr.s1 > tr.s0 && tr.s0 > 60 && tr.s1 < route.length - 5)) continue;
     const t = route.tangentAt(Math.max(0, tr.s0 - 3));
     const o = route.pointAt(tr.s0);
     const e = route.pointAt(tr.s1);
@@ -133,11 +150,12 @@ function computeLayout(route: Route): RoadLayout {
       sB = tr.s1 + Math.max(0, edgeR - exitD);
     }
     const a0 = Math.min(0, ns0);
-    turn = {
+    turns.push({
       s0: tr.s0,
       s1: tr.s1,
       name: tr.name,
       left,
+      radius: tr.radius ?? 30,
       ox: o.x,
       oz: o.z,
       tx: t.x,
@@ -154,7 +172,8 @@ function computeLayout(route: Route): RoadLayout {
       ns1,
       sA: tr.s0 + a0,
       sB,
-    };
+      fromName: prevName,
+    });
   }
 
   const finishS = route.data.finish?.s ?? route.length;
@@ -164,24 +183,26 @@ function computeLayout(route: Route): RoadLayout {
     .slice()
     .sort((a, b) => a.s - b.s);
   for (const x of raw) {
-    if (x.s < W + 60 || x.s > route.length - W - 40) continue;
-    if (turn && x.s > turn.sA - W - 70 && x.s < turn.sB + W + 40) continue;
-    if (Math.abs(x.s - finishS) < W + 20) continue;
+    const hw = WIDE_CROSS[x.name] ?? W;
+    if (x.s < hw + 60 || x.s > route.length - hw - 40) continue;
+    if (turns.some((t) => x.s > t.sA - hw - 70 && x.s < t.sB + hw + 40)) continue;
+    if (Math.abs(x.s - finishS) < hw + 20) continue;
     const prev = cross[cross.length - 1];
-    if (prev && x.s - prev.s < 2 * W + 60) continue;
-    cross.push({ s: x.s, name: x.name || '' });
+    if (prev && x.s - hw - (prev.s + prev.hw) < 60) continue;
+    cross.push({ s: x.s, name: x.name || '', hw });
   }
 
   const gaps: RoadLayout['gaps'] = { right: [], lawn: [], median: [], far: [], farLawn: [], opp: [], marks: [] };
   for (const c of cross) {
-    gaps.right.push([c.s - W, c.s + W]);
-    gaps.far.push([c.s - W, c.s + W]);
-    gaps.lawn.push([c.s - W - 6, c.s + W + 6]);
-    gaps.farLawn.push([c.s - W - 6, c.s + W + 6]);
-    gaps.median.push([c.s - W - 7, c.s + W + 7]);
-    gaps.marks.push([c.s - W - XWALK.stop1, c.s + W + XWALK.stop1]);
+    const w = c.hw;
+    gaps.right.push([c.s - w, c.s + w]);
+    gaps.far.push([c.s - w, c.s + w]);
+    gaps.lawn.push([c.s - w - 6, c.s + w + 6]);
+    gaps.farLawn.push([c.s - w - 6, c.s + w + 6]);
+    gaps.median.push([c.s - w - 7, c.s + w + 7]);
+    gaps.marks.push([c.s - w - XWALK.stop1, c.s + w + XWALK.stop1]);
   }
-  if (turn) {
+  for (const turn of turns) {
     gaps.right.push([turn.sA, turn.sB]);
     gaps.lawn.push([turn.sA - 6, turn.sB]);
     gaps.median.push([turn.sA - 7, turn.sB + 7]);
@@ -189,6 +210,15 @@ function computeLayout(route: Route): RoadLayout {
     gaps.farLawn.push([turn.sA - 15, turn.sB + 15]);
     gaps.opp.push([turn.sA, turn.sB]);
     gaps.marks.push([turn.sA - XWALK.stop1, turn.sB + XWALK.stop1]);
+  }
+
+  const footprints: RoadLayout['footprints'] = [];
+  for (const lm of route.data.landmarks ?? []) {
+    const pts = lm.footprint;
+    if (!pts || pts.length < 3) continue;
+    const xs = pts.map((p) => p[0]);
+    const zs = pts.map((p) => p[1]);
+    footprints.push({ pts, x0: Math.min(...xs), x1: Math.max(...xs), z0: Math.min(...zs), z1: Math.max(...zs) });
   }
 
   const s0 = -20;
@@ -205,15 +235,53 @@ function computeLayout(route: Route): RoadLayout {
     edgeL,
     edgeR,
     cross,
-    turn,
+    turns,
     opp,
     gaps,
+    footprints,
   };
 }
 
-/** True when s lies inside an intersection zone (including crosswalks) or the turn box. */
+/** True when s lies inside an intersection zone (including crosswalks) or a turn box. */
 export function inJunction(l: RoadLayout, s: number, margin = 0): boolean {
-  for (const c of l.cross) if (Math.abs(s - c.s) < l.W + 8 + margin) return true;
-  if (l.turn && s > l.turn.sA - 8 - margin && s < l.turn.sB + 8 + margin) return true;
+  for (const c of l.cross) if (Math.abs(s - c.s) < c.hw + 8 + margin) return true;
+  for (const t of l.turns) if (s > t.sA - 8 - margin && s < t.sB + 8 + margin) return true;
   return false;
+}
+
+function inPolygon(pts: readonly Vec2[], x: number, z: number): boolean {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, zi] = pts[i];
+    const [xj, zj] = pts[j];
+    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+function edgeDistance(pts: readonly Vec2[], x: number, z: number): number {
+  let best = Infinity;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [ax, az] = pts[j];
+    const [bx, bz] = pts[i];
+    const ex = bx - ax;
+    const ez = bz - az;
+    const t = Math.min(1, Math.max(0, ((x - ax) * ex + (z - az) * ez) / (ex * ex + ez * ez || 1)));
+    best = Math.min(best, Math.hypot(x - ax - ex * t, z - az - ez * t));
+  }
+  return best;
+}
+
+/** True when world point (x, z) lies inside a landmark footprint grown by `margin` meters. */
+export function inLandmark(l: RoadLayout, x: number, z: number, margin = 3): boolean {
+  for (const f of l.footprints) {
+    if (x < f.x0 - margin || x > f.x1 + margin || z < f.z0 - margin || z > f.z1 + margin) continue;
+    if (inPolygon(f.pts, x, z) || edgeDistance(f.pts, x, z) < margin) return true;
+  }
+  return false;
+}
+
+/** True when world point (x, z) lies inside one of the route's clear zones (landmark sight lines). */
+export function inClearZone(route: Route, x: number, z: number): boolean {
+  return (route.data.clearZones ?? []).some((zone) => zone.length >= 3 && inPolygon(zone, x, z));
 }

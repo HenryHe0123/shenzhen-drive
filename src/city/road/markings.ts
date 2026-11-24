@@ -70,15 +70,17 @@ const triangulate = (pts: number[][]) =>
     [],
   );
 
+/** Arrows are stretched along the road so they still read at a low chase-camera angle. */
+const stretch = (pts: number[][]) => pts.map(([x, y]) => [x * 1.15, y * 1.6]);
+const shapeOf = (pts: number[][]) => ({ pts, tris: triangulate(pts) });
+
 const ARROWS = {
-  straight: { pts: straightArrow, tris: triangulate(straightArrow) },
-  left: (() => {
-    const pts = leftArrowPts();
-    return { pts, tris: triangulate(pts) };
-  })(),
+  straight: shapeOf(stretch(straightArrow)),
+  left: shapeOf(stretch(leftArrowPts())),
+  right: shapeOf(stretch(leftArrowPts().map(([x, y]) => [-x, y]))),
 };
 
-export function arrow(p: Painter, m: Mapper, a: number, b: number, kind: 'straight' | 'left') {
+export function arrow(p: Painter, m: Mapper, a: number, b: number, kind: 'straight' | 'left' | 'right') {
   const A = ARROWS[kind];
   p.shape('mark', m, a, b, A.pts, A.tris, MARK_Y, markStyle(WHITE));
 }
@@ -97,7 +99,7 @@ export function checker(p: Painter, m: Mapper, a: number, b0: number, b1: number
 
 /** All markings on the route-following carriageways. */
 export function paintRouteMarkings(p: Painter, rm: Mapper, l: RoadLayout) {
-  const { route, lanes, laneW, W, turn } = l;
+  const { route, lanes, laneW, turns } = l;
   const dMin = route.dMin;
   const dMax = route.dMax;
   const len = route.length;
@@ -106,8 +108,8 @@ export function paintRouteMarkings(p: Painter, rm: Mapper, l: RoadLayout) {
   // Solid lane lines (no lane change) before stop lines; dashes elsewhere.
   const solidOurs: Interval[] = [];
   const solidOpp: Interval[] = [];
-  const stops: { s: number; zoneEnd: number }[] = l.cross.map((c) => ({ s: c.s - W, zoneEnd: c.s + W }));
-  if (turn) stops.push({ s: turn.sA, zoneEnd: turn.sB });
+  const stops: { s: number; zoneEnd: number }[] = l.cross.map((c) => ({ s: c.s - c.hw, zoneEnd: c.s + c.hw }));
+  for (const turn of turns) stops.push({ s: turn.sA, zoneEnd: turn.sB });
   for (const st of stops) {
     solidOurs.push([st.s - XWALK.stop1 - 30, st.s - XWALK.stop1]);
     solidOpp.push([st.zoneEnd + XWALK.stop1, st.zoneEnd + XWALK.stop1 + 30]);
@@ -136,8 +138,8 @@ export function paintRouteMarkings(p: Painter, rm: Mapper, l: RoadLayout) {
 
   // Intersections: crosswalks over both carriageways, stop lines, guide dashes through the box.
   for (const c of l.cross) {
-    const z0 = c.s - W;
-    const z1 = c.s + W;
+    const z0 = c.s - c.hw;
+    const z1 = c.s + c.hw;
     zebra(p, rm, z0 - XWALK.far, z0 - XWALK.near, oppC(c.s) - 7, dMax);
     zebra(p, rm, z1 + XWALK.near, z1 + XWALK.far, oppC(c.s) - 7, dMax);
     solid(p, rm, z0 - XWALK.stop1, z0 - XWALK.stop0, dMin + 0.1, dMax - 0.1, WHITE);
@@ -146,10 +148,14 @@ export function paintRouteMarkings(p: Painter, rm: Mapper, l: RoadLayout) {
       const d = k === 0 ? dMin + 0.2 : k === lanes ? dMax - 0.2 : dMin + k * laneW;
       dashes(p, rm, z0 - XWALK.near + 0.8, z1 + XWALK.near - 0.8, d, 0.15, 2, 2, WHITE);
     }
-    for (let k = 0; k < lanes; k++) arrow(p, rm, z0 - XWALK.stop1 - 24, dMin + (k + 0.5) * laneW, 'straight');
+    const turnAhead = turns.some((t) => t.sA > c.s && t.sA - c.s < 260);
+    if (!turnAhead) for (let k = 0; k < lanes; k++) arrow(p, rm, z0 - XWALK.stop1 - 24, dMin + (k + 0.5) * laneW, 'straight');
   }
 
-  if (turn) {
+  // Turns: crosswalks and stop lines on both sides, guide dashes through the arc, lane arrows on the approach
+  // (turn arrows in the two lanes on the turn side, straight arrows in the others).
+  const nTurn = Math.min(2, lanes);
+  for (const turn of turns) {
     const oA = turn.oppA;
     zebra(p, rm, turn.sA - XWALK.far, turn.sA - XWALK.near, oA - 7, dMax);
     solid(p, rm, turn.sA - XWALK.stop1, turn.sA - XWALK.stop0, dMin + 0.1, dMax - 0.1, WHITE);
@@ -159,17 +165,21 @@ export function paintRouteMarkings(p: Painter, rm: Mapper, l: RoadLayout) {
       const d = k === 0 ? dMin + 0.2 : k === lanes ? dMax - 0.2 : dMin + k * laneW;
       dashes(p, rm, turn.sA - XWALK.near + 0.8, turn.sB + XWALK.near - 0.8, d, 0.15, 2, 2, WHITE);
     }
-    for (const back of [30, 80, 130]) {
+    const prevEnd = Math.max(20, ...stops.filter((st) => st.zoneEnd < turn.sA).map((st) => st.zoneEnd + XWALK.stop1 + 6));
+    for (const back of [24, 70, 120, 175]) {
       const s = turn.sA - XWALK.stop1 - back;
-      if (s < 20) continue;
-      for (let k = 0; k < Math.min(2, lanes); k++) arrow(p, rm, s, dMin + (k + 0.5) * laneW, 'left');
+      if (s - 10 < prevEnd) continue;
+      for (let k = 0; k < lanes; k++) {
+        const turnLane = turn.left ? k < nTurn : k >= lanes - nTurn;
+        arrow(p, rm, s, dMin + (k + 0.5) * laneW, turnLane ? (turn.left ? 'left' : 'right') : 'straight');
+      }
     }
   }
 
   // Occasional straight arrows on open road.
   for (let s = 260; s < len - 200; s += 420) {
     if (stops.some((st) => s > st.s - 90 && s < st.zoneEnd + 40)) continue;
-    if (turn && s > turn.sA - 200) continue;
+    if (turns.some((t) => s > t.sA - 220 && s < t.sB + 40)) continue;
     for (let k = 1; k < lanes - 1; k++) arrow(p, rm, s, dMin + (k + 0.5) * laneW, 'straight');
   }
 

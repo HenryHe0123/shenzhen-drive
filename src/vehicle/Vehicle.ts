@@ -19,12 +19,19 @@ function moveTowards(v: number, target: number, maxDelta: number): number {
   return Math.abs(target - v) <= maxDelta ? target : v + Math.sign(target - v) * maxDelta;
 }
 
-/** Max front wheel angle (rad) at speed v: constant cornering grip, clamped to [steerMaxHigh, steerMaxLow]. */
+/** Cornering limit (m/s^2) at speed v: full grip at low speed, somewhat less toward top speed. */
+export function latAccelLimit(v: number): number {
+  const V = CONFIG.vehicle;
+  const u = Math.min(1, Math.abs(v) / (V.maxSpeedKmh * KMH));
+  return V.latAccelMax - V.latAccelHighSpeedLoss * u * u;
+}
+
+/** Max front wheel angle (rad) at speed v: the angle that reaches latAccelLimit, capped at steerMaxLow. */
 export function steerLimit(v: number): number {
   const V = CONFIG.vehicle;
   const v2 = v * v;
   if (v2 < 1e-6) return V.steerMaxLow;
-  return clamp(Math.atan((V.wheelbase * V.latAccelMax) / v2), V.steerMaxHigh, V.steerMaxLow);
+  return Math.min(V.steerMaxLow, Math.atan((V.wheelbase * latAccelLimit(v)) / v2));
 }
 
 /**
@@ -41,6 +48,8 @@ export class Vehicle {
   speed = 0;
   /** Normalized steering position, -1 (left) .. +1 (right). */
   steer = 0;
+  /** True while the last step braked (S while rolling forward, W while rolling backward). */
+  braking = false;
   s = 0;
   d = 0;
   /** Longitudinal / lateral (positive = toward the left) acceleration of the last step (m/s^2). */
@@ -74,6 +83,7 @@ export class Vehicle {
     this.yaw = yaw;
     this.speed = speed;
     this.steer = 0;
+    this.braking = false;
     this.stopHold = 0;
     this.longAccel = 0;
     this.latAccel = 0;
@@ -117,12 +127,15 @@ export class Vehicle {
     const v0 = this.speed;
     let v = v0;
     const drag = (u: number) => V.rollingDrag + V.airDrag * u * u;
+    this.braking = false;
 
     if (brake > 0 && v > 0.01) {
       v = Math.max(0, v - (V.brakeDecel * brake + drag(v)) * dt);
       this.stopHold = 0;
+      this.braking = true;
     } else if (throttle > 0 && v < -0.01) {
       v = Math.min(0, v + (V.brakeDecel * throttle + drag(v)) * dt);
+      this.braking = true;
     } else if (brake > 0) {
       if (v > -0.01 && this.stopHold < V.reverseDelay) {
         this.stopHold += dt;
@@ -132,8 +145,9 @@ export class Vehicle {
         v = Math.max(-vrev, v - V.reverseAccel * brake * taper * dt);
       }
     } else if (throttle > 0) {
-      const taper = Math.max(0, 1 - (Math.max(0, v) / vmax) ** V.accelExponent);
-      v = Math.min(vmax, v + V.accel * throttle * taper * dt);
+      const vf = Math.max(0, v);
+      const drive = throttle * Math.min(V.accel, V.power / Math.max(vf, 1));
+      v = Math.min(vmax, Math.max(0, vf + (drive - drag(vf)) * dt));
       this.stopHold = 0;
     } else {
       const dec = drag(v) * dt;
@@ -142,9 +156,11 @@ export class Vehicle {
     }
     this.speed = v;
 
+    const u = Math.min(1, Math.abs(v0) / vmax);
     const target = clamp(input.steer, -1, 1);
     const towardCenter = target * this.steer < 0 || Math.abs(target) < Math.abs(this.steer);
-    this.steer = moveTowards(this.steer, target, (towardCenter ? V.steerReturnRate : V.steerRate) * dt);
+    const rate = towardCenter ? V.steerReturnRate : V.steerRate + (V.steerRateHigh - V.steerRate) * u * u;
+    this.steer = moveTowards(this.steer, target, rate * dt);
 
     const vm = 0.5 * (v0 + v);
     const wheel = this.steer * steerLimit(vm);

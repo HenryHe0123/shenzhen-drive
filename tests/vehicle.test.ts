@@ -3,12 +3,13 @@ import { CONFIG, KMH } from '../src/config';
 import { Route } from '../src/route/Route';
 import { makeSyntheticRoute } from '../src/route/synthetic';
 import { carCorners } from '../src/vehicle/collision';
-import { Vehicle, type DriveInput } from '../src/vehicle/Vehicle';
+import { latAccelLimit, Vehicle, type DriveInput } from '../src/vehicle/Vehicle';
 
 const DT = 1 / (CONFIG.physics.hz * CONFIG.physics.substeps);
 const VMAX = CONFIG.vehicle.maxSpeedKmh * KMH;
 const VREV = CONFIG.vehicle.maxReverseKmh * KMH;
 const EAST = -Math.PI / 2;
+const G = 9.81;
 
 function run(v: Vehicle, input: DriveInput, seconds: number, each?: (v: Vehicle) => void): void {
   const n = Math.round(seconds / DT);
@@ -24,30 +25,63 @@ function freeCar(speed = 0): Vehicle {
   return v;
 }
 
+/** Seconds and meters of full braking from `speed` to a stop. */
+function brakeFrom(speed: number): { t: number; dist: number } {
+  const v = freeCar(speed);
+  let t = 0;
+  while (v.speed > 0 && t < 30) {
+    v.step({ throttle: 0, brake: 1, steer: 0 }, DT);
+    t += DT;
+  }
+  return { t, dist: v.x };
+}
+
 describe('vehicle kinematics', () => {
-  it('accelerates toward but never beyond max speed', () => {
+  it('reaches but never exceeds 350 km/h, with an SU7 Ultra-like launch', () => {
+    expect(CONFIG.vehicle.maxSpeedKmh).toBe(350);
     const v = freeCar();
+    const at: Record<number, number> = {};
     let peak = 0;
-    let t100 = 0;
     let t = 0;
     run(v, { throttle: 1, brake: 0, steer: 0 }, 40, (c) => {
       t += DT;
       peak = Math.max(peak, c.speed);
-      if (!t100 && c.speed >= 100 * KMH) t100 = t;
+      for (const kmh of [100, 200, 300, 345]) if (!at[kmh] && c.speed >= kmh * KMH) at[kmh] = t;
     });
     expect(peak).toBeLessThanOrEqual(VMAX + 1e-9);
-    expect(v.speed).toBeGreaterThan(0.97 * VMAX);
-    expect(t100).toBeGreaterThan(2.5);
-    expect(t100).toBeLessThan(5);
+    expect(v.speed).toBeGreaterThan(VMAX - 1e-6);
+    expect(at[100]).toBeGreaterThan(2.2);
+    expect(at[100]).toBeLessThan(2.5);
+    expect(at[200]).toBeGreaterThan(5.5);
+    expect(at[200]).toBeLessThan(6.5);
+    expect(at[300]).toBeGreaterThan(12);
+    expect(at[300]).toBeLessThan(14);
+    // slow approach to the limiter
+    expect(at[345] - at[300]).toBeGreaterThan(5);
     expect(v.x).toBeGreaterThan(0);
     expect(Math.abs(v.z)).toBeLessThan(1e-6);
   });
 
-  it('coasts down without input', () => {
-    const v = freeCar(30);
-    run(v, { throttle: 0, brake: 0, steer: 0 }, 3);
-    expect(v.speed).toBeLessThan(28);
-    expect(v.speed).toBeGreaterThan(20);
+  it('coasts down gently at city speed and noticeably at top speed', () => {
+    const city = freeCar(100 * KMH);
+    run(city, { throttle: 0, brake: 0, steer: 0 }, 3);
+    expect(100 * KMH - city.speed).toBeGreaterThan(1);
+    expect(100 * KMH - city.speed).toBeLessThan(3);
+
+    const top = freeCar(VMAX);
+    run(top, { throttle: 0, brake: 0, steer: 0 }, 3);
+    expect(VMAX - top.speed).toBeGreaterThan(5);
+    expect(VMAX - top.speed).toBeLessThan(12);
+  });
+
+  it('brakes hard: ~25 m from 100 km/h, under 7 s from 350 km/h', () => {
+    const city = brakeFrom(100 * KMH);
+    expect(city.dist).toBeGreaterThan(22);
+    expect(city.dist).toBeLessThan(28);
+    const top = brakeFrom(VMAX);
+    expect(top.t).toBeLessThan(7);
+    expect(top.dist).toBeGreaterThan(220);
+    expect(top.dist).toBeLessThan(320);
   });
 
   it('brakes to a stop, then reverses while S is still held', () => {
@@ -68,6 +102,14 @@ describe('vehicle kinematics', () => {
     expect(v.speed).toBeGreaterThan(0);
   });
 
+  it('flags braking for the brake lights', () => {
+    const v = freeCar(20);
+    v.step({ throttle: 0, brake: 1, steer: 0 }, DT);
+    expect(v.braking).toBe(true);
+    v.step({ throttle: 1, brake: 0, steer: 0 }, DT);
+    expect(v.braking).toBe(false);
+  });
+
   it('steers left and right in the x-east / z-south frame', () => {
     const left = freeCar(15);
     run(left, { throttle: 0.3, brake: 0, steer: -1 }, 1);
@@ -80,14 +122,61 @@ describe('vehicle kinematics', () => {
     expect(right.z).toBeGreaterThan(0.5);
   });
 
+  it('corners at ~1.05 g at city speed and ~0.87 g at top speed', () => {
+    const city = freeCar(72 * KMH);
+    run(city, { throttle: 0, brake: 0, steer: 1 }, 1);
+    expect(Math.abs(city.latAccel) / G).toBeGreaterThan(1.0);
+    expect(Math.abs(city.latAccel) / G).toBeLessThan(1.1);
+
+    const top = freeCar(VMAX);
+    run(top, { throttle: 1, brake: 0, steer: 1 }, 1);
+    expect(Math.abs(top.latAccel)).toBeLessThanOrEqual(latAccelLimit(VMAX) + 1e-6);
+    expect(Math.abs(top.latAccel) / G).toBeGreaterThan(0.8);
+    expect(Math.abs(top.latAccel) / G).toBeLessThan(0.92);
+  });
+
+  it('slews the steering more slowly at high speed', () => {
+    const slow = freeCar(10);
+    const fast = freeCar(VMAX);
+    run(slow, { throttle: 0, brake: 0, steer: 1 }, 0.2);
+    run(fast, { throttle: 1, brake: 0, steer: 1 }, 0.2);
+    expect(slow.steer).toBeGreaterThan(0.65);
+    expect(fast.steer).toBeLessThan(0.4);
+  });
+
   it('is stable at top speed: a full-lock tap moves less than a few meters sideways', () => {
     const v = freeCar(VMAX);
     run(v, { throttle: 1, brake: 0, steer: 1 }, 0.3);
     run(v, { throttle: 1, brake: 0, steer: 0 }, 0.3);
     const heading = Math.abs(v.yaw - EAST);
-    expect(heading).toBeLessThan(0.12);
-    expect(v.z).toBeGreaterThan(0.2);
-    expect(v.z).toBeLessThan(4);
+    expect(heading).toBeLessThan(0.03);
+    expect(v.z).toBeGreaterThan(0.1);
+    expect(v.z).toBeLessThan(2);
+  });
+
+  it('changes lanes smoothly at 300 km/h', () => {
+    const v = freeCar(300 * KMH);
+    let maxYawRate = 0;
+    let lastYaw = v.yaw;
+    const track = (c: Vehicle) => {
+      maxYawRate = Math.max(maxYawRate, Math.abs(c.yaw - lastYaw) / DT);
+      lastYaw = c.yaw;
+    };
+    run(v, { throttle: 1, brake: 0, steer: 1 }, 0.5, track);
+    // counter-steer until the car points straight again
+    let t = 0.5;
+    while (v.yaw < EAST - 0.002 && t < 3) {
+      v.step({ throttle: 1, brake: 0, steer: -1 }, DT);
+      track(v);
+      t += DT;
+    }
+    run(v, { throttle: 1, brake: 0, steer: 0 }, 0.3, track);
+    // about one lane over in under 2 s, heading straight, no snap
+    expect(t).toBeLessThan(1.6);
+    expect(v.z).toBeGreaterThan(1.5);
+    expect(v.z).toBeLessThan(5);
+    expect(Math.abs(v.yaw - EAST)).toBeLessThan(0.01);
+    expect(maxYawRate).toBeLessThan(0.12);
   });
 });
 
@@ -104,25 +193,53 @@ describe('road boundary collision', () => {
   }
 
   for (const steer of [1, -1]) {
-    it(`keeps all corners inside at 180 km/h steering ${steer > 0 ? 'right' : 'left'} into the wall for 5 s`, () => {
+    it(`keeps all corners inside at 350 km/h steering ${steer > 0 ? 'right' : 'left'} into the wall for 5 s, and slides`, () => {
       const v = new Vehicle(route);
       v.place(100, 1.75);
       v.speed = VMAX;
       const s0 = v.s;
       let allInside = true;
       let contacts = 0;
+      let afterHit = 0;
       run(v, { throttle: 1, brake: 0, steer }, 5, (c) => {
         if (!cornersInside(c)) allInside = false;
-        if (c.inContact) contacts++;
+        if (c.inContact) {
+          if (!contacts) afterHit = c.speed;
+          contacts++;
+        }
       });
       expect(allInside).toBe(true);
       expect(contacts).toBeGreaterThan(100);
       expect(v.impact).toBeGreaterThan(CONFIG.collision.thudMinSpeed);
-      expect(v.s - s0).toBeGreaterThan(100);
-      expect(v.speed).toBeGreaterThan(10);
+      // punishing but recoverable: a clear speed loss on impact, still rolling along the wall
+      expect(afterHit).toBeLessThan(0.85 * VMAX);
+      expect(afterHit).toBeGreaterThan(0.5 * VMAX);
+      expect(v.s - s0).toBeGreaterThan(200);
+      expect(v.speed).toBeGreaterThan(30);
       expect(Math.abs(v.d)).toBeGreaterThan(5);
     });
   }
+
+  it('does not tunnel when running straight into the 30 m turn at 350 km/h', () => {
+    const turn = route.turns[0];
+    const v = new Vehicle(route);
+    v.place(turn.s0 - 150, 1.75);
+    v.speed = VMAX;
+    let allInside = true;
+    let finite = true;
+    let minSpeed = Infinity;
+    run(v, { throttle: 0, brake: 0, steer: 0 }, 4, (c) => {
+      if (!cornersInside(c, 0.05)) allInside = false;
+      if (!Number.isFinite(c.x + c.z + c.yaw + c.speed)) finite = false;
+      minSpeed = Math.min(minSpeed, Math.abs(c.speed));
+    });
+    expect(finite).toBe(true);
+    expect(allInside).toBe(true);
+    expect(minSpeed).toBeLessThan(0.5 * VMAX);
+    expect(v.s).toBeGreaterThan(turn.s0 - 10);
+    expect(v.d).toBeGreaterThan(route.dMin - 0.1);
+    expect(v.d).toBeLessThan(route.dMax + 0.1);
+  });
 
   it('stops on a head-on hit and can reverse away from the wall', () => {
     const v = new Vehicle(route);
@@ -150,10 +267,10 @@ describe('road boundary collision', () => {
     expect(v.s).toBeGreaterThan(CONFIG.collision.startMargin + CONFIG.vehicle.length / 2 - 0.1);
   });
 
-  it('can take the 30 m radius left turn at 60 km/h', () => {
-    const data = route.data;
+  it('can take the 30 m radius turn at 60 km/h', () => {
+    const turn = route.turns[0];
     const v = new Vehicle(route);
-    v.place(data.turn.s0 - 120, 1.75);
+    v.place(turn.s0 - 120, 1.75);
     v.speed = 60 * KMH;
     let allInside = true;
     let contacts = 0;
@@ -175,7 +292,7 @@ describe('road boundary collision', () => {
     }
     expect(allInside).toBe(true);
     expect(contacts).toBe(0);
-    expect(v.s).toBeGreaterThan(data.turn.s1 + 20);
+    expect(v.s).toBeGreaterThan(turn.s1 + 20);
     expect(v.speed).toBeGreaterThan(50 * KMH);
   });
 });

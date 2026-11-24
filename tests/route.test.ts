@@ -66,6 +66,56 @@ describe('synthetic route fixture', () => {
     expect(data.finish.s).toBeGreaterThan(turn.s1);
     expect(data.finish.s).toBeLessThan(L);
   });
+
+  it('has three ordered turns (right, left, left) and the legacy turn is the last one', () => {
+    expect(route.turns.map((t) => t.direction)).toEqual(['right', 'left', 'left']);
+    route.turns.forEach((t, i) => {
+      expect(t.s1).toBeGreaterThan(t.s0);
+      expect(t.name.length).toBeGreaterThan(0);
+      expect(t.radius).toBeGreaterThan(20);
+      if (i > 0) expect(t.s0).toBeGreaterThan(route.turns[i - 1].s1 + 300);
+    });
+    expect(route.turns.at(-1)).toMatchObject(turn);
+  });
+
+  it('turns ±90° at each turn in the declared direction', () => {
+    for (const t of route.turns) {
+      const delta = wrap(route.headingAt(t.s1 + 5) - route.headingAt(t.s0 - 5));
+      expect(delta, t.name).toBeCloseTo(t.direction === 'left' ? Math.PI / 2 : -Math.PI / 2, 6);
+    }
+  });
+
+  it('right turn: the inside of the arc is on the positive side', () => {
+    const t = route.turns[0];
+    const mid = (t.s0 + t.s1) / 2;
+    const p = route.pointAt(mid, 10);
+    expect(route.project(p.x, p.z, mid).d).toBeCloseTo(10, 1);
+    // Overshooting straight on past a right turn ends up on the outside (d < 0).
+    const t0 = route.pointAt(t.s0);
+    const tan = route.tangentAt(t.s0 - 5);
+    const q = route.project(t0.x + tan.x * 20, t0.z + tan.z * 20, t.s0);
+    expect(q.d).toBeLessThan(0);
+  });
+});
+
+describe('Route.nextTurn', () => {
+  const [t1, t2, t3] = route.turns;
+
+  it('returns the first turn not yet completed, then null after the last', () => {
+    expect(route.nextTurn(0)).toBe(t1);
+    expect(route.nextTurn(t1.s0 - 1)).toBe(t1);
+    expect(route.nextTurn((t1.s0 + t1.s1) / 2)).toBe(t1);
+    expect(route.nextTurn(t1.s1 + 0.01)).toBe(t2);
+    expect(route.nextTurn(t2.s1 + 1)).toBe(t3);
+    expect(route.nextTurn(t3.s1)).toBeNull();
+    expect(route.nextTurn(L + 10)).toBeNull();
+  });
+
+  it('falls back to the legacy single turn when turns[] is missing', () => {
+    const legacy = new Route({ ...data, turns: undefined });
+    expect(legacy.turns).toEqual([data.turn]);
+    expect(legacy.nextTurn(0)).toEqual(data.turn);
+  });
 });
 
 describe('pointAt → project round trip', () => {

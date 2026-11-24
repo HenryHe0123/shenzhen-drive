@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import { CONFIG } from '../../config';
 import type { FrameInfo, SceneryModule, WorldContext } from '../../game/contracts';
 import { ChunkSet, FrameMapper, intersect, type Mapper, Painter, RouteMapper, type RGB, type Style, subtract } from './builder';
-import { getRoadLayout, HEIGHT, type Interval, type RoadLayout, SIDE, XWALK } from './layout';
+import { groundMaterial } from './ground';
+import { getRoadLayout, HEIGHT, type Interval, type RoadLayout, SIDE, type TurnLayout, XWALK } from './layout';
 import { dashes, paintRouteMarkings, solid, WHITE, YELLOW, zebra } from './markings';
-import { asphaltTextures, grassTexture, groundTexture, mulberry32, pavingTexture, wearTexture } from './textures';
+import { asphaltTextures, grassTexture, mulberry32, pavingTexture, wearTexture } from './textures';
 
 const C_CURB: RGB = [1.4, 1.4, 1.34];
 const C_WALK: RGB = [1, 1, 1];
@@ -173,46 +174,64 @@ function sideStreet(
   }
 }
 
+/** Side street options for a cross street of half width hw (wide boulevards get a median and more lanes). */
+function crossOpts(hw: number): Parameters<typeof sideStreet>[5] {
+  if (hw < 20) return {};
+  const lanes: number[] = [];
+  for (let b = 3 + 4; b < hw - 1; b += 4) lanes.push(-b, b);
+  return { median: [-3, 3], lanes, stop: [-hw + 0.4, -3.3] };
+}
+
 function buildIntersections(p: Painter, l: RoadLayout) {
-  const { route, W, edgeR } = l;
+  const { route, edgeR } = l;
   for (const c of l.cross) {
     const o = route.pointAt(c.s);
     const n = route.normalAt(c.s);
     const right = new FrameMapper(o.x, o.z, n.x, n.z, c.s);
-    sideStreet(p, right, edgeR, 70, W);
+    sideStreet(p, right, edgeR, 70, c.hw, crossOpts(c.hw));
     const left = new FrameMapper(o.x, o.z, -n.x, -n.z, c.s);
-    sideStreet(p, left, 7.3 - l.opp(c.s), 70, W);
+    sideStreet(p, left, 7.3 - l.opp(c.s), 70, c.hw, crossOpts(c.hw));
   }
 }
 
-function buildTurn(p: Painter, l: RoadLayout) {
-  const t = l.turn;
-  if (!t) return;
+/**
+ * Four-arm junction at a turn: intersection pad, the entered road's stub behind the
+ * turn (outer side), the road being left continuing straight on, corner sidewalks.
+ */
+function buildTurn(p: Painter, rm: Mapper, l: RoadLayout, t: TurnLayout) {
   const { route, edgeR } = l;
   const nx = -t.tz;
   const nz = t.tx;
   const A = new FrameMapper(t.ox, t.oz, t.tx, t.tz, t.s0);
   p.ribbon('pad', A, t.a0, t.a1, t.d0, t.d1, 0, S_FRAME_ASPHALT);
 
-  // Cross road continuing beyond the junction, on the outer side of the turn.
+  // Entered road continuing beyond the junction, on the outer side of the turn.
   const mid = (t.ns0 + t.ns1) / 2;
   const hw = (t.ns1 - t.ns0) / 2;
   const legSign = t.left ? 1 : -1;
   const legStart = t.left ? edgeR : -t.d0;
   const leg = new FrameMapper(t.ox + t.tx * mid, t.oz + t.tz * mid, nx * legSign, nz * legSign, t.s0);
-  // In the leg frame b = -(along - mid) for a left turn.
+  // In the leg frame b = -(along - mid) for a left turn, along - mid for a right turn.
   const toB = (along: number) => (t.left ? -(along - mid) : along - mid);
-  const exitLanes = [-3.5, 0, 3.5].flatMap((o) => [toB(t.exitAlong + o), toB(t.exitAlong + t.oppE + o)]);
-  const medA = [t.exitAlong + t.oppE + 7.3, t.exitAlong - 7.3];
-  const medB = [toB(medA[0]), toB(medA[1])].sort((x, y) => x - y) as [number, number];
-  const stopB = [toB(t.exitAlong - 7), toB(t.exitAlong + 7)].sort((x, y) => x - y) as [number, number];
+  // Exit-road lateral d maps to approach-frame "along" (the exit road's right side faces +t after a left turn).
+  const alongE = (d: number) => t.exitAlong + (t.left ? d : -d);
+  const exitLanes = [-3.5, 0, 3.5].flatMap((o) => [toB(alongE(o)), toB(alongE(t.oppE + o))]);
+  const medB = [toB(alongE(t.oppE + 7.3)), toB(alongE(-7.3))].sort((x, y) => x - y) as [number, number];
+  const stopB = [toB(alongE(-7)), toB(alongE(7))].sort((x, y) => x - y) as [number, number];
   sideStreet(p, leg, legStart, 70, hw, { median: medB[1] - medB[0] > 0.8 ? medB : undefined, lanes: exitLanes, stop: stopB });
 
+  // Corner sidewalks: near-right corner of a left turn, the inside of a right-turn arc, and the far-side near corner.
   if (t.left && t.ns0 > 0.5) {
     p.box('paving', 'paving', A, 0, t.ns0, edgeR, edgeR + SIDE.walk[1], HEIGHT.walk, S_WALK, S_CURB);
   }
+  if (!t.left) {
+    const w = Math.min(SIDE.walk[1], t.radius - edgeR - 1);
+    if (w > 1) p.box('paving', 'paving', rm, t.s0, t.s1, edgeR, edgeR + w, HEIGHT.walk, S_WALK, S_CURB);
+  }
+  const far = t.oppA - 7.3;
+  p.box('paving', 'paving', A, t.a0 - 15, t.ns0, far - SIDE.walk[1], far, HEIGHT.walk, S_WALK, S_CURB);
 
-  // Boulevard continuing straight ahead past the junction.
+  // Road being left, continuing straight ahead past the junction.
   const len = 160;
   const e0 = t.a1;
   const e1 = t.a1 + len;
@@ -264,8 +283,7 @@ export async function createRoad(ctx: WorldContext): Promise<SceneryModule> {
   const wear = wearTexture(aniso);
   const paving = pavingTexture(aniso);
   const grass = grassTexture(aniso);
-  const groundTex = groundTexture(aniso);
-  groundTex.repeat.set(300, 300);
+  const ground = groundMaterial(aniso);
 
   const asphaltMat = new THREE.MeshStandardMaterial({
     map: asphalt.map,
@@ -300,7 +318,7 @@ export async function createRoad(ctx: WorldContext): Promise<SceneryModule> {
   crossSection(p, rm, l, l.s0, l.s1, l.opp, l.gaps);
   paintRouteMarkings(p, rm, l);
   buildIntersections(p, l);
-  buildTurn(p, l);
+  for (const t of l.turns) buildTurn(p, rm, l, t);
   buildEnds(p, l);
 
   const root = new THREE.Group();
@@ -334,19 +352,12 @@ export async function createRoad(ctx: WorldContext): Promise<SceneryModule> {
     minZ = Math.min(minZ, route.pz[i]);
     maxZ = Math.max(maxZ, route.pz[i]);
   }
-  const groundMat = new THREE.MeshStandardMaterial({
-    map: groundTex,
-    roughness: 1,
-    metalness: 0,
-    polygonOffset: true,
-    polygonOffsetFactor: 2,
-    polygonOffsetUnits: 4,
-  });
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(24000, 24000).rotateX(-Math.PI / 2), groundMat);
-  ground.position.set((minX + maxX) / 2, -0.02, (minZ + maxZ) / 2);
-  ground.receiveShadow = true;
-  ground.name = 'city-ground';
-  root.add(ground);
+  const groundMat = ground.material;
+  const groundMesh = new THREE.Mesh(new THREE.PlaneGeometry(24000, 24000).rotateX(-Math.PI / 2), groundMat);
+  groundMesh.position.set((minX + maxX) / 2, -0.02, (minZ + maxZ) / 2);
+  groundMesh.receiveShadow = true;
+  groundMesh.name = 'city-ground';
+  root.add(groundMesh);
   scene.add(root);
   if (ctx.debug) ((window as unknown as { __SCENERY__?: Record<string, THREE.Object3D> }).__SCENERY__ ??= {}).road = root;
 
@@ -365,7 +376,7 @@ export async function createRoad(ctx: WorldContext): Promise<SceneryModule> {
         if (o instanceof THREE.Mesh) o.geometry.dispose();
       });
       for (const m of [...Object.values(mats), groundMat]) m.dispose();
-      for (const t of [asphalt.map, asphalt.rough, wear, paving, grass, groundTex]) t.dispose();
+      for (const t of [asphalt.map, asphalt.rough, wear, paving, grass, ...ground.textures]) t.dispose();
     },
   };
 }

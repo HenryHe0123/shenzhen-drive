@@ -38,6 +38,14 @@ export const HUD_CSS = /* css */ `
   font: 600 12px/18px -apple-system, 'Segoe UI', sans-serif; color: #fff;
   background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.22); border-bottom-width: 2px;
 }
+#ui .tod { margin: 22px auto 0; width: fit-content; display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(255, 255, 255, 0.07); border: 1px solid var(--line); }
+#ui .tod-label { padding: 0 10px 0 12px; font-size: 13px; color: rgba(238, 243, 248, 0.55); letter-spacing: 0.1em; }
+#ui .tod-btn {
+  padding: 7px 18px; border: 0; border-radius: 999px; cursor: pointer; background: transparent; color: rgba(238, 243, 248, 0.75);
+  font: 600 14px -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; letter-spacing: 0.12em; transition: background 0.15s, color 0.15s;
+}
+#ui .tod-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+#ui .tod-btn.active { color: #04141a; background: linear-gradient(180deg, #5fe0f0, var(--accent-2)); }
 #ui .best { margin-top: 20px; font-size: 14px; color: rgba(238, 243, 248, 0.7); min-height: 20px; }
 #ui .best b { color: #fff; font-weight: 700; }
 #ui .btn {
@@ -83,8 +91,14 @@ export const HUD_CSS = /* css */ `
   display: flex; align-items: center; gap: 12px; padding: 9px 18px 9px 12px; font-size: 18px; font-weight: 700;
   border-color: rgba(255, 181, 71, 0.55); background: rgba(40, 26, 6, 0.62); animation: szd-fade 0.3s ease-out;
 }
-#hud .turn svg { width: 34px; height: 34px; flex: none; }
+#hud .turn svg { width: 34px; height: 34px; flex: none; color: var(--warn); }
+#hud .turn-dist { font-size: 24px; font-weight: 800; min-width: 74px; }
+#hud .turn-road { font-size: 18px; font-weight: 700; white-space: nowrap; }
 #hud .turn.near { animation: szd-pulse 0.9s ease-in-out infinite; }
+#hud .slow {
+  padding: 8px 20px; font-size: 22px; font-weight: 800; letter-spacing: 0.06em; color: #fff;
+  background: rgba(150, 18, 18, 0.78); border-color: rgba(255, 90, 80, 0.8); animation: szd-alarm 0.7s ease-in-out infinite;
+}
 
 #hud .bottom-right { position: absolute; right: 22px; bottom: 22px; padding: 10px 20px 12px; text-align: right; min-width: 150px; }
 #hud #hud-speed { font-size: 64px; font-weight: 800; line-height: 1; letter-spacing: -0.01em; }
@@ -118,6 +132,7 @@ export const HUD_CSS = /* css */ `
 @keyframes szd-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes szd-toast { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes szd-pop { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes szd-alarm { 0%, 100% { box-shadow: 0 0 0 rgba(255, 70, 60, 0); } 50% { box-shadow: 0 0 26px rgba(255, 70, 60, 0.75); } }
 @keyframes szd-pulse { 0%, 100% { box-shadow: 0 0 0 rgba(255, 181, 71, 0); } 50% { box-shadow: 0 0 22px rgba(255, 181, 71, 0.55); } }
 @keyframes szd-count { 0% { transform: scale(1.5); opacity: 0; } 12% { transform: scale(1); opacity: 1; } 85% { opacity: 1; } 100% { transform: scale(0.9); opacity: 0; } }
 `;

@@ -1,14 +1,14 @@
 import { CONFIG } from '../config';
+import { getTimeOfDay, onTimeOfDayChange, setTimeOfDay, TIME_LABELS, TIME_PRESETS } from '../render/timeOfDay';
 import { formatTime } from './format';
 import { HUD_CSS } from './styles';
+import type { TurnHint } from './turnHint';
 
 export interface HudOptions {
   startName: string;
   finishName: string;
   /** Checkpoint positions as fractions of the distance to the finish. */
   checkpointFractions: number[];
-  turnName: string;
-  turnDirection: 'left' | 'right';
   onStart: () => void;
   onRetry: () => void;
 }
@@ -21,8 +21,8 @@ export interface HudFrame {
   progress: number;
   sectionName: string;
   passed: number;
-  /** Meters to the turn entry (0 inside the turn); null hides the hint. */
-  turnDistance: number | null;
+  /** Next-turn hint (see turnHint()); null hides it. */
+  turn: TurnHint | null;
   hint: string | null;
 }
 
@@ -59,7 +59,10 @@ export class Hud {
   private readonly barFill: HTMLElement;
   private readonly ticks: HTMLElement[] = [];
   private readonly turn: HTMLElement;
+  private readonly turnArrow: SVGElement;
+  private readonly turnDist: HTMLElement;
   private readonly turnText: HTMLElement;
+  private readonly slowEl: HTMLElement;
   private readonly toastEl: HTMLElement;
   private readonly hintEl: HTMLElement;
   private readonly muteEl: HTMLElement;
@@ -97,6 +100,35 @@ export class Hud {
       </div>
       <div class="best num"></div>`;
     this.menuBest = card.querySelector('.best')!;
+    // time-of-day selector; applies live behind the menu
+    const tod = el('div', 'tod');
+    tod.id = 'time-select';
+    tod.setAttribute('role', 'radiogroup');
+    tod.setAttribute('aria-label', '时间');
+    const todBtns = TIME_PRESETS.map((t) => {
+      const b = el('button', 'tod-btn', TIME_LABELS[t]);
+      b.type = 'button';
+      b.dataset.time = t;
+      b.setAttribute('role', 'radio');
+      b.addEventListener('click', () => {
+        setTimeOfDay(t);
+        b.blur();
+      });
+      return b;
+    });
+    const syncTod = () => {
+      const cur = getTimeOfDay();
+      for (const b of todBtns) {
+        const on = b.dataset.time === cur;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-checked', String(on));
+      }
+    };
+    syncTod();
+    onTimeOfDayChange(syncTod);
+    tod.append(el('span', 'tod-label', '时间'), ...todBtns);
+    card.append(tod);
+
     this.startBtn = el('button', 'btn');
     this.startBtn.id = 'start-btn';
     this.startBtn.type = 'button';
@@ -141,10 +173,14 @@ export class Hud {
     this.timerBest = el('div', 'timer-best num');
     timer.append(this.timeEl, this.timerBest);
     this.turn = el('div', 'turn panel hidden', ARROW);
-    if (opts.turnDirection === 'right') this.turn.querySelector('svg')!.style.transform = 'scaleX(-1)';
-    this.turnText = el('span', 'num');
-    this.turn.append(this.turnText);
-    tc.append(timer, this.turn);
+    this.turn.id = 'hud-turn';
+    this.turnArrow = this.turn.querySelector('svg')!;
+    this.turnDist = el('span', 'turn-dist num');
+    this.turnText = el('span', 'turn-road');
+    this.turn.append(this.turnDist, this.turnText);
+    this.slowEl = el('div', 'slow panel hidden');
+    this.slowEl.id = 'hud-slow';
+    tc.append(timer, this.turn, this.slowEl);
 
     const br = el('div', 'bottom-right panel');
     this.speed = el('div', 'num');
@@ -261,16 +297,20 @@ export class Hud {
       this.cache.set('passed', String(f.passed));
       this.ticks.forEach((t, i) => t.classList.toggle('done', i < f.passed));
     }
-    const dir = this.opts.turnDirection === 'left' ? '左转' : '右转';
-    const turnText =
-      f.turnDistance === null
-        ? ''
-        : f.turnDistance > 0
-          ? `前方 ${Math.max(10, Math.round(f.turnDistance / 10) * 10)} m ${dir} · ${this.opts.turnName}`
-          : `${dir} · ${this.opts.turnName}`;
-    this.set(this.turnText, 'turn', turnText);
-    this.turn.classList.toggle('hidden', !turnText);
-    this.turn.classList.toggle('near', f.turnDistance !== null && f.turnDistance < 200);
+    const t = f.turn;
+    const dir = t?.direction === 'right' ? '右转' : '左转';
+    const dist = !t ? '' : t.distance > 0 ? `${Math.max(10, Math.round(t.distance / 10) * 10)} m` : '';
+    this.set(this.turnDist, 'turnDist', dist);
+    this.turnDist.classList.toggle('hidden', !dist);
+    this.set(this.turnText, 'turn', t ? `${dir} · ${t.name}` : '');
+    this.turn.classList.toggle('hidden', !t);
+    this.turn.classList.toggle('near', !!t && t.distance < 250);
+    if (t && this.cache.get('turnDir') !== t.direction) {
+      this.cache.set('turnDir', t.direction);
+      this.turnArrow.style.transform = t.direction === 'right' ? 'scaleX(-1)' : '';
+    }
+    this.set(this.slowEl, 'slow', t?.slowDown ? `减速 ≤ ${t.safeKmh} km/h` : '');
+    this.slowEl.classList.toggle('hidden', !t?.slowDown);
     this.set(this.hintEl, 'hint', f.hint ?? '');
     this.hintEl.classList.toggle('hidden', !f.hint);
   }
@@ -284,6 +324,7 @@ export class Hud {
     this.result.classList.remove('hidden');
     this.hintEl.classList.add('hidden');
     this.turn.classList.add('hidden');
+    this.slowEl.classList.add('hidden');
   }
 
   setMuted(muted: boolean): void {

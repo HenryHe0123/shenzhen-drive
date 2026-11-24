@@ -4,6 +4,7 @@ import { ChaseCamera } from '../camera/ChaseCamera';
 import { CONFIG, KMH } from '../config';
 import { DebugOverlay } from '../debug/DebugOverlay';
 import type { Hud } from '../hud/Hud';
+import { turnHint } from '../hud/turnHint';
 import type { Input } from '../input/Input';
 import { loadBestTime, submitBestTime } from '../race/bestTime';
 import { Race, type Phase, type RaceEvent } from '../race/Race';
@@ -41,6 +42,9 @@ export interface GameState {
   checkpointCount: number;
   fps: number;
 }
+
+/** Debug key 0 places the car this far before the next turn (m). */
+const TURN_TELEPORT_OFFSET = 250;
 
 function wrapAngle(a: number): number {
   return a - 2 * Math.PI * Math.floor((a + Math.PI) / (2 * Math.PI));
@@ -184,9 +188,13 @@ export class Game {
     const m = /^Digit(\d)$/.exec(code);
     if (m) {
       const i = Number(m[1]);
-      const data = this.deps.route.data;
-      if (i === 0) this.teleport(data.turn.s0 - CONFIG.debug.turnTeleportOffset);
-      else if (i <= data.checkpoints.length) this.teleport(data.checkpoints[i - 1].s);
+      const { route } = this.deps;
+      if (i === 0) {
+        // Next turn ahead of the car; repeated presses cycle through all turns.
+        const turns = route.turns;
+        const next = turns.find((t) => t.s0 - TURN_TELEPORT_OFFSET > this.vehicle.s + 20) ?? turns[0];
+        if (next) this.teleport(next.s0 - TURN_TELEPORT_OFFSET);
+      } else if (i <= route.data.checkpoints.length) this.teleport(route.data.checkpoints[i - 1].s);
       return true;
     }
     return false;
@@ -290,7 +298,7 @@ export class Game {
     const x = p.x + (v.x - p.x) * a;
     const z = p.z + (v.z - p.z) * a;
     const yaw = p.yaw + wrapAngle(v.yaw - p.yaw) * a;
-    car.update(x, z, yaw, v.longAccel, v.latAccel, dt);
+    car.update(x, z, yaw, v.longAccel, v.latAccel, dt, v);
     this.focus.set(x, 0, z);
 
     const phase = this.race.phase;
@@ -310,7 +318,6 @@ export class Game {
 
     if (phase === 'countdown' || phase === 'racing' || phase === 'finished') {
       const data = route.data;
-      const toTurn = data.turn.s0 - v.s;
       const vmax = CONFIG.vehicle.maxSpeedKmh * KMH;
       hud.update({
         speedKmh: Math.abs(v.speed) * 3.6,
@@ -319,8 +326,7 @@ export class Game {
         progress: v.s / data.finish.s,
         sectionName: route.sectionAt(v.s).name,
         passed: this.race.passed,
-        turnDistance:
-          phase === 'racing' && v.s < data.turn.s1 && toTurn <= CONFIG.race.turnHintDistance ? Math.max(0, toTurn) : null,
+        turn: phase === 'racing' ? turnHint(route.nextTurn(v.s), v.s, v.speed) : null,
         hint: this.hint(),
       });
     }

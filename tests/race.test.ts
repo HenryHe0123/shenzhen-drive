@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { CONFIG } from '../src/config';
+import { CONFIG, KMH } from '../src/config';
+import { safeTurnSpeed, TURN_HINT_DISTANCE, turnHint } from '../src/hud/turnHint';
 import { Race, type RaceEvent } from '../src/race/Race';
+import { Route } from '../src/route/Route';
 import { makeSyntheticRoute } from '../src/route/synthetic';
 
 const DT = 1 / CONFIG.physics.hz;
@@ -117,6 +119,16 @@ describe('race state machine', () => {
     expect(race.finishTime).toBeCloseTo(t0 + DT * 0.25, 6);
   });
 
+  it('runs through all turns: checkpoints after each turn count in order', () => {
+    const route = new Route(data);
+    const race = startedRace();
+    const events = drive(race, course.startS, data.finish.s + 5, 60);
+    const cps = events.filter((e) => e.type === 'checkpoint') as Extract<RaceEvent, { type: 'checkpoint' }>[];
+    expect(cps).toHaveLength(data.checkpoints.length);
+    for (const t of route.turns) expect(cps.some((e) => data.checkpoints[e.index].s > t.s1)).toBe(true);
+    expect(race.phase).toBe('finished');
+  });
+
   it('teleport marks earlier checkpoints passed and flags the run as assisted', () => {
     const race = startedRace();
     race.teleportTo(data.checkpoints[2].s);
@@ -126,5 +138,41 @@ describe('race state machine', () => {
     expect(race.assisted).toBe(false);
     expect(race.passed).toBe(0);
     expect(race.time).toBe(0);
+  });
+});
+
+describe('next-turn hint', () => {
+  const route = new Route(data);
+  const [t1, t2] = route.turns;
+
+  it('appears within the hint distance of the next turn and follows route.nextTurn', () => {
+    expect(turnHint(route.nextTurn(t1.s0 - TURN_HINT_DISTANCE - 5), t1.s0 - TURN_HINT_DISTANCE - 5, 30)).toBeNull();
+    const h = turnHint(route.nextTurn(t1.s0 - 400), t1.s0 - 400, 30)!;
+    expect(h).toMatchObject({ name: t1.name, direction: 'right', distance: 400 });
+    const inside = turnHint(route.nextTurn(t1.s0 + 5), t1.s0 + 5, 15)!;
+    expect(inside.distance).toBe(0);
+    expect(inside.name).toBe(t1.name);
+    const after = turnHint(route.nextTurn(t1.s1 + 1), t1.s1 + 1, 30)!;
+    expect(after.name).toBe(t2.name);
+    expect(after.direction).toBe('left');
+    expect(turnHint(route.nextTurn(route.turns.at(-1)!.s1 + 1), route.turns.at(-1)!.s1 + 1, 30)).toBeNull();
+  });
+
+  it('uses v_safe = sqrt(10 R) (radius fallback 30) and shows it rounded down to 5 km/h', () => {
+    expect(safeTurnSpeed({ ...t1, radius: 40 })).toBeCloseTo(20, 9);
+    expect(safeTurnSpeed({ ...t1, radius: undefined })).toBeCloseTo(Math.sqrt(300), 9);
+    expect(turnHint({ ...t1, radius: 40 }, t1.s0 - 500, 10)!.safeKmh).toBe(70);
+    expect(turnHint({ ...t1, radius: 30 }, t1.s0 - 500, 10)!.safeKmh).toBe(60);
+  });
+
+  it('warns to slow down only above the safe speed and within braking distance + 80 m', () => {
+    const v = 300 * KMH;
+    const vSafe = safeTurnSpeed(t1);
+    const brake = (v * v - vSafe * vSafe) / 30 + 80;
+    expect(turnHint(t1, t1.s0 - brake - 5, v)!.slowDown).toBe(false);
+    expect(turnHint(t1, t1.s0 - brake + 5, v)!.slowDown).toBe(true);
+    expect(turnHint(t1, t1.s0 - 50, vSafe - 0.5)!.slowDown).toBe(false);
+    expect(turnHint(t1, t1.s0 + 2, vSafe + 5)!.slowDown).toBe(true);
+    expect(turnHint(t1, t1.s0 - 50, -10)!.slowDown).toBe(false);
   });
 });

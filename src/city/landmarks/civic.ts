@@ -28,14 +28,15 @@ function wingY(x: number, z: number): number {
   return base + wave + sag;
 }
 
-function latticeTexture(): THREE.CanvasTexture {
+/** Grid-shell panels: base fill, minor ribs, diagonal members, mid rib. */
+function latticeTexture(colors = ['#26282c', '#3a3d42', '#a3a7ad', '#7d8187']): THREE.CanvasTexture {
   const size = 512;
   const cv = document.createElement('canvas');
   cv.width = cv.height = size;
   const g = cv.getContext('2d')!;
-  g.fillStyle = '#26282c';
+  g.fillStyle = colors[0];
   g.fillRect(0, 0, size, size);
-  g.strokeStyle = '#3a3d42';
+  g.strokeStyle = colors[1];
   g.lineWidth = 6;
   for (let i = 0; i <= 4; i++) {
     const p = (i / 4) * size;
@@ -44,7 +45,7 @@ function latticeTexture(): THREE.CanvasTexture {
     g.lineTo(p, size);
     g.stroke();
   }
-  g.strokeStyle = '#a3a7ad';
+  g.strokeStyle = colors[2];
   g.lineWidth = 14;
   for (let k = -1; k <= 1; k++) {
     g.beginPath();
@@ -56,7 +57,7 @@ function latticeTexture(): THREE.CanvasTexture {
     g.lineTo(k * size, size);
     g.stroke();
   }
-  g.strokeStyle = '#7d8187';
+  g.strokeStyle = colors[3];
   g.lineWidth = 8;
   g.beginPath();
   g.moveTo(0, size / 2);
@@ -132,13 +133,25 @@ function wingEdge(sign: 1 | -1): THREE.BufferGeometry {
   return geo;
 }
 
+/** Local (x, z) points of everything at ground level or overhead: roof outline and columns (for clearance checks). */
+export function civicOutline(): Vec2[] {
+  const pts: Vec2[] = [];
+  for (let x = -HALF_LEN; x <= HALF_LEN; x += 6) pts.push([x, HALF_DEP + 3], [x, -HALF_DEP]);
+  for (let z = -HALF_DEP; z <= HALF_DEP; z += 6) pts.push([HALF_LEN, z], [-HALF_LEN, z]);
+  return pts;
+}
+
 /**
  * Shenzhen Civic Center in local coordinates: long axis = x (~486 m), main
- * facade toward +z (south, onto the Civic Square). Central tower block with
- * the undulating grid-shell "bird wing" roof over a round west hall and a
- * square east hall, warm interior light, plaza in front.
+ * facade toward +z (south, onto 福中三路). Central tower block with the
+ * undulating grid-shell "bird wing" roof over a round west hall and a square
+ * east hall, paved forecourt under the canopy, warm light at night only.
  */
-export function buildCivicCenter(mats: LandmarkMaterials): { object: THREE.Group; disposables: { dispose(): void }[] } {
+export function buildCivicCenter(mats: LandmarkMaterials): {
+  object: THREE.Group;
+  disposables: { dispose(): void }[];
+  setNight(night: number): void;
+} {
   const group = new THREE.Group();
   group.name = 'civic_center';
 
@@ -155,8 +168,9 @@ export function buildCivicCenter(mats: LandmarkMaterials): { object: THREE.Group
   fb.addPrism(rectRing(80, -26, 1, 0, 36, 16), 0, 14, [0.33, STYLE.civic, 5, 14], true, STYLE.roof);
   group.add(new THREE.Mesh(fb.build(), mats.glassNear));
 
-  // Wing roof.
+  // Wing roof; the underside reads as light grey metal panels in daylight.
   const lattice = latticeTexture();
+  const latticeDay = latticeTexture(['#9da1a6', '#8a8e94', '#e4e6e8', '#c2c5c9']);
   const roofTop = new THREE.MeshStandardMaterial({
     name: 'CivicRoofTop',
     map: lattice,
@@ -202,14 +216,19 @@ export function buildCivicCenter(mats: LandmarkMaterials): { object: THREE.Group
   }
   group.add(new THREE.Mesh(mergeGeometries(cols)!, mats.stone));
 
-  // Civic Square in front (south).
-  const plazaGeo = new THREE.PlaneGeometry(HALF_LEN * 2, 170).rotateX(-Math.PI / 2).translate(0, 0.06, HALF_DEP + 85);
+  // Paved forecourt under the canopy only: the street side belongs to the road's sidewalk and lawn.
+  const plazaGeo = new THREE.PlaneGeometry(HALF_LEN * 2, HALF_DEP * 2 + 3).rotateX(-Math.PI / 2).translate(0, 0.06, 1.5);
   const plaza = new THREE.Mesh(plazaGeo, mats.plaza);
   plaza.receiveShadow = true;
   group.add(plaza);
-  // Warm uplight strip along the main facade.
+  // Uplight strip along the canopy edge (lit at night only, see goldGlow).
   const strip = new THREE.BoxGeometry(HALF_LEN * 1.9, 0.4, 0.6).translate(0, 0.3, HALF_DEP + 2);
   group.add(new THREE.Mesh(strip, mats.goldGlow));
 
-  return { object: group, disposables: [lattice, roofTop, roofUnder] };
+  const setNight = (night: number) => {
+    roofUnder.emissiveIntensity = 0.55 * THREE.MathUtils.smoothstep(night, 0.08, 1);
+    roofUnder.map = night > 0.5 ? lattice : latticeDay;
+    roofUnder.color.set(night > 0.5 ? '#9a948c' : '#d8d4cc');
+  };
+  return { object: group, disposables: [lattice, latticeDay, roofTop, roofUnder], setNight };
 }

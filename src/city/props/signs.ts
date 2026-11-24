@@ -161,9 +161,9 @@ export function drawGuide(
   blueBase(ctx, s);
   let tx = s.x + s.w * 0.06;
   let tw = s.w * 0.88;
-  const col = s.h * 0.85;
-  if (opts.arrow === 'left' || opts.icon) {
-    if (opts.arrow === 'left') blockArrow(ctx, 'left', s.x + s.w * 0.05, s.y + s.h * 0.1, col, s.h * 0.8);
+  const col = s.h * (opts.arrow === 'up' ? 0.6 : 0.85);
+  if (opts.arrow === 'left' || opts.arrow === 'up' || opts.icon) {
+    if (opts.arrow) blockArrow(ctx, opts.arrow, s.x + s.w * 0.05, s.y + s.h * 0.1, col, s.h * 0.8);
     else globeIcon(ctx, s.x + s.w * 0.05 + col / 2, s.y + s.h / 2, s.h * 0.27);
     tx = s.x + s.w * 0.05 + col;
     tw = s.w * 0.9 - col;
@@ -337,8 +337,13 @@ export class BillboardAtlas {
     fitText(ctx, th.s, W / 2, y + H * 0.76, W * 0.8, H * 0.12, 600, 'Helvetica, Arial, sans-serif');
   }
 
-  /** Loads textures/ai/billboard_0N.jpg into the slots when the files exist. */
+  /**
+   * Loads textures/ai/billboard_0N.jpg into the slots when the files exist. The 16:9 images are
+   * cover-fitted into 3:1 slots; `anchorY` is the fraction of the excess height cropped from the
+   * top, chosen so each slogan stays inside the slot.
+   */
   loadAi(base: string) {
+    const anchorY = [0.12, 0.5, 0.5, 0.08];
     for (let i = 0; i < this.slots; i++) {
       const img = new Image();
       img.onload = () => {
@@ -351,7 +356,7 @@ export class BillboardAtlas {
         ctx.beginPath();
         ctx.rect(0, y, this.sw, this.sh);
         ctx.clip();
-        ctx.drawImage(img, (this.sw - w) / 2, y + (this.sh - h) / 2, w, h);
+        ctx.drawImage(img, (this.sw - w) / 2, y - (h - this.sh) * (anchorY[i] ?? 0.5), w, h);
         ctx.restore();
         this.texture.needsUpdate = true;
       };
