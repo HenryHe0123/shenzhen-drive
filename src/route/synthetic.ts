@@ -85,6 +85,7 @@ export function makeSyntheticRoute(spacing = 2): RouteData {
     ],
     finish: { s: finishS, name: '市民中心' },
     turn: { s0: turnS0, s1: turnS1, direction: 'left', name: '金田路' },
+    turns: [{ s0: turnS0, s1: turnS1, direction: 'left', name: '金田路', radius: 30 }],
     intersections: [
       { s: 400, name: '科技中一路' },
       { s: 1600, name: '侨城西街' },

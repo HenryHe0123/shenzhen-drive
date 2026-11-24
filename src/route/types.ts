@@ -47,12 +47,29 @@ export interface RouteData {
   /** Ordered checkpoints (excluding start and finish). */
   checkpoints: { s: number; name: string }[];
   finish: { s: number; name: string };
-  /** The single deliberate turn before the finish. */
-  turn: { s0: number; s1: number; direction: 'left' | 'right'; name: string };
+  /** Deliberate turns at intersections, in route order. Read via Route.turns (normalized). */
+  turns?: Turn[];
+  /** @deprecated Last deliberate turn; still written for older consumers. */
+  turn: Turn;
+  /** Polygons kept free of buildings so landmarks stay visible from the road. */
+  clearZones?: Vec2[][];
   /** Named cross streets, for crosswalks and street-name signs. */
   intersections?: { s: number; name: string }[];
   landmarks: Landmark[];
   signs: { s: number; side: 'left' | 'right'; text: string; sub?: string }[];
+  /** Swept landmark sight-line wedges (pipeline viewCorridors); runtime filler blocks and billboards stay out of them. */
+  clearZones?: Vec2[][];
+}
+
+export interface Turn {
+  /** Arc-length span of the fillet arc. */
+  s0: number;
+  s1: number;
+  direction: 'left' | 'right';
+  /** Road being turned onto. */
+  name: string;
+  /** Fillet radius (m). */
+  radius?: number;
 }
 
 export interface Landmark {

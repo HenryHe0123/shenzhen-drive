@@ -1,4 +1,4 @@
-import type { RouteData, SectionId } from './types';
+import type { RouteData, SectionId, Turn } from './types';
 
 export interface XZ {
   x: number;
@@ -41,6 +41,8 @@ export class Route {
   readonly spacing: number;
   readonly dMin: number;
   readonly dMax: number;
+  /** Deliberate turns in route order (falls back to the legacy single `turn`). */
+  readonly turns: Turn[];
   /** Sample positions. */
   readonly px: Float64Array;
   readonly pz: Float64Array;
@@ -96,6 +98,13 @@ export class Route {
     this.spacing = data.meta?.sampleSpacing || this.length / (n - 1);
     this.dMin = -data.road.halfWidthLeft;
     this.dMax = data.road.halfWidthRight;
+    this.turns = data.turns?.length ? data.turns : data.turn ? [data.turn] : [];
+  }
+
+  /** First turn whose arc has not been completed at s, or null after the last one. */
+  nextTurn(s: number): Turn | null {
+    for (const t of this.turns) if (s < t.s1) return t;
+    return null;
   }
 
   clampS(s: number): number {
