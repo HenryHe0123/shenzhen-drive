@@ -42,6 +42,8 @@ export interface GameState {
   d: number;
   checkpointsPassed: number;
   checkpointCount: number;
+  /** Wall impacts above the thud threshold during the current run (statistic only, no penalty). */
+  wallHits: number;
   fps: number;
   /** Countdown / race frozen by the pause menu (Esc / P, window blur, hidden tab). */
   paused: boolean;
@@ -77,6 +79,7 @@ export class Game {
   private stuck = 0;
   private pinned = 0;
   private wrongWay = 0;
+  private wallHits = 0;
   private muted = false;
   private audioStarted = false;
   private onFirstFrame: (() => void) | null = null;
@@ -204,6 +207,7 @@ export class Game {
   }
 
   private beginRun(snapCamera: boolean): void {
+    this.wallHits = 0;
     if (!this.audioStarted) {
       this.audioStarted = true;
       this.deps.audio.start().catch((e) => console.warn('[audio] start failed:', e));
@@ -245,6 +249,7 @@ export class Game {
       d: v.d,
       checkpointsPassed: this.race.passed,
       checkpointCount: this.race.checkpointCount,
+      wallHits: this.wallHits,
       fps: this.fps,
       paused: this.race.paused,
       minimap: this.deps.hud.minimapMode,
@@ -356,7 +361,10 @@ export class Game {
     const n = CONFIG.physics.substeps;
     for (let i = 0; i < n; i++) v.step(this.input, h / n);
     if (v.impact > 0) {
-      if (v.impact >= CONFIG.collision.thudMinSpeed) audio.collision(Math.min(1, v.impact / 25));
+      if (v.impact >= CONFIG.collision.thudMinSpeed) {
+        audio.collision(Math.min(1, v.impact / 25));
+        if (this.race.phase === 'racing') this.wallHits++;
+      }
       v.impact = 0;
     }
     route.tangentAt(route.clampS(v.s), this.tan);
@@ -392,7 +400,7 @@ export class Game {
         const assisted = this.race.assisted;
         const record = !assisted && submitBestTime(e.time);
         this.best = loadBestTime();
-        hud.showResult({ time: e.time, best: this.best, record, assisted });
+        hud.showResult({ time: e.time, best: this.best, record, assisted, wallHits: this.wallHits });
         this.deps.recorder.finish(e.time);
         this.syncRecording();
         break;

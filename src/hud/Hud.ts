@@ -52,6 +52,7 @@ export interface ResultInfo {
   best: number | null;
   record: boolean;
   assisted: boolean;
+  wallHits: number;
 }
 
 export interface PauseInfo {
@@ -105,6 +106,7 @@ export class Hud implements OverlaySource {
   private readonly result: HTMLElement;
   private readonly resultTime: HTMLElement;
   private readonly resultBest: HTMLElement;
+  private readonly resultWalls: HTMLElement;
   private readonly recordEl: HTMLElement;
   private readonly noteEl: HTMLElement;
   private readonly cache = new Map<string, string>();
@@ -255,10 +257,12 @@ export class Hud implements OverlaySource {
       <div class="result-time num" id="result-time"></div>
       <div class="record hidden">新纪录!</div>
       <div class="best num"></div>
+      <div class="best num" id="result-walls"></div>
       <div class="note hidden"></div>`;
     this.resultTime = rc.querySelector('#result-time')!;
     this.recordEl = rc.querySelector('.record')!;
     this.resultBest = rc.querySelector('.best')!;
+    this.resultWalls = rc.querySelector('#result-walls')!;
     this.noteEl = rc.querySelector('.note')!;
     const retry = el('button', 'btn', '再来一次');
     retry.id = 'retry-btn';
@@ -466,6 +470,7 @@ export class Hud implements OverlaySource {
     this.cache.set('result', this.resultTime.textContent);
     this.recordEl.classList.toggle('hidden', !r.record);
     this.resultBest.innerHTML = r.best !== null ? `最佳成绩 <b>${formatTime(r.best)}</b>` : '';
+    this.resultWalls.innerHTML = r.wallHits > 0 ? `撞墙 <b>${r.wallHits}</b> 次` : '撞墙 <b>0</b> 次 · 零失误';
     this.noteEl.classList.toggle('hidden', !r.assisted);
     this.noteEl.textContent = r.assisted ? '本局使用了调试传送，不计入最佳成绩' : '';
     this.result.classList.remove('hidden');
