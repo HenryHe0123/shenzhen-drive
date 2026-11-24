@@ -8,6 +8,7 @@ import { turnHint } from '../hud/turnHint';
 import type { Input } from '../input/Input';
 import { loadBestTime, submitBestTime } from '../race/bestTime';
 import { Race, type Phase, type RaceEvent } from '../race/Race';
+import type { GameRecorder, RecordingState } from '../recording/Recorder';
 import type { Route } from '../route/Route';
 import type { CarVisual } from '../vehicle/CarVisual';
 import { NO_INPUT, Vehicle, type DriveInput } from '../vehicle/Vehicle';
@@ -24,6 +25,7 @@ export interface GameDeps {
   car: CarVisual;
   hud: Hud;
   input: Input;
+  recorder: GameRecorder;
   /** Container for the ?debug overlay; null disables debug mode. */
   debugRoot: HTMLElement | null;
 }
@@ -41,6 +43,10 @@ export interface GameState {
   checkpointsPassed: number;
   checkpointCount: number;
   fps: number;
+  /** Countdown / race frozen by the pause menu (Esc / P, window blur, hidden tab). */
+  paused: boolean;
+  minimap: 'overview' | 'local';
+  recording: RecordingState;
 }
 
 /** Debug key 0 places the car this far before the next turn (m). */
@@ -85,10 +91,21 @@ export class Game {
     this.placeCar(CONFIG.race.startS, true);
     deps.input.onPress = (code) => this.onKey(code);
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) deps.audio.suspend();
-      else deps.audio.resume();
+      if (document.hidden) {
+        this.pause();
+        deps.audio.suspend();
+      } else if (!this.paused) {
+        deps.audio.resume();
+      }
       this.lastNow = null;
     });
+    window.addEventListener('blur', () => this.pause());
+    deps.recorder.onChange = () => this.syncRecording();
+    this.syncRecording();
+  }
+
+  get paused(): boolean {
+    return this.race.paused;
   }
 
   /** Shows the menu and starts rendering; onReady runs after the first frame. */
@@ -103,22 +120,104 @@ export class Game {
   startRace(): void {
     const phase = this.race.phase;
     if (phase === 'menu' ? !this.deps.hud.startEnabled : phase !== 'finished') return;
-    if (!this.audioStarted) {
-      this.audioStarted = true;
-      this.deps.audio.start().catch((e) => console.warn('[audio] start failed:', e));
-    }
-    (document.activeElement as HTMLElement | null)?.blur?.();
-    this.placeCar(CONFIG.race.startS, phase !== 'menu');
-    this.race.begin();
-    this.deps.hud.showDriving(this.best);
+    this.beginRun(phase !== 'menu');
+  }
+
+  /** Pause menu 重新开始本局: the current run starts over from the start line with a countdown. */
+  restartRace(): void {
+    const phase = this.race.phase;
+    if (phase !== 'countdown' && phase !== 'racing') return;
+    this.beginRun(true);
+  }
+
+  /** Pause menu 返回主菜单: abandons the run. */
+  quitToMenu(): void {
+    const phase = this.race.phase;
+    if (phase !== 'countdown' && phase !== 'racing') return;
+    this.deps.recorder.discard();
+    this.race.toMenu();
+    this.placeCar(CONFIG.race.startS, true);
+    this.deps.hud.showMenu(this.best);
+    if (!document.hidden) this.deps.audio.resume();
+  }
+
+  /** 自动录像 toggle in the start / pause menus. */
+  toggleRecording(): void {
+    this.deps.recorder.setEnabled(!this.deps.recorder.enabled);
+  }
+
+  downloadRecording(): boolean {
+    return this.deps.recorder.download();
+  }
+
+  private syncRecording(): void {
+    const { recorder, hud } = this.deps;
+    hud.setRecordingEnabled(recorder.enabled, recorder.supported);
+    hud.setRecIndicator(recorder.capturing);
+    if (this.race.phase !== 'finished') return;
+    const st = recorder.state().status;
+    hud.showRecording(
+      st === 'ready'
+        ? { state: 'ready', summary: recorder.summary() }
+        : st === 'tail' || st === 'finalizing'
+          ? { state: 'finalizing' }
+          : st === 'error'
+            ? { state: 'error' }
+            : null,
+    );
+  }
+
+  /** Esc / P, window blur, hidden tab: freezes physics, countdown and timer, suspends audio. */
+  pause(): boolean {
+    if (!this.race.pause()) return false;
+    this.deps.recorder.pause();
+    this.deps.audio.suspend();
+    this.deps.hud.showPause({
+      sectionName: this.deps.route.sectionAt(this.vehicle.s).name,
+      time: this.race.time,
+      countdown: this.race.phase === 'countdown',
+    });
+    return true;
+  }
+
+  resume(): boolean {
+    if (!this.race.resume()) return false;
+    this.deps.hud.hidePause();
+    if (!document.hidden) this.deps.audio.resume();
+    this.deps.recorder.resume();
+    return true;
+  }
+
+  toggleMute(): void {
+    this.muted = !this.muted;
+    this.deps.audio.setMuted(this.muted);
+    this.deps.hud.setMuted(this.muted);
+  }
+
+  /** R (also from the pause menu): back to the last passed checkpoint (or the start); the timer keeps running. */
+  resetToCheckpoint(): void {
+    if (this.race.phase !== 'racing') return;
+    this.resume();
+    this.placeCar(this.race.resetS(), true);
+    this.race.syncS(this.vehicle.s);
     this.stuck = this.pinned = this.wrongWay = 0;
   }
 
-  /** R: back to the last passed checkpoint (or the start); the timer keeps running. */
-  resetToCheckpoint(): void {
-    if (this.race.phase !== 'racing') return;
-    this.placeCar(this.race.resetS(), true);
-    this.race.syncS(this.vehicle.s);
+  private beginRun(snapCamera: boolean): void {
+    if (!this.audioStarted) {
+      this.audioStarted = true;
+      this.deps.audio.start().catch((e) => console.warn('[audio] start failed:', e));
+    } else if (this.race.paused && !document.hidden) {
+      this.deps.audio.resume();
+    }
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    this.placeCar(CONFIG.race.startS, snapCamera);
+    this.race.begin();
+    this.deps.hud.hideCountdown();
+    this.deps.hud.showDriving(this.best);
+    this.deps.hud.showRecording(null);
+    // A new run always replaces the previous recording; it starts with the countdown.
+    this.deps.recorder.start(this.fps);
     this.stuck = this.pinned = this.wrongWay = 0;
   }
 
@@ -147,6 +246,9 @@ export class Game {
       checkpointsPassed: this.race.passed,
       checkpointCount: this.race.checkpointCount,
       fps: this.fps,
+      paused: this.race.paused,
+      minimap: this.deps.hud.minimapMode,
+      recording: this.deps.recorder.state(),
     };
   }
 
@@ -162,17 +264,49 @@ export class Game {
 
   private onKey(code: string): boolean {
     const phase = this.race.phase;
+    const { hud } = this.deps;
+    if (this.paused) {
+      switch (code) {
+        case 'Escape':
+        case 'KeyP':
+          this.resume();
+          return true;
+        case 'Enter':
+        case 'Space':
+          hud.activatePauseFocus();
+          return true;
+        case 'ArrowUp':
+        case 'ArrowDown':
+          hud.movePauseFocus(code === 'ArrowUp' ? -1 : 1);
+          return true;
+        case 'KeyR':
+          this.resetToCheckpoint();
+          return true;
+        case 'KeyM':
+          this.toggleMute();
+          return true;
+        case 'KeyN':
+          hud.toggleMinimap();
+          return true;
+      }
+      return false;
+    }
     switch (code) {
+      case 'Escape':
+      case 'KeyP':
+        return this.pause();
+      case 'KeyN':
+        hud.toggleMinimap();
+        return true;
       case 'KeyR':
         this.resetToCheckpoint();
         return true;
       case 'KeyM':
-        this.muted = !this.muted;
-        this.deps.audio.setMuted(this.muted);
-        this.deps.hud.setMuted(this.muted);
+        this.toggleMute();
         return true;
       case 'Enter':
       case 'Space':
+        if (phase === 'finished' && hud.activateResultFocus()) return true;
         if (phase === 'menu' || phase === 'finished') {
           this.startRace();
           return true;
@@ -259,6 +393,8 @@ export class Game {
         const record = !assisted && submitBestTime(e.time);
         this.best = loadBestTime();
         hud.showResult({ time: e.time, best: this.best, record, assisted });
+        this.deps.recorder.finish(e.time);
+        this.syncRecording();
         break;
       }
     }
@@ -277,7 +413,6 @@ export class Game {
     const now = nowMs / 1000;
     const dt = this.lastNow === null ? 1 / 60 : Math.min(Math.max(now - this.lastNow, 0), CONFIG.physics.maxFrameDt);
     this.lastNow = now;
-    this.elapsed += dt;
     this.fpsFrames++;
     this.fpsTime += dt;
     if (this.fpsTime >= 0.5) {
@@ -286,11 +421,16 @@ export class Game {
       this.fpsTime = 0;
     }
 
+    // Paused: physics, race clock and scenery time stand still; the frame is still rendered
+    // (the pause menu can switch the time of day).
     const h = 1 / CONFIG.physics.hz;
-    this.acc += dt;
-    while (this.acc >= h) {
-      this.fixedStep(h);
-      this.acc -= h;
+    if (!this.paused) {
+      this.elapsed += dt;
+      this.acc += dt;
+      while (this.acc >= h) {
+        this.fixedStep(h);
+        this.acc -= h;
+      }
     }
     const a = this.acc / h;
     const v = this.vehicle;
@@ -326,6 +466,10 @@ export class Game {
         progress: v.s / data.finish.s,
         sectionName: route.sectionAt(v.s).name,
         passed: this.race.passed,
+        x,
+        z,
+        yaw,
+        s: v.s,
         turn: phase === 'racing' ? turnHint(route.nextTurn(v.s), v.s, v.speed) : null,
         hint: this.hint(),
       });
@@ -349,6 +493,8 @@ export class Game {
       braking: this.input.brake > 0 && v.speed > 0.5,
       driving: phase === 'racing',
     });
+    const { recorder } = this.deps;
+    if (recorder.capturing) recorder.composite(renderer.domElement, hud, dt, this.fps);
 
     if (this.onFirstFrame) {
       const cb = this.onFirstFrame;

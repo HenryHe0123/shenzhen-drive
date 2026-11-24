@@ -6,6 +6,8 @@ import type { WorldContext } from './game/contracts';
 import { Game, type GameState } from './game/Game';
 import { loadWorldData } from './game/loadWorld';
 import { Hud } from './hud/Hud';
+import { BUILD, type BuildInfo } from './hud/version';
+import { GameRecorder } from './recording/Recorder';
 import { Input } from './input/Input';
 import { createEnvironment } from './render/environment';
 import { createRenderPipeline } from './render/pipeline';
@@ -14,8 +16,14 @@ import { CarVisual } from './vehicle/CarVisual';
 
 interface TestHooks {
   ready: boolean;
+  /** package.json version, e.g. '0.3.0'. */
+  version: string;
+  build: BuildInfo;
   getState(): GameState | { phase: 'loading' };
   teleport(s: number): void;
+  /** Same as Esc / P; true if the game paused (countdown or racing only). */
+  pause(): boolean;
+  resume(): boolean;
 }
 
 declare global {
@@ -27,7 +35,15 @@ declare global {
 async function boot() {
   const ui = document.getElementById('ui')!;
   const debug = new URLSearchParams(location.search).has('debug');
-  const hooks: TestHooks = { ready: false, getState: () => ({ phase: 'loading' }), teleport: () => {} };
+  const hooks: TestHooks = {
+    ready: false,
+    version: BUILD.version,
+    build: BUILD,
+    getState: () => ({ phase: 'loading' }),
+    teleport: () => {},
+    pause: () => false,
+    resume: () => false,
+  };
   window.__SZD__ = hooks;
 
   const world = await loadWorldData();
@@ -37,9 +53,16 @@ async function boot() {
   const hud = new Hud(ui, {
     startName: '南山科技园',
     finishName: data.finish.name,
-    checkpointFractions: data.checkpoints.map((c) => c.s / data.finish.s),
+    route,
     onStart: () => game?.startRace(),
     onRetry: () => game?.startRace(),
+    onResume: () => game?.resume(),
+    onRestart: () => game?.restartRace(),
+    onResetCheckpoint: () => game?.resetToCheckpoint(),
+    onMainMenu: () => game?.quitToMenu(),
+    onToggleMute: () => game?.toggleMute(),
+    onToggleRecording: () => game?.toggleRecording(),
+    onDownloadRecording: () => game?.downloadRecording(),
   });
 
   try {
@@ -66,6 +89,7 @@ async function boot() {
       );
     }
 
+    const audio = new AudioEngine();
     const g = new Game({
       renderer,
       camera,
@@ -73,15 +97,18 @@ async function boot() {
       env,
       city,
       pipeline,
-      audio: new AudioEngine(),
+      audio,
       car,
       hud,
       input: new Input(),
+      recorder: new GameRecorder(audio),
       debugRoot: debug ? ui : null,
     });
     game = g;
     hooks.getState = () => g.getState();
     hooks.teleport = (s) => g.teleport(s);
+    hooks.pause = () => g.pause();
+    hooks.resume = () => g.resume();
     hud.setLoading(false);
     g.start(() => {
       hooks.ready = true;

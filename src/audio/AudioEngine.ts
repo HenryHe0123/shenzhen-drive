@@ -94,6 +94,7 @@ export class AudioEngine {
   private sfx: GainNode | null = null;
   private white: AudioBuffer | null = null;
   private layers: DriveLayers | null = null;
+  private recordDest: MediaStreamAudioDestinationNode | null = null;
   private mutedFlag = false;
   private paused = false;
   private lastThudAt = -Infinity;
@@ -280,6 +281,21 @@ export class AudioEngine {
    */
   get output(): AudioNode | null {
     return this.comp;
+  }
+
+  /**
+   * Live MediaStream of the final mix (post master gain, so muting silences it) for
+   * gameplay recording. The same stream is returned on every call; don't stop its track.
+   * null before start() or without Web Audio.
+   */
+  captureStream(): MediaStream | null {
+    const ctx = this.ctx;
+    if (!ctx || !this.comp || typeof ctx.createMediaStreamDestination !== 'function') return null;
+    if (!this.recordDest) {
+      this.recordDest = ctx.createMediaStreamDestination();
+      this.comp.connect(this.recordDest);
+    }
+    return this.recordDest.stream;
   }
 
   private build(ctx: AudioContext): void {

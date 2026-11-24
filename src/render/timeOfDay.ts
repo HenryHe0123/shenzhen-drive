@@ -1,12 +1,13 @@
 /**
  * Global time-of-day preset. Chosen on the start menu (persisted in localStorage)
- * or forced with ?time=day|golden|dusk. Anything with lights (lit windows, lamps,
+ * or forced with ?time=day|golden. Anything with lights (lit windows, lamps,
  * light pools, glowing signs, landmark lighting) scales its emission by
  * `nightUniform.value` (0 = full daylight, 1 = night) so it follows the preset.
  */
 export type TimeOfDay = 'day' | 'golden' | 'dusk';
 
-export const TIME_PRESETS: readonly TimeOfDay[] = ['day', 'golden', 'dusk'];
+/** Selectable presets. 'dusk' is retired (not shown in the final game); stored or ?time=dusk falls back to the default. */
+export const TIME_PRESETS: readonly TimeOfDay[] = ['day', 'golden'];
 
 export const TIME_LABELS: Record<TimeOfDay, string> = {
   day: '白天',

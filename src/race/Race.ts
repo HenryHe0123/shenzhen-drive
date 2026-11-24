@@ -18,10 +18,12 @@ export interface RaceCourse {
  * Pure race state machine: loading → menu → countdown → racing → finished.
  * Checkpoints must be crossed in order while moving forward; the finish only counts
  * after all of them. Crossing times are interpolated inside the step.
+ * Countdown and racing can be paused: update() is then a no-op, so neither the
+ * countdown nor the timer advance and nothing is crossed.
  */
 export class Race {
   phase: Phase = 'loading';
-  /** Elapsed race time (s); runs only while racing. */
+  /** Elapsed race time (s); runs only while racing and not paused. */
   time = 0;
   /** Seconds left in the countdown. */
   countdown = 0;
@@ -30,6 +32,7 @@ export class Race {
   /** True once a debug teleport was used in this run (not eligible for best time). */
   assisted = false;
   finishTime: number | null = null;
+  private pausedFlag = false;
   private lastS: number;
   private lastTick = 0;
 
@@ -49,10 +52,41 @@ export class Race {
     if (this.phase === 'loading') this.phase = 'menu';
   }
 
-  /** Starts a fresh run (also used for Retry). */
+  /** Starts a fresh run (also used for Retry and for restarting a paused run). */
   begin(): void {
+    this.clearRun();
     this.phase = 'countdown';
     this.countdown = this.countdownSeconds;
+  }
+
+  /** Abandons the current run and goes back to the menu. */
+  toMenu(): void {
+    if (this.phase === 'loading') return;
+    this.clearRun();
+    this.phase = 'menu';
+  }
+
+  get paused(): boolean {
+    return this.pausedFlag;
+  }
+
+  /** Freezes the countdown / timer; only possible during countdown and racing. Returns true if it paused. */
+  pause(): boolean {
+    if (this.pausedFlag || (this.phase !== 'countdown' && this.phase !== 'racing')) return false;
+    this.pausedFlag = true;
+    return true;
+  }
+
+  /** Returns true if it was paused. */
+  resume(): boolean {
+    if (!this.pausedFlag) return false;
+    this.pausedFlag = false;
+    return true;
+  }
+
+  private clearRun(): void {
+    this.pausedFlag = false;
+    this.countdown = 0;
     this.lastTick = 0;
     this.time = 0;
     this.passed = 0;
@@ -83,6 +117,7 @@ export class Race {
   /** Advances one step with the car's arc length and the sign of velocity · route tangent. */
   update(dt: number, s: number, forwardDot: number): RaceEvent[] {
     const events: RaceEvent[] = [];
+    if (this.pausedFlag) return events;
     const prev = this.lastS;
     this.lastS = s;
     if (this.phase === 'countdown') {

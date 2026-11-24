@@ -154,6 +154,27 @@ export const CONFIG = {
     toastSeconds: 2.6,
   },
 
+  hud: {
+    /** Top-left minimap (src/hud/Minimap.ts), north-up in both modes. */
+    minimap: {
+      /** Canvas size (CSS px); the panel header with section / checkpoints sits above it. */
+      width: 300,
+      height: 104,
+      maxRedrawHz: 30,
+      /** Local mode: meters across the panel width, and how far the view leads the car (m). */
+      localSpan: 1200,
+      localLookAhead: 130,
+      /** Without a manual choice (N), local mode turns on this far before the first turn (m). */
+      autoLocalBeforeTurn: 400,
+      /** Landmark ids from route.json with their short map labels and label side (overview / local). */
+      landmarks: [
+        { id: 'eiffel', label: '世界之窗', side: 'below', localSide: 'below' },
+        { id: 'pingan', label: '平安金融中心', side: 'below', localSide: 'left' },
+        { id: 'civic_center', label: '市民中心', side: 'above', localSide: 'above' },
+      ],
+    },
+  },
+
   render: {
     maxPixelRatio: 2,
     /** Initial exposure; each time-of-day preset sets its own (src/render/presets.ts). */
@@ -185,6 +206,12 @@ export const CONFIG = {
     /** Fog multiplier for skyline landmarks (Ping An, KK100, Lianhuashan). */
     landmarkFogScale: 0.2,
     treeSpacing: 12,
+    /** Street banyans: impostor atlas baked by scripts/bake_banyan_impostor.mjs (relative to BASE_URL). */
+    treeImpostorUrl: 'textures/trees/banyan.json',
+    /** Banyan height (m) at instance scale 1; placed banyans end up ≈ 10–14.5 m (深南大道: ~10–16 m). */
+    treeBanyanHeight: 10.5,
+    /** Top fraction of a view-corridor landmark (route clearZones) that banyans on its sight lines leave visible. */
+    treeSightKeep: 0.2,
     lampSpacing: 36,
     /** Road surface chunk length along s (m); one draw call per material per chunk. */
     roadChunkLength: 500,
@@ -202,6 +229,8 @@ export const CONFIG = {
     lampIntensity: 9,
     lampPoolIntensity: 0.55,
     signEmissive: 0.55,
+    /** Emission of the GB 5768 road sign plates at full night (retro-reflective, none by day). */
+    roadSignNightGlow: 0.3,
     billboardCount: 6,
     billboardBrightness: 1.0,
     /** Billboard face width (m); height is width / 3 to match the atlas slots. */
@@ -210,6 +239,39 @@ export const CONFIG = {
     billboardBottom: 11,
     /** Yaw of the billboard face toward oncoming traffic (degrees). */
     billboardAngleDeg: 26,
+  },
+
+  /** Real-building models (src/city/models); shadows use city.buildingShadowDistance, far fog city.landmarkFogScale. */
+  cityModels: {
+    /** GLB downloads in flight at once; nearest to the car first. */
+    maxConcurrentLoads: 3,
+    /** Models at least this tall stay visible at any distance (skyline guides, m); others use city.buildingDrawDistance. */
+    skylineHeight: 300,
+    /** Role 'skyline' and models at least this tall get the thinned landmark fog (m). */
+    fogScaleHeight: 350,
+    /** Draw calls per model (spec 7.4): ordinary buildings / landmarks; more materials are atlased at load. */
+    drawCallsBuilding: 2,
+    drawCallsLandmark: 8,
+    /** Runtime atlas size and per-texture cap (px), ordinary buildings / landmarks (pipeline caps: 512 / 1024). */
+    atlasMaxBuilding: 512,
+    atlasMaxLandmark: 1024,
+    atlasTileBuilding: 512,
+    atlasTileLandmark: 1024,
+    /** Photo facades by day: saturation and contrast (1 = photo as is). */
+    photoSaturation: 0.8,
+    photoContrast: 0.85,
+    /** Photo albedo at full night (multiplier and cool tint). */
+    photoNightDim: 0.35,
+    photoNightTint: '#cfdcff',
+    /** Lit window ratio of photo facades (procedural facades use city.litWindowRatio). */
+    photoLitRatio: 0.32,
+    /** Strength of the mullion lines drawn over blurry photos up close (0 = off). */
+    photoDetail: 0.25,
+    /** Unsharp-mask amount on magnified photos (0 = off). */
+    photoSharpen: 0.35,
+    /** Night accents as HDR multipliers: LED strips (SZSE podium, Civic Center roof edge) and the crown floodlight wash. */
+    accentStripIntensity: 3.2,
+    accentWashIntensity: 0.6,
   },
 
   /** APEC facade LED screens on real buildings (src/city/screens); one per s-window, picked from the data. */
@@ -248,6 +310,7 @@ export const CONFIG = {
     ledPitch: 0.125,
     ledGrid: 0.22,
   },
+
   audio: {
     masterVolume: 0.6,
     /** Motor whine fundamental at a crawl and at refSpeed (Hz), linear in speed (single-ratio drive). */

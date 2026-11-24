@@ -129,6 +129,94 @@ describe('race state machine', () => {
     expect(race.phase).toBe('finished');
   });
 
+  it('does not advance the timer or cross checkpoints while paused', () => {
+    const race = startedRace();
+    drive(race, course.startS, data.checkpoints[0].s - 20);
+    const t = race.time;
+    expect(race.pause()).toBe(true);
+    expect(race.paused).toBe(true);
+    expect(race.pause()).toBe(false);
+    const events = drive(race, data.checkpoints[0].s - 20, data.checkpoints[0].s + 20);
+    expect(events).toEqual([]);
+    expect(race.time).toBe(t);
+    expect(race.passed).toBe(0);
+    expect(race.resume()).toBe(true);
+    expect(race.resume()).toBe(false);
+    race.update(DT, data.checkpoints[0].s - 20, 1);
+    expect(race.time).toBeCloseTo(t + DT, 9);
+    drive(race, data.checkpoints[0].s - 20, data.checkpoints[0].s + 5);
+    expect(race.passed).toBe(1);
+  });
+
+  it('freezes the countdown while paused and still ticks 3-2-1-GO exactly once', () => {
+    const race = new Race(course);
+    race.ready();
+    race.begin();
+    const events: RaceEvent[] = [];
+    for (let i = 0; i < 70; i++) events.push(...race.update(DT, course.startS, 1));
+    const left = race.countdown;
+    race.pause();
+    for (let i = 0; i < 600; i++) events.push(...race.update(DT, course.startS, 1));
+    expect(race.phase).toBe('countdown');
+    expect(race.countdown).toBe(left);
+    expect(race.time).toBe(0);
+    race.resume();
+    for (let i = 0; i < 200; i++) events.push(...race.update(DT, course.startS, 1));
+    expect(race.phase).toBe('racing');
+    expect(events.filter((e) => e.type === 'tick').map((e) => (e as { value: number }).value)).toEqual([3, 2, 1]);
+    expect(events.filter((e) => e.type === 'go')).toHaveLength(1);
+  });
+
+  it('can only pause during countdown and racing', () => {
+    const race = new Race(course);
+    expect(race.pause()).toBe(false);
+    race.ready();
+    expect(race.pause()).toBe(false);
+    const done = startedRace();
+    drive(done, course.startS, data.finish.s + 5);
+    expect(done.phase).toBe('finished');
+    expect(done.pause()).toBe(false);
+  });
+
+  it('restart from pause resets timer, checkpoints and best-time eligibility', () => {
+    const race = startedRace();
+    drive(race, course.startS, data.checkpoints[1].s + 50);
+    race.teleportTo(data.checkpoints[3].s + 10);
+    expect(race.assisted).toBe(true);
+    race.pause();
+    race.begin();
+    expect(race.phase).toBe('countdown');
+    expect(race.paused).toBe(false);
+    expect(race.time).toBe(0);
+    expect(race.passed).toBe(0);
+    expect(race.assisted).toBe(false);
+    expect(race.finishTime).toBeNull();
+    expect(race.countdown).toBe(CONFIG.race.countdownSeconds);
+    // The fresh run needs every checkpoint again and its time starts at GO.
+    for (let i = 0; i < 400 && race.phase === 'countdown'; i++) race.update(DT, course.startS, 1);
+    const atGo = race.time;
+    expect(atGo).toBeLessThan(DT);
+    const events = drive(race, course.startS, data.finish.s + 5);
+    expect(events.filter((e) => e.type === 'checkpoint')).toHaveLength(data.checkpoints.length);
+    const fin = events.at(-1) as Extract<RaceEvent, { type: 'finish' }>;
+    expect(fin.type).toBe('finish');
+    expect(race.assisted).toBe(false);
+    expect(fin.time).toBeGreaterThan((data.finish.s - course.startS) / 40 - 1);
+  });
+
+  it('back to menu abandons the run', () => {
+    const race = startedRace();
+    drive(race, course.startS, data.checkpoints[0].s + 10);
+    race.pause();
+    race.toMenu();
+    expect(race.phase).toBe('menu');
+    expect(race.paused).toBe(false);
+    expect(race.time).toBe(0);
+    expect(race.passed).toBe(0);
+    for (let i = 0; i < 60; i++) race.update(DT, 100, 1);
+    expect(race.time).toBe(0);
+  });
+
   it('teleport marks earlier checkpoints passed and flags the run as assisted', () => {
     const race = startedRace();
     race.teleportTo(data.checkpoints[2].s);

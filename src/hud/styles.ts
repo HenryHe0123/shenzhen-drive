@@ -59,6 +59,33 @@ export const HUD_CSS = /* css */ `
 #ui .btn-hint { margin-top: 10px; font-size: 12px; color: rgba(238, 243, 248, 0.45); }
 #ui .error { margin-top: 14px; color: #ff8a80; font-size: 13px; }
 #ui .credit { margin-top: 18px; font-size: 11px; color: rgba(238, 243, 248, 0.35); }
+#ui .version { margin-top: 6px; font-size: 11px; letter-spacing: 0.04em; color: rgba(238, 243, 248, 0.38); }
+
+/* ---------- pause menu ---------- */
+#pause { background: radial-gradient(ellipse at 50% 55%, rgba(6, 9, 16, 0.35), rgba(6, 9, 16, 0.82)); animation-duration: 0.18s; }
+#ui .pause-card { width: min(400px, 92vw); padding: 26px 30px 20px; }
+#ui .pause-info { margin-top: 8px; font-size: 14px; color: rgba(238, 243, 248, 0.75); }
+#ui .pause-actions { margin-top: 18px; display: flex; flex-direction: column; gap: 8px; }
+#ui .pbtn {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 11px 16px 11px 20px;
+  border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.06); cursor: pointer;
+  font: 600 16px -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; letter-spacing: 0.12em; color: #eef3f8;
+  transition: background 0.12s, border-color 0.12s, opacity 0.2s; outline: none;
+}
+#ui .pbtn kbd { font-size: 11px; line-height: 16px; opacity: 0.8; }
+#ui .pbtn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); }
+#ui .pbtn:focus-visible, #ui .pbtn:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(46, 200, 222, 0.45); }
+#ui .pbtn.primary { color: #04141a; border-color: transparent; background: linear-gradient(180deg, #5fe0f0, var(--accent-2)); }
+#ui .pbtn.primary kbd { color: #04141a; background: rgba(255, 255, 255, 0.35); border-color: rgba(4, 20, 26, 0.3); }
+#ui .pbtn.primary:focus { box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(46, 200, 222, 0.6); }
+#ui .pbtn:disabled { opacity: 0.38; cursor: default; }
+#ui .pause-row { margin-top: 16px; display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+#ui .pause-row .tod { margin: 0; }
+#ui .tod-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+#ui .pbtn.mute-toggle { width: auto; padding: 7px 10px 7px 14px; border-radius: 999px; font-size: 13px; letter-spacing: 0.08em; }
+#ui .pbtn.mute-toggle.off { color: var(--warn); border-color: rgba(255, 181, 71, 0.5); }
+#ui .pause-card .btn-hint { margin-top: 14px; }
+#ui.paused #countdown span, #ui.paused #hud .turn.near, #ui.paused #hud .slow { animation-play-state: paused; }
 
 #ui .result-title { font-size: 15px; letter-spacing: 0.4em; color: var(--accent); font-weight: 700; }
 #ui .result-dest { margin-top: 6px; font-size: 14px; color: rgba(238, 243, 248, 0.7); }
@@ -72,16 +99,25 @@ export const HUD_CSS = /* css */ `
 
 /* ---------- HUD ---------- */
 #hud { position: absolute; inset: 0; }
-#hud .top-left { position: absolute; top: 18px; left: 18px; padding: 12px 16px 14px; width: 300px; }
-#hud .section { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-#hud .section-name { font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#hud .cp { font-size: 13px; color: rgba(238, 243, 248, 0.7); white-space: nowrap; }
-#hud .bar { position: relative; margin-top: 10px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.14); }
-#hud .bar-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 3px; background: linear-gradient(90deg, var(--accent-2), var(--accent)); }
-#hud .tick { position: absolute; top: -3px; width: 2px; height: 12px; margin-left: -1px; border-radius: 1px; background: rgba(255, 255, 255, 0.45); }
-#hud .tick.done { background: var(--accent); }
-#hud .tick.flag { width: 4px; margin-left: -2px; background: repeating-linear-gradient(0deg, #fff 0 3px, #111 3px 6px); }
-#hud .bar-ends { display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; color: rgba(238, 243, 248, 0.5); }
+#hud .top-left { position: absolute; top: 18px; left: 18px; width: 300px; }
+#hud .minimap { overflow: hidden; background: rgba(9, 13, 22, 0.66); }
+#hud .section { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 9px 14px 0; }
+#hud .section-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#hud .cp { font-size: 12px; color: rgba(238, 243, 248, 0.75); white-space: nowrap; }
+#hud .mm-canvas { display: block; }
+#hud .mm-mode {
+  position: absolute; left: 8px; bottom: 6px; padding: 1px 7px; border-radius: 999px; font-size: 10px; letter-spacing: 0.08em;
+  color: rgba(238, 243, 248, 0.7); background: rgba(9, 13, 22, 0.6); border: 1px solid var(--line);
+}
+#hud .mm-scale { position: absolute; right: 10px; bottom: 8px; height: 4px; border: 1.5px solid rgba(238, 243, 248, 0.75); border-top: 0; }
+#hud .mm-scale span {
+  position: absolute; right: 100%; bottom: -3px; margin-right: 5px; font-size: 10px; line-height: 1; white-space: nowrap;
+  color: rgba(238, 243, 248, 0.8); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+#hud .version-tag {
+  position: absolute; left: 14px; bottom: 9px; font-size: 10px; letter-spacing: 0.04em; color: rgba(238, 243, 248, 0.5);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
 
 #hud .top-center { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; }
 #hud .timer { padding: 8px 22px 9px; text-align: center; }
@@ -115,7 +151,24 @@ export const HUD_CSS = /* css */ `
   position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%); padding: 9px 20px; font-size: 16px; font-weight: 600;
   border-color: rgba(255, 181, 71, 0.5); animation: szd-fade 0.3s ease-out;
 }
-#hud .mute { position: absolute; top: 18px; right: 18px; padding: 6px 12px; font-size: 12px; color: rgba(238, 243, 248, 0.75); }
+#hud .top-right { position: absolute; top: 18px; right: 18px; display: flex; gap: 8px; align-items: center; }
+#hud .mute { padding: 6px 12px; font-size: 12px; color: rgba(238, 243, 248, 0.75); }
+#hud .rec-ind {
+  display: flex; align-items: center; gap: 6px; padding: 5px 11px; font-size: 12px; font-weight: 800; letter-spacing: 0.12em;
+  color: #ff6b6b; border-color: rgba(255, 90, 90, 0.45);
+}
+#hud .rec-ind i { width: 8px; height: 8px; border-radius: 50%; background: #ff3b3b; animation: szd-blink 1.2s steps(2, jump-none) infinite; }
+
+/* ---------- recording controls ---------- */
+#ui .opt-row { margin: 22px auto 0; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+#ui .opt-row .tod { margin: 0; }
+#ui .pbtn.rec-toggle { width: auto; padding: 7px 14px 7px 12px; border-radius: 999px; font-size: 13px; letter-spacing: 0.08em; justify-content: flex-start; gap: 8px; }
+#ui .rec-toggle i { width: 8px; height: 8px; border-radius: 50%; background: rgba(238, 243, 248, 0.35); }
+#ui .rec-toggle.on i { background: #ff3b3b; box-shadow: 0 0 8px rgba(255, 59, 59, 0.8); }
+#ui .rec-block { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+#ui .pbtn.rec-download { justify-content: center; letter-spacing: 0.06em; font-size: 15px; }
+#ui .pbtn.rec-download.busy { opacity: 0.7; }
+#ui .rec-note { margin-top: 8px; font-size: 12px; color: rgba(238, 243, 248, 0.5); }
 
 #countdown {
   position: absolute; left: 0; right: 0; top: 14vh; display: flex; justify-content: center;
@@ -125,11 +178,12 @@ export const HUD_CSS = /* css */ `
 #countdown span.go { color: var(--accent); }
 
 #debug {
-  position: absolute; left: 18px; bottom: 18px; padding: 8px 12px; border-radius: 8px; background: rgba(0, 0, 0, 0.6);
+  position: absolute; left: 18px; bottom: 30px; padding: 8px 12px; border-radius: 8px; background: rgba(0, 0, 0, 0.6);
   font: 12px/1.5 ui-monospace, Menlo, monospace; white-space: pre; color: #b8f5c0;
 }
 
 @keyframes szd-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes szd-blink { from { opacity: 1; } to { opacity: 0.25; } }
 @keyframes szd-toast { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes szd-pop { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @keyframes szd-alarm { 0%, 100% { box-shadow: 0 0 0 rgba(255, 70, 60, 0); } 50% { box-shadow: 0 0 26px rgba(255, 70, 60, 0.75); } }

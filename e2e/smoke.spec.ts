@@ -1,3 +1,4 @@
+import { statSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { makeSyntheticRoute } from '../src/route/synthetic';
@@ -16,13 +17,19 @@ interface GameState {
   checkpointsPassed: number;
   checkpointCount: number;
   fps: number;
+  paused: boolean;
+  minimap: 'overview' | 'local';
+  recording: { enabled: boolean; status: string; active: boolean; mimeType: string; bytes: number; duration: number };
 }
 
 /** Test hooks published by the game as window.__SZD__. */
 interface Hooks {
   ready: boolean;
+  version: string;
   getState(): GameState;
   teleport(s: number): void;
+  pause(): boolean;
+  resume(): boolean;
 }
 
 type HookWindow = Window & { __SZD__?: Hooks };
@@ -47,7 +54,7 @@ async function finishS(page: Page): Promise<number> {
   return makeSyntheticRoute().finish.s;
 }
 
-test('menu → countdown → drive → reset → finish, without console errors', async ({ page }, testInfo) => {
+test('menu → countdown → drive → pause → reset → finish → download recording, without console errors', async ({ page }, testInfo) => {
   const evidence = (name: string) => path.join(testInfo.project.testDir, '..', 'evidence', name);
   const errors: string[] = [];
   page.on('console', (msg) => {
@@ -75,6 +82,8 @@ test('menu → countdown → drive → reset → finish, without console errors'
   const noReload = () =>
     expect(loads, 'page reloaded mid-test (Vite full reload after a source edit?)').toBe(loadsAtReady);
   await expect(page.locator('#start-btn')).toBeVisible();
+  await expect(page.locator('#menu-version')).toHaveText(/v\d+\.\d+\.\d+/);
+  expect(await page.evaluate(() => (window as HookWindow).__SZD__!.version)).toMatch(/^\d+\.\d+\.\d+$/);
   await page.screenshot({ path: evidence('smoke-01-menu.png') });
 
   await page.click('#start-btn');
@@ -90,7 +99,42 @@ test('menu → countdown → drive → reset → finish, without console errors'
   expect(driving.speed, describe(driving)).toBeGreaterThan(10);
   expect(driving.s, describe(driving)).toBeGreaterThan(start.s);
   await expect(page.locator('#hud')).toBeVisible();
+  await expect(page.locator('#hud-version')).toHaveText(/v\d+\.\d+\.\d+/);
+  expect(driving.recording.active, 'recording starts with the countdown').toBe(true);
+  // Minimap: a sized canvas with drawn (non-transparent) pixels.
+  await expect(page.locator('#minimap canvas')).toBeVisible();
+  const painted = await page.evaluate(() => {
+    const c = document.querySelector<HTMLCanvasElement>('#minimap canvas')!;
+    const px = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
+    let n = 0;
+    for (let i = 3; i < px.length; i += 4) if (px[i] > 0) n++;
+    return { w: c.width, h: c.height, n };
+  });
+  expect(painted.w).toBeGreaterThan(0);
+  expect(painted.n, `painted minimap pixels of ${painted.w}x${painted.h}`).toBeGreaterThan(500);
   await page.screenshot({ path: evidence('smoke-02-driving.png') });
+
+  // Esc pauses: physics, timer and recording freeze for the whole second; Esc resumes.
+  await page.keyboard.press('Escape');
+  await expect.poll(async () => (await getState(page)).paused).toBe(true);
+  await expect(page.locator('#pause')).toBeVisible();
+  const p0 = await getState(page);
+  await page.waitForTimeout(1000);
+  const p1 = await getState(page);
+  expect(p1.paused).toBe(true);
+  expect(p1.time, 'timer frozen while paused').toBe(p0.time);
+  expect(p1.s, 'car frozen while paused').toBe(p0.s);
+  expect(p1.recording.status).toBe('paused');
+  await page.keyboard.press('Escape');
+  await expect.poll(async () => (await getState(page)).paused).toBe(false);
+  await expect(page.locator('#pause')).toBeHidden();
+  await page.waitForTimeout(300);
+  expect((await getState(page)).time).toBeGreaterThan(p1.time);
+  // Losing focus auto-pauses; the hook resumes.
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  expect((await getState(page)).paused).toBe(true);
+  expect(await page.evaluate(() => (window as HookWindow).__SZD__!.resume())).toBe(true);
+  expect((await getState(page)).paused).toBe(false);
 
   await page.keyboard.press('KeyA', { delay: 150 });
   await page.keyboard.press('KeyD', { delay: 150 });
@@ -120,7 +164,20 @@ test('menu → countdown → drive → reset → finish, without console errors'
 
   await expect(page.locator('#result')).toBeVisible();
   await expect(page.locator('#result-time')).toHaveText(/\d\d:\d\d\.\d\d/);
+
+  // The recording keeps running ~2 s past the finish, then the download button appears.
+  const download = page.locator('#rec-download');
+  await expect(download).toBeEnabled({ timeout: 30_000 });
+  await expect(download).toHaveText(/下载录像 · (MP4|WebM) · \d+:\d\d · [\d.]+ MB/);
   await page.screenshot({ path: evidence('smoke-03-result.png') });
+  const rec = (await getState(page)).recording;
+  console.log('[smoke] recording:', rec.mimeType, `${(rec.bytes / 1e6).toFixed(1)} MB`, `${rec.duration.toFixed(1)} s`);
+  const [file] = await Promise.all([page.waitForEvent('download'), download.click()]);
+  expect(file.suggestedFilename()).toMatch(/^shenzhen-drive-\d{8}-\d{4}-\d\dm\d\ds\d\d\.(mp4|webm)$/);
+  const saved = testInfo.outputPath(file.suggestedFilename());
+  await file.saveAs(saved);
+  expect(statSync(saved).size).toBeGreaterThan(10_000);
+  expect(statSync(saved).size).toBe(rec.bytes);
 
   expect(errors).toEqual([]);
 });
