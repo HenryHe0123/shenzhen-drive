@@ -1,0 +1,1400 @@
+#!/usr/bin/env python3
+"""Offline city-data pipeline for SHENZHEN DRIVE.
+
+Reads the Geofabrik Guangdong extract (data-raw/guangdong-latest.osm.pbf), caches a
+small corridor extract plus a parsed pickle in data-raw/, and writes
+
+  public/data/route.json      (RouteData, see src/route/types.ts)
+  public/data/buildings.json  (BuildingsData)
+  evidence/route_plot.png     (top-down sanity plot)
+
+All tunables (cuts, turn road, landmark ids, height rules) live in
+scripts/city_config.json. Re-running is deterministic.
+
+Usage:
+  .venv/bin/python scripts/build_city_data.py [--rebuild] [--no-plot]
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import heapq
+import json
+import math
+import pickle
+import re
+import sys
+import time
+from collections import defaultdict
+from pathlib import Path
+
+import numpy as np
+import osmium
+import shapely
+from shapely.geometry import LineString, Point, Polygon
+
+ROOT = Path(__file__).resolve().parent.parent
+CFG_PATH = ROOT / "scripts" / "city_config.json"
+CACHE_VERSION = 4
+
+# ----------------------------------------------------------------------------
+# geo
+# ----------------------------------------------------------------------------
+
+WGS_A = 6378137.0
+WGS_E2 = 6.69437999014e-3
+
+
+class Proj:
+    """Local equirectangular projection: x = east m, z = south m."""
+
+    def __init__(self, lon0: float, lat0: float):
+        phi = math.radians(lat0)
+        w = math.sqrt(1.0 - WGS_E2 * math.sin(phi) ** 2)
+        self.kx = math.radians(1.0) * WGS_A / w * math.cos(phi)
+        self.ky = math.radians(1.0) * WGS_A * (1.0 - WGS_E2) / w**3
+        self.lon0, self.lat0 = lon0, lat0
+        self.off = np.zeros(2)
+
+    def fwd(self, ll):
+        ll = np.asarray(ll, float)
+        xz = np.stack([(ll[..., 0] - self.lon0) * self.kx, -(ll[..., 1] - self.lat0) * self.ky], axis=-1)
+        return xz - self.off
+
+    def inv(self, xz):
+        xz = np.asarray(xz, float) + self.off
+        return np.stack([self.lon0 + xz[..., 0] / self.kx, self.lat0 - xz[..., 1] / self.ky], axis=-1)
+
+
+# ----------------------------------------------------------------------------
+# OSM extract + parse (cached)
+# ----------------------------------------------------------------------------
+
+DRIVABLE = {
+    "motorway", "trunk", "primary", "secondary", "tertiary", "unclassified", "residential",
+    "motorway_link", "trunk_link", "primary_link", "secondary_link", "tertiary_link",
+}
+
+
+def make_extract(src: Path, dst: Path, bbox):
+    W, S, E, N = bbox
+    t0 = time.time()
+    print(f"[extract] cutting {bbox} from {src.name} -> {dst.name} (one-time, ~1-2 min)")
+    node_ids, way_ids = set(), set()
+    tmp = dst.with_suffix(".tmp.pbf")
+    with osmium.BackReferenceWriter(str(tmp), ref_src=str(src), overwrite=True, remove_tags=False) as wr:
+        for o in osmium.FileProcessor(str(src)):
+            if o.is_node():
+                loc = o.location
+                if loc.valid() and W <= loc.lon <= E and S <= loc.lat <= N:
+                    node_ids.add(o.id)
+                    wr.add_node(o)
+            elif o.is_way():
+                if any(n.ref in node_ids for n in o.nodes):
+                    way_ids.add(o.id)
+                    wr.add_way(o)
+            elif o.is_relation():
+                if o.tags.get("type") in ("multipolygon", "building") and any(
+                    m.type == "w" and m.ref in way_ids for m in o.members
+                ):
+                    wr.add_relation(o)
+    tmp.replace(dst)
+    print(f"[extract] {len(node_ids)} nodes, {len(way_ids)} ways in {time.time() - t0:.0f}s")
+
+
+def pbf_timestamp(path: Path):
+    try:
+        fp = osmium.FileProcessor(str(path), osmium.osm.NOTHING)
+        h = fp.header
+        ts = h.get("osmosis_replication_timestamp") or h.get("timestamp")
+        return ts or None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def parse_osm(extract: Path, keywords):
+    """Pull highways, buildings and keyword-named features out of the extract."""
+    t0 = time.time()
+    ways = {}  # id -> dict(tags, refs, ll)
+    buildings = []  # dict(id, kind, tags, ring(list of (lon, lat)))
+    named = []  # dict(kind, id, tags, ll | ring)
+    open_space = []  # rings (parks, water, plazas, parking, ...) kept free of filler buildings
+    kw_re = re.compile("|".join(re.escape(k) for k in keywords))
+    keep_tags = ("name", "highway", "oneway", "lanes", "junction", "layer", "bridge", "tunnel", "ref", "name:en")
+    for o in osmium.FileProcessor(str(extract)).with_areas():
+        t = o.tags
+        if o.is_node():
+            nm = " ".join(v for k, v in t if k.startswith("name") or k in ("alt_name", "official_name", "brand"))
+            if nm and kw_re.search(nm):
+                named.append(dict(kind="n", id=o.id, tags=dict(t), ll=(o.location.lon, o.location.lat)))
+        elif o.is_way():
+            hw = t.get("highway")
+            if hw in DRIVABLE:
+                try:
+                    ll = [(n.lon, n.lat) for n in o.nodes]
+                except osmium.InvalidLocationError:
+                    continue
+                ways[o.id] = dict(
+                    tags={k: t.get(k) for k in keep_tags if k in t},
+                    refs=[n.ref for n in o.nodes],
+                    ll=ll,
+                )
+        elif o.is_area():
+            nm = " ".join(v for k, v in t if k.startswith("name") or k in ("alt_name", "official_name", "brand"))
+            is_bld = "building" in t and t.get("building") != "no"
+            hit = bool(nm and kw_re.search(nm))
+            is_open = not is_bld and is_open_space(t)
+            if not (is_bld or hit or is_open):
+                continue
+            try:
+                rings = []
+                for outer in o.outer_rings():
+                    rings.append([(n.lon, n.lat) for n in outer])
+            except osmium.InvalidLocationError:
+                continue
+            if not rings:
+                continue
+            ring = max(rings, key=lambda r: abs(_ring_area_ll(r)))
+            rec = dict(kind="w" if o.from_way() else "r", id=o.orig_id(), tags=dict(t), ring=ring)
+            if is_bld:
+                buildings.append(rec)
+            if hit:
+                named.append(rec)
+            if is_open:
+                open_space.extend(rings)
+    print(f"[parse] {len(ways)} drivable ways, {len(buildings)} buildings, {len(named)} named hits, "
+          f"{len(open_space)} open-space rings in {time.time() - t0:.0f}s")
+    return dict(ways=ways, buildings=buildings, named=named, open=open_space)
+
+
+OPEN_TAGS = {
+    "leisure": {"park", "garden", "pitch", "stadium", "playground", "golf_course", "track", "nature_reserve", "common", "dog_park"},
+    "landuse": {"grass", "forest", "recreation_ground", "meadow", "cemetery", "village_green", "flowerbed", "orchard", "basin", "reservoir", "railway"},
+    "natural": {"water", "wood", "scrub", "grassland", "wetland", "heath", "beach", "bare_rock"},
+    "amenity": {"parking", "grave_yard", "fountain"},
+    "place": {"square"},
+    "tourism": {"theme_park", "zoo", "camp_site"},
+    "water": {"lake", "pond", "reservoir", "river", "canal"},
+}
+
+
+def is_open_space(t):
+    if t.get("parking") in ("underground", "multi-storey", "rooftop"):
+        return False
+    if t.get("highway") == "pedestrian" and t.get("area") == "yes":
+        return True
+    return any(t.get(k) in v for k, v in OPEN_TAGS.items())
+
+
+def _ring_area_ll(r):
+    a = 0.0
+    for i in range(len(r) - 1):
+        a += r[i][0] * r[i + 1][1] - r[i + 1][0] * r[i][1]
+    return a / 2
+
+
+def load_osm(cfg, rebuild=False):
+    src = ROOT / cfg["osm"]["pbf"]
+    ext = ROOT / cfg["osm"]["extract"]
+    cache = ROOT / cfg["osm"]["cache"]
+    if rebuild or not ext.exists():
+        if not src.exists():
+            sys.exit(f"missing {src}; run sh data-raw/download.sh")
+        make_extract(src, ext, cfg["osm"]["bbox"])
+    if not rebuild and cache.exists() and cache.stat().st_mtime > ext.stat().st_mtime:
+        with open(cache, "rb") as f:
+            d = pickle.load(f)
+        if d.get("version") == CACHE_VERSION and d.get("keywords") == cfg["osm"]["keywords"]:
+            return d
+    d = parse_osm(ext, cfg["osm"]["keywords"])
+    d["version"] = CACHE_VERSION
+    d["keywords"] = cfg["osm"]["keywords"]
+    d["timestamp"] = pbf_timestamp(src) if src.exists() else pbf_timestamp(ext)
+    with open(cache, "wb") as f:
+        pickle.dump(d, f, protocol=pickle.HIGHEST_PROTOCOL)
+    return d
+
+
+# ----------------------------------------------------------------------------
+# polyline helpers
+# ----------------------------------------------------------------------------
+
+
+def arclen(p):
+    seg = np.hypot(*np.diff(p, axis=0).T)
+    return np.concatenate([[0.0], np.cumsum(seg)])
+
+
+def dedupe(p, eps=1e-6):
+    p = np.asarray(p, float)
+    keep = np.concatenate([[True], np.hypot(*np.diff(p, axis=0).T) > eps])
+    return p[keep]
+
+
+def resample(p, step, s_from=None, s_to=None):
+    p = dedupe(p)
+    s = arclen(p)
+    a = 0.0 if s_from is None else s_from
+    b = s[-1] if s_to is None else s_to
+    n = max(2, int(round((b - a) / step)) + 1)
+    q = np.linspace(a, b, n)
+    return np.column_stack([np.interp(q, s, p[:, 0]), np.interp(q, s, p[:, 1])])
+
+
+def gaussian_smooth(p, sigma, step=1.0):
+    """Resample at `step` then Gaussian-smooth x/z with linear end extrapolation."""
+    q = resample(p, step)
+    r = int(math.ceil(3 * sigma / step))
+    if r < 1 or len(q) < 3:
+        return q
+    k = np.exp(-0.5 * (np.arange(-r, r + 1) * step / sigma) ** 2)
+    k /= k.sum()
+    d0 = q[0] - q[1]
+    d1 = q[-1] - q[-2]
+    head = q[0] + d0 * np.arange(r, 0, -1)[:, None]
+    tail = q[-1] + d1 * np.arange(1, r + 1)[:, None]
+    ext = np.vstack([head, q, tail])
+    return np.column_stack([np.convolve(ext[:, 0], k, "valid"), np.convolve(ext[:, 1], k, "valid")])
+
+
+class Polyline:
+    def __init__(self, pts):
+        self.p = dedupe(pts)
+        self.s = arclen(self.p)
+        self.length = float(self.s[-1])
+        self.line = LineString(self.p)
+
+    def at(self, s):
+        s = np.clip(np.asarray(s, float), 0, self.length)
+        return np.stack([np.interp(s, self.s, self.p[:, 0]), np.interp(s, self.s, self.p[:, 1])], axis=-1)
+
+    def tangent(self, s, span=0.0):
+        s = np.asarray(s, float)
+        if span > 0:
+            v = self.at(s + span) - self.at(s - span)
+        else:
+            i = np.clip(np.searchsorted(self.s, s, side="right") - 1, 0, len(self.p) - 2)
+            v = self.p[i + 1] - self.p[i]
+        return v / np.linalg.norm(v, axis=-1, keepdims=True)
+
+    def heading(self, s, span=0.0):
+        t = self.tangent(s, span)
+        return np.arctan2(t[..., 1], t[..., 0])
+
+    def project(self, pts):
+        """Global nearest projection -> (s, d); d > 0 right of travel direction."""
+        pts = np.atleast_2d(np.asarray(pts, float))
+        if getattr(self, "_tree", None) is None:
+            self._tree = shapely.STRtree(shapely.linestrings(np.stack([self.p[:-1], self.p[1:]], axis=1)))
+            self._seg = np.diff(self.p, axis=0)
+            self._seglen = np.hypot(self._seg[:, 0], self._seg[:, 1])
+        ii, jj = self._tree.query_nearest(shapely.points(pts), all_matches=False)
+        k = np.empty(len(pts), dtype=int)
+        k[ii] = jj
+        A, AB, L = self.p[k], self._seg[k], self._seglen[k]
+        t = np.clip(((pts - A) * AB).sum(1) / (L * L), 0.0, 1.0)
+        v = pts - (A + t[:, None] * AB)
+        tan = AB / L[:, None]
+        return self.s[k] + t * L, -v[:, 0] * tan[:, 1] + v[:, 1] * tan[:, 0]
+
+    def slice(self, a, b, step=1.0):
+        a, b = max(0.0, a), min(self.length, b)
+        inner = self.p[(self.s > a) & (self.s < b)]
+        return np.vstack([self.at(a)[None], inner, self.at(b)[None]])
+
+
+def rot2(a):
+    c, s = math.cos(a), math.sin(a)
+    return np.array([[c, -s], [s, c]])
+
+
+def wrap(a):
+    return (a + math.pi) % (2 * math.pi) - math.pi
+
+
+# ----------------------------------------------------------------------------
+# road graph
+# ----------------------------------------------------------------------------
+
+
+def is_oneway(tags):
+    ow = tags.get("oneway")
+    if ow in ("yes", "1", "true"):
+        return 1
+    if ow == "-1":
+        return -1
+    if tags.get("junction") == "roundabout" or tags.get("highway") == "motorway":
+        return 1
+    return 0
+
+
+class Graph:
+    def __init__(self, ways, proj, accept):
+        """accept(way_id, tags) -> cost multiplier or None (excluded)."""
+        self.adj = defaultdict(list)
+        self.xy = {}
+        for wid, w in ways.items():
+            m = accept(wid, w["tags"])
+            if m is None:
+                continue
+            xy = proj.fwd(w["ll"])
+            refs = w["refs"]
+            for r, p in zip(refs, xy):
+                self.xy[r] = p
+            ow = is_oneway(w["tags"])
+            for i in range(len(refs) - 1):
+                a, b = refs[i], refs[i + 1]
+                L = float(np.hypot(*(xy[i + 1] - xy[i])))
+                if ow >= 0:
+                    self.adj[a].append((b, L * m, wid))
+                if ow <= 0:
+                    self.adj[b].append((a, L * m, wid))
+
+    def nearest(self, p, cand=None):
+        ids = list(cand if cand is not None else self.xy.keys())
+        P = np.array([self.xy[i] for i in ids])
+        k = int(np.argmin(np.hypot(*(P - p).T)))
+        return ids[k], float(np.hypot(*(P[k] - p)))
+
+    def bridge_gaps(self, max_gap=80.0, max_angle=40.0):
+        """Connect dead ends to nodes ahead (fixes small OSM gaps at interchanges)."""
+        indeg = defaultdict(int)
+        prev = {}
+        for a, lst in self.adj.items():
+            for b, _, _ in lst:
+                indeg[b] += 1
+                prev[b] = a
+        ids = list(self.xy.keys())
+        P = np.array([self.xy[i] for i in ids])
+        added = 0
+        for n in ids:
+            if self.adj.get(n) or n not in prev:
+                continue
+            d_in = self.xy[n] - self.xy[prev[n]]
+            d_in /= np.linalg.norm(d_in) + 1e-9
+            v = P - self.xy[n]
+            dist = np.hypot(*v.T)
+            cosang = (v @ d_in) / (dist + 1e-9)
+            ok = (dist > 0.5) & (dist < max_gap) & (cosang > math.cos(math.radians(max_angle)))
+            if ok.any():
+                k = int(np.argmin(np.where(ok, dist, np.inf)))
+                self.adj[n].append((ids[k], float(dist[k]) * 1.5, -1))
+                added += 1
+        return added
+
+    def dijkstra(self, src, dst):
+        dist = {src: 0.0}
+        prev = {}
+        pq = [(0.0, src)]
+        while pq:
+            d, u = heapq.heappop(pq)
+            if u == dst:
+                break
+            if d > dist.get(u, math.inf):
+                continue
+            for v, c, wid in self.adj.get(u, ()):
+                nd = d + c
+                if nd < dist.get(v, math.inf):
+                    dist[v] = nd
+                    prev[v] = (u, wid)
+                    heapq.heappush(pq, (nd, v))
+        if dst not in dist:
+            return None, None
+        path, wids = [dst], []
+        while path[-1] != src:
+            u, wid = prev[path[-1]]
+            path.append(u)
+            wids.append(wid)
+        path.reverse()
+        wids.reverse()
+        return path, wids
+
+    def coords(self, path):
+        return np.array([self.xy[n] for n in path])
+
+
+# ----------------------------------------------------------------------------
+# route centerline
+# ----------------------------------------------------------------------------
+
+
+def compass(v):
+    """Compass bearing (deg, 0 = north, 90 = east) of an x/z vector."""
+    return math.degrees(math.atan2(v[0], -v[1])) % 360
+
+
+def way_travel_bearing(w, proj):
+    xy = proj.fwd(w["ll"])
+    v = xy[-1] - xy[0]
+    if is_oneway(w["tags"]) == -1:
+        v = -v
+    return compass(v)
+
+
+def build_chain(ways, proj, name_re, highways, want_deg, src_pt, dst_pt, label):
+    """Shortest directed path along one named road, restricted to carriageways
+    travelling roughly `want_deg`; snaps src/dst to nodes of such carriageways."""
+    rx = re.compile(name_re)
+    hw = set(highways)
+
+    def accept(_wid, t):
+        return 1.0 if t.get("highway") in hw and rx.search(t.get("name", "")) else None
+
+    g = Graph(ways, proj, accept)
+    nb = g.bridge_gaps()
+    cand = set()
+    for wid, w in ways.items():
+        if accept(wid, w["tags"]) and is_oneway(w["tags"]) != 0:
+            if abs((way_travel_bearing(w, proj) - want_deg + 180) % 360 - 180) <= 50:
+                cand.update(w["refs"])
+    src, e0 = g.nearest(np.asarray(src_pt), cand)
+    dst, e1 = g.nearest(np.asarray(dst_pt), cand)
+    path, wids = g.dijkstra(src, dst)
+    if path is None:
+        sys.exit(f"[route] no path for {label}")
+    pts = g.coords(path)
+    used = sorted({w for w in wids if w > 0})
+    print(
+        f"[route] {label}: {len(path)} nodes, {len(used)} ways, {arclen(pts)[-1]:.0f} m "
+        f"(snap {e0:.0f}/{e1:.0f} m, {sum(1 for w in wids if w < 0)} gap bridges used of {nb})"
+    )
+    return pts, used
+
+
+def fillet(S: Polyline, N: Polyline, R: float, fit=50.0):
+    """Join incoming S and outgoing N (which cross) with a tangent circular arc."""
+    inter = S.line.intersection(N.line)
+    pts = [inter] if inter.geom_type == "Point" else list(getattr(inter, "geoms", []))
+    if not pts:
+        sys.exit("[route] main road and turn road do not cross")
+    P = np.array(pts[0].coords[0])
+    sP = S.line.project(Point(P))
+    nP = N.line.project(Point(P))
+    u = S.at(sP) - S.at(sP - fit)
+    u /= np.linalg.norm(u)
+    v = N.at(nP + fit) - N.at(nP)
+    v /= np.linalg.norm(v)
+    a1, a2 = S.at(sP - fit / 2), N.at(nP + fit / 2)
+    t, _ = np.linalg.solve(np.column_stack([u, -v]), a2 - a1)
+    C = a1 + t * u
+    theta = math.acos(float(np.clip(u @ v, -1, 1)))
+    T = R * math.tan(theta / 2)
+    A, B = C - u * T, C + v * T
+    cross = u[0] * v[1] - u[1] * v[0]
+    direction = "left" if cross < 0 else "right"  # x/z frame has z = south
+    nl = np.array([u[1], -u[0]]) if cross < 0 else np.array([-u[1], u[0]])
+    ctr = A + nl * R
+    phA = math.atan2(A[1] - ctr[1], A[0] - ctr[0])
+    phB = math.atan2(B[1] - ctr[1], B[0] - ctr[0])
+    dph = wrap(phB - phA)
+    n = max(8, int(abs(dph) * R / 0.5))
+    ph = phA + dph * np.linspace(0, 1, n + 1)
+    arc = np.column_stack([ctr[0] + R * np.cos(ph), ctr[1] + R * np.sin(ph)])
+    sA = S.line.project(Point(A))
+    nB = N.line.project(Point(B))
+    err = max(np.linalg.norm(S.at(sA) - A), np.linalg.norm(N.at(nB) - B), abs(np.linalg.norm(B - ctr) - R))
+    info = dict(theta=math.degrees(theta), T=T, direction=direction, err=err, sA=sA, nB=nB, corner=C, arcLen=abs(dph) * R)
+    return arc, info
+
+
+class Features:
+    """Lookup of parsed OSM objects by 'w123' / 'r123' / 'n123'."""
+
+    def __init__(self, osm):
+        self.idx = {}
+        for rec in osm["named"]:
+            self.idx[f"{rec['kind']}{rec['id']}"] = rec
+        for rec in osm["buildings"]:
+            self.idx[f"{rec['kind']}{rec['id']}"] = rec
+
+    def get(self, ref):
+        return self.idx.get(ref)
+
+    def geom(self, ref, proj):
+        """-> (centroid xz, ring xz or None, tags)"""
+        rec = self.idx.get(ref)
+        if rec is None:
+            return None
+        if "ring" in rec:
+            ring = proj.fwd(rec["ring"])
+            poly = Polygon(ring)
+            if not poly.is_valid:
+                poly = poly.buffer(0)
+            c = np.array(poly.centroid.coords[0])
+            return c, ring[:-1] if np.allclose(ring[0], ring[-1]) else ring, rec["tags"]
+        return proj.fwd(rec["ll"]), None, rec["tags"]
+
+
+def build_route(osm, cfg, proj, feats):
+    rc = cfg["route"]
+    ways = osm["ways"]
+    ll = lambda p: proj.fwd(np.asarray(p, float))  # noqa: E731
+
+    tencent = feats.geom(rc["startLandmark"], proj)
+    civic = feats.geom(rc["finishLandmark"], proj)
+    if tencent is None or civic is None:
+        sys.exit("[route] start/finish landmark not found in OSM extract")
+
+    S_raw, S_ways = build_chain(
+        ways, proj, rc["mainRoadRegex"], rc["mainHighways"], 90,
+        ll(rc["hints"]["mainStart"]), ll(rc["hints"]["mainEnd"]), "main road eastbound",
+    )
+    N_raw, N_ways = build_chain(
+        ways, proj, rc["turnRoadRegex"], rc["turnHighways"], 0,
+        ll(rc["hints"]["turnStart"]), ll(rc["hints"]["turnEnd"]), f"{rc['turnRoadName']} northbound",
+    )
+    sig = rc["smoothSigma"]
+    S = Polyline(gaussian_smooth(S_raw, sig))
+    N = Polyline(gaussian_smooth(N_raw, sig))
+    arc, fi = fillet(S, N, rc["filletRadius"])
+    if fi["direction"] != "left":
+        print("[route] WARNING: turn is not a left turn")
+
+    sT, dT = S.project(tencent[0][None])
+    s_start = float(sT[0]) - rc["startBeforeTencent"]
+    if s_start < 0:
+        sys.exit("[route] main chain does not reach far enough west of the start landmark")
+
+    # finish: abeam the south facade of the finish landmark (largest z = southmost)
+    ring = civic[1]
+    z_facade = float(ring[:, 1].max())
+    nn = np.arange(fi["nB"], N.length, 0.5)
+    zz = N.at(nn)[:, 1]
+    hit = np.nonzero(zz <= z_facade + rc["finishBeforeFacade"])[0]
+    if len(hit) == 0:
+        sys.exit("[route] turn road chain does not reach the finish landmark")
+    n_finish = float(nn[hit[0]])
+    n_end = n_finish + rc["runout"]
+    if n_end > N.length:
+        sys.exit("[route] turn road chain too short for runout")
+
+    part1 = S.slice(s_start, fi["sA"])
+    part3 = N.slice(fi["nB"], n_end)
+    U = np.vstack([part1[:-1], arc, part3[1:]])
+    s0_turn = fi["sA"] - s_start
+    s1_turn = s0_turn + fi["arcLen"]
+    s_finish = s1_turn + (n_finish - fi["nB"])
+    print(
+        f"[route] turn {fi['direction']} {fi['theta']:.1f} deg, R={rc['filletRadius']} m, tangent {fi['T']:.1f} m, "
+        f"join error {fi['err'] * 100:.1f} cm; start {float(dT[0]):.0f} m lateral from start landmark"
+    )
+    return dict(
+        U=U, turn=(s0_turn, s1_turn), s_finish=s_finish, S=S, N=N, s_start=s_start, fillet=fi,
+        S_ways=S_ways, N_ways=N_ways, z_facade=z_facade,
+    )
+
+
+def westbound_chain(osm, cfg, proj):
+    rc = cfg["route"]
+    ll = lambda p: proj.fwd(np.asarray(p, float))  # noqa: E731
+    pts, _ = build_chain(
+        osm["ways"], proj, rc["mainRoadRegex"], rc["mainHighways"], 270,
+        ll(rc["hints"]["mainEnd"]), ll(rc["hints"]["mainStart"]), "main road westbound (opposite)",
+    )
+    return Polyline(gaussian_smooth(pts, rc["smoothSigma"]))
+
+
+CROSS_HW = ("trunk", "primary", "secondary", "tertiary", "unclassified")
+CROSS_SKIP = re.compile(r"辅路|辅道|立交|匝道|隧道|通道|出口|入口")
+
+
+def cross_streets(osm, cfg, proj, U: Polyline, turn, buf=12.0, min_angle=35.0):
+    """Named roads meeting the uncut centerline (crossings and T-junctions)
+    -> sorted [(s_orig, name)]."""
+    rx_main = re.compile(cfg["route"]["mainRoadRegex"])
+    rx_turn = re.compile(cfg["route"]["turnRoadRegex"])
+    corridor = U.line.buffer(buf)
+    hits = defaultdict(list)
+    for w in osm["ways"].values():
+        t = w["tags"]
+        name = t.get("name", "")
+        if not name or t.get("highway") not in CROSS_HW or rx_main.search(name) or CROSS_SKIP.search(name):
+            continue
+        xy = proj.fwd(w["ll"])
+        line = LineString(xy)
+        if not line.intersects(corridor):
+            continue
+        inter = line.intersection(corridor)
+        for g in getattr(inter, "geoms", [inter]):
+            if g.is_empty or g.length > 4 * buf:
+                continue
+            p = np.array(g.interpolate(0.5, normalized=True).coords[0])
+            s, _ = U.project(p[None])
+            s = float(s[0])
+            gc = np.asarray(g.coords)
+            v = gc[-1] - gc[0]
+            if np.linalg.norm(v) < 1:
+                continue
+            tan = U.tangent(np.clip(s, 1, U.length - 1), 5.0)
+            ang = math.degrees(math.acos(min(1.0, abs(float(v @ tan)) / np.linalg.norm(v))))
+            if ang < min_angle:
+                continue
+            if rx_turn.search(name) and s > turn[1] + 1:
+                continue
+            hits[name].append(s)
+    out = []
+    for name, ss in hits.items():
+        ss.sort()
+        cl = [ss[0]]
+        for s in ss[1:] + [math.inf]:
+            if s - cl[-1] < 120:
+                cl.append(s)
+            else:
+                out.append((float(np.mean(cl)), name))
+                cl = [s]
+    return sorted(out)
+
+
+# ----------------------------------------------------------------------------
+# cuts: remove [s0, s1] intervals and rigidly re-attach later pieces
+# ----------------------------------------------------------------------------
+
+
+class Splicer:
+    def __init__(self, U: Polyline, cuts, span=20.0):
+        self.U = U
+        self.cuts = sorted((float(c["s0"]), float(c["s1"])) for c in cuts)
+        for (_, b0), (a1, _) in zip(self.cuts, self.cuts[1:]):
+            if b0 >= a1:
+                sys.exit("[cuts] overlapping cut intervals")
+        self.starts = np.array([0.0] + [b for _, b in self.cuts])
+        self.ends = np.array([a for a, _ in self.cuts] + [U.length])
+        self.rot, self.trans, self.offset = [0.0], [np.zeros(2)], [0.0]
+        for a, b in self.cuts:
+            th0, t0 = self.rot[-1], self.trans[-1]
+            Pa = rot2(th0) @ U.at(a) + t0
+            th = wrap(float(U.heading(a, span)) + th0 - float(U.heading(b, span)))
+            self.rot.append(th)
+            self.trans.append(Pa - rot2(th) @ U.at(b))
+            self.offset.append(self.offset[-1] + (b - a))
+        self.offset = np.array(self.offset)
+        self.fstarts = self.starts - self.offset
+
+    def piece(self, s):
+        """Kept piece index for original s (-1 inside a cut)."""
+        s = np.atleast_1d(np.asarray(s, float))
+        k = np.clip(np.searchsorted(self.starts, s, side="right") - 1, 0, None)
+        return np.where(s > self.ends[k] + 1e-9, -1, k)
+
+    def s_final(self, s):
+        s = np.atleast_1d(np.asarray(s, float))
+        k = self.piece(s)
+        return np.where(k >= 0, s - self.offset[np.maximum(k, 0)], np.nan)
+
+    def s_orig(self, sf):
+        sf = np.atleast_1d(np.asarray(sf, float))
+        k = np.clip(np.searchsorted(self.fstarts, sf, side="right") - 1, 0, None)
+        return sf + self.offset[k]
+
+    def apply(self, pts, k):
+        return np.asarray(pts, float) @ rot2(self.rot[k]).T + self.trans[k]
+
+    def spliced(self):
+        out = []
+        for k, (a, b) in enumerate(zip(self.starts, self.ends)):
+            seg = self.apply(self.U.slice(a, b), k)
+            out.append(seg if k == 0 else seg[1:])
+        return np.vstack(out)
+
+
+# ----------------------------------------------------------------------------
+# heights
+# ----------------------------------------------------------------------------
+
+NUM_RE = re.compile(r"[-+]?\d+(?:\.\d+)?")
+
+
+def parse_height(v):
+    if not v:
+        return None
+    v = v.strip().lower().replace(",", ".")
+    m = NUM_RE.search(v)
+    if not m:
+        return None
+    h = float(m.group())
+    if "ft" in v or "'" in v:
+        h *= 0.3048
+    return h if h > 0 else None
+
+
+def parse_levels(v):
+    if not v:
+        return None
+    nums = [float(x) for x in NUM_RE.findall(v.replace(",", "."))]
+    nums = [n for n in nums if n > 0]
+    return max(nums) if nums else None
+
+
+def hash01(oid: int, salt: int = 0) -> float:
+    """Deterministic uniform [0, 1) from an OSM id (splitmix64)."""
+    z = (oid * 0x9E3779B97F4A7C15 + salt * 0xBF58476D1CE4E5B9 + 0x94D049BB133111EB) & 0xFFFFFFFFFFFFFFFF
+    z = ((z ^ (z >> 30)) * 0xBF58476D1CE4E5B9) & 0xFFFFFFFFFFFFFFFF
+    z = ((z ^ (z >> 27)) * 0x94D049BB133111EB) & 0xFFFFFFFFFFFFFFFF
+    z ^= z >> 31
+    return (z & 0xFFFFFFFFFFFF) / float(1 << 48)
+
+
+def building_height(tags, zone, area, oid, hc):
+    h = parse_height(tags.get("height"))
+    if h:
+        return h, "tag"
+    lv = parse_levels(tags.get("building:levels"))
+    if lv:
+        return lv * hc["levelHeight"] + hc.get("roofAllowance", 0.0), "levels"
+    btype = tags.get("building", "yes")
+    r = hash01(oid)
+    if btype in hc["lowTypes"]:
+        lo, hi = hc["lowRange"]
+    elif btype in hc["midTypes"]:
+        lo, hi = hc["midRange"]
+    else:
+        z = hc["zones"][zone]
+        lo, hi = next(rng for amax, rng in z if area < amax)
+    return lo + (hi - lo) * r**1.3, "estimated"
+
+
+# ----------------------------------------------------------------------------
+# assembly
+# ----------------------------------------------------------------------------
+
+
+def gauss1d(v, sigma_samples):
+    r = int(math.ceil(3 * sigma_samples))
+    if r < 1:
+        return v
+    k = np.exp(-0.5 * (np.arange(-r, r + 1) / sigma_samples) ** 2)
+    k /= k.sum()
+    return np.convolve(np.pad(v, r, mode="edge"), k, "valid")
+
+
+def round_pts(p, nd=1):
+    return [[round(float(x), nd), round(float(z), nd)] for x, z in p]
+
+
+def resolve_anchor(spec, xs_map, lm_s, R):
+    at = spec.get("at")
+    if "s" in spec:
+        return float(spec["s"])
+    if at == "turnStart":
+        return R["turn"][0]
+    if at == "turnEnd":
+        return R["turn"][1]
+    if at == "finish":
+        return R["s_finish"]
+    if at and at.startswith("landmark:"):
+        return lm_s[at.split(":", 1)[1]]
+    if at in xs_map:
+        return xs_map[at]
+    sys.exit(f"[config] cannot resolve anchor {spec}")
+
+
+def opposite_orig(cfg, W: Polyline, U: Polyline, turn):
+    """Smoothed lateral offset of the opposite carriageway on the original s grid."""
+    oc = cfg["opposite"]
+    grid = np.arange(0.0, U.length + 2.0, 2.0)
+    wp = W.at(np.arange(0.0, W.length, 2.0))
+    s_w, d_w = U.project(wp)
+    m = (d_w < -4) & (d_w > -150) & (s_w > 1) & (s_w < turn[0])
+    o = np.argsort(s_w[m])
+    raw = np.interp(grid, s_w[m][o], d_w[m][o])
+    sm = np.clip(gauss1d(raw, oc["smoothSigma"] / 2.0), oc["min"], oc["max"])
+    a, b = turn[0] - oc["turnBlend"], turn[1]
+    w = np.clip((grid - a) / max(b - a, 1.0), 0, 1)
+    out = sm * (1 - w) + oc["afterTurn"] * w
+    return grid, out
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--rebuild", action="store_true", help="re-cut the corridor extract and re-parse")
+    ap.add_argument("--no-plot", action="store_true")
+    ap.add_argument("--plan", action="store_true", help="print curvature/landmark profile for choosing cuts")
+    args = ap.parse_args()
+    cfg = json.loads(CFG_PATH.read_text())
+    t0 = time.time()
+    osm = load_osm(cfg, args.rebuild)
+    feats = Features(osm)
+    rc = cfg["route"]
+
+    # pass 1 finds the start point; pass 2 re-projects everything centred on it
+    p0 = Proj(*rc["hints"]["mainStart"])
+    r0 = build_route(osm, cfg, p0, feats)
+    origin = p0.inv(r0["U"][0])
+    proj = Proj(float(origin[0]), float(origin[1]))
+    R = build_route(osm, cfg, proj, feats)
+    proj.off = R["U"][0].copy()
+    R["U"] = R["U"] - proj.off
+    origin = proj.inv(np.zeros(2))
+    U = Polyline(resample(R["U"], 0.5))
+    print(f"[route] origin {origin[0]:.6f}, {origin[1]:.6f}; real length {U.length:.0f} m; "
+          f"turn s {R['turn'][0]:.0f}-{R['turn'][1]:.0f}; finish s {R['s_finish']:.0f}")
+    xs = cross_streets(osm, cfg, proj, U, R["turn"])
+    if args.plan:
+        plan_report(cfg, proj, feats, U, R, xs)
+        return
+
+    lanes_report(osm, R, proj, U)
+
+    # ---- landmarks (original frame) ----
+    lms = []
+    for lm in cfg["landmarks"]:
+        g = feats.geom(lm["osm"], proj)
+        if g is None:
+            print(f"[landmark] MISSING {lm['id']} ({lm['osm']})")
+            continue
+        c, ring, tags = g
+        if lm.get("footprintFrom"):
+            g2 = feats.geom(lm["footprintFrom"], proj)
+            ring = g2[1] if g2 else None
+        h = lm.get("height")
+        if h is None:
+            h = parse_height(tags.get("height")) or parse_height(tags.get("ele"))
+            if h is None and parse_levels(tags.get("building:levels")):
+                h = parse_levels(tags.get("building:levels")) * cfg["heights"]["levelHeight"]
+        s_o, d_o = U.project(c[None])
+        if lm.get("maxDistFromFinish"):
+            fin = U.at(R["s_finish"])
+            if np.linalg.norm(c - fin) > lm["maxDistFromFinish"]:
+                print(f"[landmark] {lm['id']} skipped: too far from finish")
+                continue
+        lms.append(dict(cfg=lm, c=c, ring=ring, h=h, s_o=float(s_o[0]), d_o=float(d_o[0])))
+    lm_s = {l["cfg"]["id"]: l["s_o"] for l in lms}
+
+    # ---- cuts ----
+    sp = Splicer(U, cfg["cuts"])
+    protect = [(lm_s[k], k) for k in cfg["cutProtect"]["landmarks"] if k in lm_s]
+    xs_map = {}
+    for s, n in xs:
+        xs_map.setdefault(n, s)
+    protect += [(xs_map[n], n) for n in cfg["cutProtect"]["intersections"] if n in xs_map]
+    protect += [(R["turn"][0], "turn")]
+    for a, b in sp.cuts:
+        for s, what in protect:
+            gap = max(a - s, s - b)
+            if gap < cfg["cutProtect"]["minDist"]:
+                print(f"[cuts] WARNING cut {a:.0f}-{b:.0f} only {gap:.0f} m from {what}")
+    F = Polyline(sp.spliced())
+    step = rc["sampleSpacing"]
+    L = math.floor(F.length / step + 1e-6) * step
+    ss = np.arange(0.0, L + step / 2, step)
+    cl = F.at(ss)
+    sf = lambda s: float(sp.s_final(s)[0])  # noqa: E731
+    print(f"[cuts] {len(sp.cuts)} cuts, removed {sp.offset[-1]:.0f} m; final length {L:.0f} m "
+          f"({L / U.length:.1%} of real); splice rotations "
+          + ", ".join(f"{math.degrees(r):+.2f} deg" for r in sp.rot[1:]))
+
+    # ---- opposite carriageway ----
+    W = westbound_chain(osm, cfg, proj)
+    grid, opp_o = opposite_orig(cfg, W, U, R["turn"])
+    opp_f = np.interp(sp.s_orig(ss), grid, opp_o)
+    opp_f = np.clip(gauss1d(opp_f, cfg["opposite"]["spliceSigma"] / step), cfg["opposite"]["min"], cfg["opposite"]["max"])
+    turn_f = (sf(R["turn"][0]), sf(R["turn"][1]))
+    opp_f[ss >= turn_f[1]] = cfg["opposite"]["afterTurn"]
+
+    # ---- sections / checkpoints / intersections / signs ----
+    sections = []
+    for i, sec in enumerate(cfg["sections"]):
+        s0 = 0.0 if sec["from"] == "start" else sf(resolve_anchor({"at": sec["from"]}, xs_map, lm_s, R))
+        sections.append(dict(id=sec["id"], name=sec["name"], s0=s0))
+    for i, sec in enumerate(sections):
+        sec["s1"] = sections[i + 1]["s0"] if i + 1 < len(sections) else L
+    sec_bounds_orig = [sp.s_orig(np.array([sec["s0"]]))[0] if sec["s0"] > 0 else -1e9 for sec in sections]
+
+    def zone_of(s_o):
+        k = int(np.searchsorted(sec_bounds_orig, s_o, side="right") - 1)
+        return sections[max(k, 0)]["id"]
+
+    checkpoints = []
+    for cp in cfg["checkpoints"]:
+        s = sf(resolve_anchor(cp, xs_map, lm_s, R)) + cp.get("offset", 0.0)
+        name = cp.get("name") or cp["at"]
+        checkpoints.append(dict(s=round(s, 1), name=name))
+    finish = dict(s=round(sf(R["s_finish"]), 1), name=rc["finishName"])
+    intersections = []
+    for s, n in xs:
+        s_f = sf(s)
+        if not math.isnan(s_f) and 0 < s_f < L:
+            intersections.append(dict(s=round(s_f, 1), name=n))
+    signs = []
+    for sg in cfg["signs"]:
+        s = sf(resolve_anchor(sg, xs_map, lm_s, R)) + sg.get("offset", 0.0)
+        rec = dict(s=round(s, 1), side=sg["side"], text=sg["text"])
+        if sg.get("sub"):
+            rec["sub"] = sg["sub"]
+        signs.append(rec)
+
+    # ---- landmarks (final frame) ----
+    landmarks = []
+    for l in lms:
+        k = int(sp.piece(np.clip(l["s_o"], 0, U.length))[0])
+        if k < 0:
+            print(f"[landmark] WARNING {l['cfg']['id']} falls inside a cut")
+            continue
+        c = sp.apply(l["c"][None], k)[0]
+        s_f, d_f = F.project(c[None])
+        rec = dict(id=l["cfg"]["id"], name=l["cfg"]["name"], osmId=int(l["cfg"]["osm"][1:]),
+                   x=round(float(c[0]), 1), z=round(float(c[1]), 1),
+                   s=round(float(np.clip(s_f[0], 0, L)), 1), d=round(float(d_f[0]), 1))
+        if l["ring"] is not None:
+            poly = Polygon(sp.apply(l["ring"], k)).simplify(cfg["buildings"]["simplify"])
+            rec["footprint"] = round_pts(np.asarray(poly.exterior.coords)[:-1])
+        if l["h"]:
+            rec["height"] = round(float(l["h"]), 1)
+        landmarks.append(rec)
+
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    route = dict(
+        meta=dict(
+            generatedAt=now,
+            osmTimestamp=osm.get("timestamp"),
+            source=cfg["source"],
+            origin=dict(lon=round(float(origin[0]), 7), lat=round(float(origin[1]), 7)),
+            realLength=round(U.length, 1),
+            length=round(L, 1),
+            cuts=[dict(s0=c["s0"], s1=c["s1"], note=c.get("note", "")) for c in sorted(cfg["cuts"], key=lambda c: c["s0"])],
+            sampleSpacing=step,
+        ),
+        centerline=round_pts(cl, 3),
+        road=cfg["road"],
+        oppositeOffset=[round(float(v), 2) for v in opp_f],
+        sections=[dict(id=s["id"], name=s["name"], s0=round(s["s0"], 1), s1=round(s["s1"], 1)) for s in sections],
+        checkpoints=checkpoints,
+        finish=finish,
+        turn=dict(s0=round(turn_f[0], 1), s1=round(turn_f[1], 1), direction=R["fillet"]["direction"], name=rc["turnRoadName"]),
+        intersections=intersections,
+        landmarks=landmarks,
+        signs=signs,
+    )
+    out_dir = ROOT / "public" / "data"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    write_json(out_dir / "route.json", route)
+    print(f"[out] route.json {(out_dir / 'route.json').stat().st_size / 1024:.0f} KB")
+
+    # ---- buildings ----
+    blds, hs, obstacles = build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms)
+    fill = procedural_fill(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, obstacles, lms)
+    hs["estimated"] += len(fill)
+    blds = sorted(blds + fill, key=lambda r: (r["s"], r["id"]))
+    bdata = dict(
+        meta=dict(generatedAt=now, osmTimestamp=osm.get("timestamp"), count=len(blds), heightSources=hs),
+        buildings=blds,
+    )
+    write_json(out_dir / "buildings.json", bdata, compact=True)
+    print(f"[out] buildings.json {(out_dir / 'buildings.json').stat().st_size / 1024:.0f} KB, {len(blds)} buildings, {hs}")
+
+    ok = validate(route, bdata, cfg)
+    coverage_report(cfg, osm, proj, U, sp, R)
+    if not args.no_plot:
+        plot(route, bdata, sp, U, F, ROOT / "evidence" / "route_plot.png")
+    print(f"done in {time.time() - t0:.1f}s")
+    if not ok:
+        sys.exit(1)
+
+
+def write_json(path, obj, compact=False):
+    if compact:
+        txt = json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+    else:
+        parts = []
+        for k, v in obj.items():
+            if isinstance(v, list) and len(v) > 0 and isinstance(v[0], dict):
+                inner = ",\n".join("    " + json.dumps(e, ensure_ascii=False, separators=(",", ":")) for e in v)
+                parts.append(f'  "{k}": [\n{inner}\n  ]')
+            else:
+                parts.append(f'  "{k}": ' + json.dumps(v, ensure_ascii=False, separators=(",", ":")))
+        txt = "{\n" + ",\n".join(parts) + "\n}\n"
+    path.write_text(txt, encoding="utf-8")
+
+
+def lanes_report(osm, R, proj, U):
+    tot = defaultdict(float)
+    for wid in R["S_ways"]:
+        w = osm["ways"][wid]
+        L = arclen(proj.fwd(w["ll"]))[-1]
+        tot[w["tags"].get("lanes", "?")] += L
+    s = sum(tot.values())
+    print("[road] main-road lanes tag by length: " + ", ".join(f"{k}: {v / s:.0%}" for k, v in sorted(tot.items())))
+
+
+# ----------------------------------------------------------------------------
+# buildings
+# ----------------------------------------------------------------------------
+
+
+def build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms):
+    bc, hc = cfg["buildings"], cfg["heights"]
+    exclude = set(bc["excludeIds"])
+    near_d, far_d = bc["nearDist"], bc["farDist"]
+    lo = U.p.min(0) - far_d - 200
+    hi = U.p.max(0) + far_d + 200
+    cands = []
+    for b in osm["buildings"]:
+        ref = f"{b['kind']}{b['id']}"
+        t = b["tags"]
+        if ref in exclude or "building:part" in t and "building" not in t:
+            continue
+        if t.get("location") == "underground" or (parse_height(t.get("layer")) is None and (t.get("layer") or "").startswith("-")
+                                                   and (parse_levels(t.get("building:levels")) or 0) == 0):
+            continue
+        ring = proj.fwd(b["ring"])
+        if (ring.max(0) < lo).any() or (ring.min(0) > hi).any():
+            continue
+        if len(ring) < 4:
+            continue
+        poly = Polygon(ring)
+        if not poly.is_valid:
+            poly = poly.buffer(0)
+            if poly.geom_type == "MultiPolygon":
+                poly = max(poly.geoms, key=lambda g: g.area)
+            if poly.is_empty or poly.geom_type != "Polygon":
+                continue
+        if poly.area < bc["minArea"]:
+            continue
+        cands.append((b, ref, poly))
+    print(f"[bld] {len(cands)} candidate footprints in bbox")
+
+    polys = [c[2] for c in cands]
+    dist = shapely.distance(np.array(polys, dtype=object), U.line)
+    hs = dict(tag=0, levels=0, estimated=0)
+    out = []
+    dropped = defaultdict(int)
+    sec_ids = {s["id"] for s in cfg["sections"]}
+    for (b, ref, poly), dd in zip(cands, dist):
+        if dd > far_d:
+            continue
+        far = dd > near_d
+        t = b["tags"]
+        oid = b["id"]
+        c = np.array(poly.centroid.coords[0])
+        s_c, d_c = U.project(c[None])
+        s_c, d_c = float(s_c[0]), float(d_c[0])
+        zone = zone_of(s_c)
+        assert zone in sec_ids
+        h, src = building_height(t, zone, poly.area, oid, hc)
+        if far and (src == "estimated" or h < bc["farMinHeight"]):
+            continue
+        simp = poly.simplify(bc["simplify"] if not far else bc["simplifyFar"], preserve_topology=True)
+        if simp.is_empty or simp.geom_type != "Polygon":
+            simp = poly
+        fp = np.asarray(simp.exterior.coords)[:-1]
+        if len(fp) < 3:
+            dropped["degenerate"] += 1
+            continue
+        s_v, d_v = U.project(fp)
+        if (sp.piece(s_v) < 0).any() or sp.piece(np.array([s_c]))[0] < 0:
+            dropped["in cut"] += 1
+            continue
+        opp_v = np.interp(s_v, grid, opp_o)
+        inside = (d_v >= opp_v - bc["oppositeMargin"]) & (d_v <= bc["rightMargin"])
+        inside &= (s_v > 0.5) & (s_v < U.length - 0.5)
+        if inside.any() or (opp_v[0] - bc["oppositeMargin"] <= d_c <= bc["rightMargin"] and 0.5 < s_c < U.length - 0.5):
+            dropped["road corridor"] += 1
+            continue
+        k = int(sp.piece(np.array([np.clip(s_c, 0, U.length)]))[0])
+        fp2 = sp.apply(fp, k)
+        c2 = sp.apply(c[None], k)[0]
+        s_f = float(np.clip(s_c - sp.offset[k], 0, L))
+        h = float(np.clip(h, hc["min"], hc["max"]))
+        rec = dict(id=oid, s=round(s_f, 1), d=round(d_c, 1), h=round(h, 1), zone=zone)
+        if far:
+            rec["far"] = True
+        rec["fp"] = round_pts(fp2, 1)
+        out.append(rec)
+        hs[src] += 1
+    out.sort(key=lambda r: (r["s"], r["id"]))
+    print(f"[bld] kept {len(out)} ({sum(1 for r in out if r.get('far'))} far); dropped " + ", ".join(f"{k} {v}" for k, v in dropped.items()))
+    obstacles = [p for p, dd in zip(polys, dist) if dd <= near_d + 60]
+    return out, hs, obstacles
+
+
+def procedural_fill(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, obstacles, lms):
+    """Deterministic filler blocks where OSM has no footprints (negative ids).
+    Never placed on OSM roads, parks/water/plazas/parking, landmarks, cuts or past the route ends."""
+    pc = cfg["procedural"]
+    if not pc.get("enabled"):
+        return []
+    t0 = time.time()
+    reach = U.line.buffer(pc["maxDist"] + 40)
+    obs = [p.buffer(pc["gapToBuildings"]) for p in obstacles]
+    for w in osm["ways"].values():
+        hw = w["tags"]["highway"]
+        line = LineString(proj.fwd(w["ll"]))
+        if line.intersects(reach):
+            obs.append(line.buffer(pc["roadHalfWidth"].get(hw, pc["roadHalfWidth"]["default"]) + pc["gapToRoads"]))
+    for ring in osm["open"]:
+        poly = Polygon(proj.fwd(ring))
+        if not poly.is_valid:
+            poly = poly.buffer(0)
+        if not poly.is_empty and poly.intersects(reach):
+            obs.append(poly)
+    for l in lms:
+        if l["ring"] is not None and l["cfg"]["id"] != "lianhuashan":
+            obs.append(Polygon(l["ring"]).buffer(pc["gapToLandmarks"]))
+    tree = shapely.STRtree(obs)
+    placed = []
+    cells = defaultdict(list)
+    out = []
+    lo_w, hi_w = pc["width"]
+    lo_d, hi_d = pc["depth"]
+    for side in (1, -1):
+        for s in np.arange(pc["step"] / 2, U.length - 10, pc["step"]):
+            if sp.piece(np.array([s]))[0] < 0:
+                continue
+            c0 = U.at(s)
+            t = U.tangent(np.clip(s, 10, U.length - 10), 10.0)
+            n = np.array([-t[1], t[0]])
+            opp = float(np.interp(s, grid, opp_o))
+            for bi, band in enumerate(pc["bands"]):
+                seed = int(round(s * 10)) * 131 + bi * 7 + (1 if side > 0 else 0)
+                u = [hash01(seed, j) for j in range(1, 6)]
+                if u[4] < pc["skipChance"]:
+                    continue
+                w = lo_w + (hi_w - lo_w) * u[0]
+                dep = lo_d + (hi_d - lo_d) * u[1]
+                dc = band + (u[2] - 0.5) * pc["lateralJitter"]
+                d_center = dc if side > 0 else opp - dc
+                if side > 0 and d_center - dep / 2 < pc["minRight"]:
+                    continue
+                if side < 0 and d_center + dep / 2 > opp - pc["minLeftBeyondOpposite"]:
+                    continue
+                if abs(d_center) + dep / 2 > pc["maxDist"]:
+                    continue
+                a = math.radians((u[3] - 0.5) * pc["rotJitter"])
+                ta = t * math.cos(a) + n * math.sin(a)
+                na = np.array([-ta[1], ta[0]])
+                ctr = c0 + n * d_center
+                corners = np.array([ctr + ta * sx * w / 2 + na * sz * dep / 2 for sx, sz in ((-1, -1), (1, -1), (1, 1), (-1, 1))])
+                poly = Polygon(corners)
+                if len(tree.query(poly, predicate="intersects")):
+                    continue
+                key = (int(ctr[0] // 100), int(ctr[1] // 100))
+                near = [q for dx in (-1, 0, 1) for dz in (-1, 0, 1) for q in cells[(key[0] + dx, key[1] + dz)]]
+                if any(q.intersects(poly) for q in near):
+                    continue
+                s_v, d_v = U.project(corners)
+                if (sp.piece(s_v) < 0).any() or s_v.min() <= 1 or s_v.max() >= U.length - 1:
+                    continue
+                cells[key].append(poly.buffer(pc["gapBetween"]))
+                placed.append((s, d_center, poly, corners))
+    for i, (s, d_center, poly, corners) in enumerate(sorted(placed, key=lambda p: (p[0], p[1]))):
+        oid = -(i + 1)
+        zone = zone_of(s)
+        h, _ = building_height({}, zone, poly.area, oid, cfg["heights"])
+        k = int(sp.piece(np.array([s]))[0])
+        out.append(dict(id=oid, s=round(float(s - sp.offset[k]), 1), d=round(float(d_center), 1),
+                        h=round(float(np.clip(h, cfg["heights"]["min"], cfg["heights"]["max"])), 1), zone=zone,
+                        fp=round_pts(sp.apply(corners, k), 1)))
+    print(f"[fill] {len(out)} procedural filler blocks in {time.time() - t0:.1f}s")
+    return out
+
+
+# ----------------------------------------------------------------------------
+# validation / reports / plot
+# ----------------------------------------------------------------------------
+
+
+def validate(route, bdata, cfg):
+    ok = True
+
+    def check(cond, msg):
+        nonlocal ok
+        print(f"  [{'ok' if cond else 'FAIL'}] {msg}")
+        ok &= bool(cond)
+
+    print("[check]")
+    m = route["meta"]
+    cl = np.array(route["centerline"], float)
+    seg = np.hypot(*np.diff(cl, axis=0).T)
+    L = m["length"]
+    sp = m["sampleSpacing"]
+    check(abs((len(cl) - 1) * sp - L) < 1e-6, f"{len(cl)} samples x {sp} m = {L} m (meta.length)")
+    check(seg.min() > sp * 0.995 and seg.max() < sp * 1.001, f"sample spacing {seg.min():.4f}-{seg.max():.4f} m")
+    check(np.allclose(cl[0], 0, atol=0.01), f"start at origin {cl[0].tolist()}")
+    h = np.unwrap(np.arctan2(np.diff(cl[:, 1]), np.diff(cl[:, 0])))
+    dh = np.degrees(np.abs(np.diff(h)))
+    s_mid = (np.arange(len(dh)) + 1) * sp
+    t0, t1 = route["turn"]["s0"], route["turn"]["s1"]
+    outside = (s_mid < t0 - 2 * sp) | (s_mid > t1 + 2 * sp)
+    worst = int(np.argmax(np.where(outside, dh, 0)))
+    check(dh[outside].max() < 1.5, f"max heading change outside turn {dh[outside].max():.2f} deg/sample at s={s_mid[worst]:.0f}")
+    turn_deg = math.degrees(abs(h[min(int(t1 / sp) + 2, len(h) - 1)] - h[max(int(t0 / sp) - 2, 0)]))
+    check(turn_deg > 60, f"turn {route['turn']['direction']} {turn_deg:.1f} deg on {route['turn']['name']} s {t0}-{t1} (arc {t1 - t0:.1f} m)")
+    for c in m["cuts"]:
+        s = c["s0"] - sum(cc["s1"] - cc["s0"] for cc in m["cuts"] if cc["s1"] <= c["s0"])
+        i = int(round(s / sp))
+        win = dh[max(i - 20, 0): i + 20]
+        print(f"       splice at final s={s:.0f}: max heading change nearby {win.max():.3f} deg/sample")
+    ratio = L / m["realLength"]
+    check(0.6 <= ratio <= 0.8, f"length {L:.0f} m = {ratio:.1%} of real {m['realLength']:.0f} m")
+    cps = [c["s"] for c in route["checkpoints"]]
+    fin = route["finish"]["s"]
+    check(all(a < b for a, b in zip(cps, cps[1:])), "checkpoints strictly increasing")
+    check(cps[0] >= 300 and cps[-1] < fin < L, f"first cp {cps[0]:.0f} >= 300, last cp {cps[-1]:.0f} < finish {fin:.0f} < length {L:.0f}")
+    gaps = np.diff([0] + cps + [fin])
+    check(gaps.max() <= 2000, f"max gap between start/checkpoints/finish {gaps.max():.0f} m")
+    check(t1 < cps[-1] < fin, "last checkpoint after the turn and before finish")
+    check(L - fin >= 150, f"run-out after finish {L - fin:.0f} m")
+    secs = route["sections"]
+    check(secs[0]["s0"] == 0 and secs[-1]["s1"] == L and all(a["s1"] == b["s0"] and a["s0"] < a["s1"] for a, b in zip(secs, secs[1:])),
+          "sections contiguous: " + ", ".join(f"{s['id']} {s['s0']:.0f}-{s['s1']:.0f}" for s in secs))
+    opp = route.get("oppositeOffset")
+    check(opp is None or len(opp) == len(cl), "oppositeOffset length matches centerline")
+    want = [l["id"] for l in cfg["landmarks"]]
+    have = [l["id"] for l in route["landmarks"]]
+    check(all(w in have for w in want if w != "kingkey100"), f"landmarks found: {have} (missing {[w for w in want if w not in have]})")
+    b = bdata["buildings"]
+    check(len(b) > 0 and bdata["meta"]["count"] == len(b), f"{len(b)} buildings")
+    return ok
+
+
+def coverage_report(cfg, osm, proj, U, sp, R):
+    """Footprint coverage per 250 m of original route, both sides, 0-300 m lateral."""
+    bins = np.arange(0, U.length + 250, 250.0)
+    area = np.zeros(len(bins) - 1)
+    for b in osm["buildings"]:
+        ring = proj.fwd(b["ring"])
+        c = ring.mean(0)
+        if (np.abs(c - U.p.mean(0)) > 9000).any():
+            continue
+        s, d = U.project(c[None])
+        if abs(d[0]) > 300 or not (0.5 < s[0] < U.length - 0.5):
+            continue
+        poly = Polygon(ring)
+        if poly.is_valid:
+            area[int(s[0] // 250)] += poly.area
+    cov = area / (250 * 600)
+    kept = [(bins[i], cov[i]) for i in range(len(cov)) if sp.piece(np.array([bins[i] + 125]))[0] >= 0]
+    low = [f"{a:.0f}-{a + 250:.0f}" for a, c in kept if c < 0.06]
+    print(f"[coverage] footprint share of 600 m wide corridor per 250 m (kept parts): median {np.median([c for _, c in kept]):.0%}; "
+          f"bins < 6%: {len(low)} -> {', '.join(low)}")
+    cache = ROOT / "data-raw" / "coverage_bins.json"
+    cache.write_text(json.dumps([dict(s0=float(bins[i]), cover=round(float(cov[i]), 3), cut=bool(sp.piece(np.array([bins[i] + 125]))[0] < 0)) for i in range(len(cov))]))
+
+
+def plot(route, bdata, sp, U, F, path):
+    import logging
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.collections import PolyCollection
+
+    logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
+    plt.rcParams["font.sans-serif"] = ["Arial Unicode MS", "Heiti SC", "PingFang SC", "Hiragino Sans GB", "DejaVu Sans"]
+    plt.rcParams["axes.unicode_minus"] = False
+    cl = np.array(route["centerline"])
+    L = route["meta"]["length"]
+    step = route["meta"]["sampleSpacing"]
+    Fp = Polyline(cl)
+    zc = {"nanshan": "#4e79a7", "oct": "#59a14f", "chegongmiao": "#f28e2b", "futian": "#e15759"}
+
+    def at(s):
+        return Fp.at(np.clip(s, 0, L))
+
+    def norm(s):
+        t = Fp.tangent(np.clip(s, 1, L - 1), 2.0)
+        return np.array([-t[1], t[0]])
+
+    fig = plt.figure(figsize=(22, 16))
+    gs = fig.add_gridspec(2, 3, height_ratios=[1.25, 1])
+    axes = [fig.add_subplot(gs[0, :])] + [fig.add_subplot(gs[1, i]) for i in range(3)]
+    s_turn = route["turn"]["s0"]
+    splice_s = []
+    for c in route["meta"]["cuts"]:
+        splice_s.append(c["s0"] - sum(cc["s1"] - cc["s0"] for cc in route["meta"]["cuts"] if cc["s1"] <= c["s0"]))
+    views = [None, (0, 900), (splice_s[-1] - 450, splice_s[-1] + 450) if splice_s else (4000, 5000), (s_turn - 350, L)]
+    titles = ["SHENZHEN DRIVE route (local metres, north up; cuts spliced; grey = procedural filler, pale = far skyline)",
+              "start / 腾讯大厦", "last splice", "turn / finish / 市民中心"]
+    polys = [np.array(b["fp"]) for b in bdata["buildings"]]
+    cols = ["#8c8c8c" if b["id"] < 0 else zc[b["zone"]] for b in bdata["buildings"]]
+    alphas = [0.25 if b.get("far") else 0.6 for b in bdata["buildings"]]
+    opp = np.array(route.get("oppositeOffset") or [])
+    ss = np.arange(len(cl)) * step
+    nn = np.array([norm(s) for s in ss])
+    for ax, view, title in zip(axes, views, titles):
+        pc = PolyCollection([p[:, [0, 1]] for p in polys], facecolors=cols, edgecolors="none")
+        pc.set_alpha(None)
+        pc.set_facecolor([matplotlib.colors.to_rgba(c, a) for c, a in zip(cols, alphas)])
+        ax.add_collection(pc)
+        for side in (-7, 7):
+            e = cl + nn * side
+            ax.plot(e[:, 0], e[:, 1], color="0.35", lw=0.6)
+        if len(opp):
+            o = cl + nn * opp[:, None]
+            ax.plot(o[:, 0], o[:, 1], color="0.6", lw=0.6, ls="--")
+        ax.plot(cl[:, 0], cl[:, 1], color="k", lw=1.2)
+        ti = (ss >= route["turn"]["s0"]) & (ss <= route["turn"]["s1"])
+        ax.plot(cl[ti, 0], cl[ti, 1], color="magenta", lw=3)
+        for s in splice_s:
+            p = at(s)
+            ax.plot(*p, marker="X", color="red", ms=12, zorder=6)
+            ax.annotate(f"splice s={s:.0f}", p, xytext=(5, 12), textcoords="offset points", color="red", fontsize=9)
+        for cp in route["checkpoints"]:
+            p, n = at(cp["s"]), norm(cp["s"])
+            seg = np.array([p - n * 12, p + n * 12])
+            ax.plot(seg[:, 0], seg[:, 1], color="blue", lw=2.5, zorder=5)
+            ax.annotate(f"CP {cp['name']}\n{cp['s']:.0f}", p, xytext=(4, -22), textcoords="offset points", color="blue", fontsize=8)
+        p, n = at(route["finish"]["s"]), norm(route["finish"]["s"])
+        seg = np.array([p - n * 14, p + n * 14])
+        ax.plot(seg[:, 0], seg[:, 1], color="green", lw=4, zorder=5)
+        ax.annotate(f"FINISH {route['finish']['s']:.0f}", p, xytext=(-80, 6), textcoords="offset points", color="green", fontsize=9, weight="bold")
+        for sg in route["signs"]:
+            p = at(sg["s"]) + norm(sg["s"]) * (10 if sg["side"] == "right" else -10)
+            ax.plot(*p, marker="s", color="purple", ms=6, zorder=6)
+            ax.annotate(f"{sg['text']}", p, xytext=(4, 4), textcoords="offset points", color="purple", fontsize=7)
+        for lm in route["landmarks"]:
+            if lm.get("footprint"):
+                fp = np.array(lm["footprint"] + [lm["footprint"][0]])
+                ax.plot(fp[:, 0], fp[:, 1], color="black", lw=1.2)
+            ax.plot(lm["x"], lm["z"], marker="*", color="gold", mec="k", ms=14, zorder=7)
+            ax.annotate(f"{lm['name']}\ns={lm['s']:.0f} d={lm['d']:.0f}", (lm["x"], lm["z"]), xytext=(6, 6),
+                        textcoords="offset points", fontsize=8, weight="bold")
+        if view is None:
+            pad = 400
+            ax.set_xlim(cl[:, 0].min() - pad, cl[:, 0].max() + pad)
+            ax.set_ylim(cl[:, 1].max() + pad, cl[:, 1].min() - pad)
+            for sec in route["sections"]:
+                p = at((sec["s0"] + sec["s1"]) / 2) + norm((sec["s0"] + sec["s1"]) / 2) * 420
+                ax.text(p[0], p[1], sec["name"], color=zc[sec["id"]], fontsize=12, weight="bold", ha="center")
+        else:
+            a, b = view
+            seg = cl[(ss >= a) & (ss <= b)]
+            cx, cz = seg.mean(0)
+            r = max(np.ptp(seg[:, 0]), np.ptp(seg[:, 1])) / 2 + 250
+            ax.set_xlim(cx - r, cx + r)
+            ax.set_ylim(cz + r, cz - r)
+        ax.set_aspect("equal")
+        ax.set_title(title)
+        ax.grid(alpha=0.2)
+    fig.tight_layout()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=110)
+    plt.close(fig)
+    print(f"[out] {path.relative_to(ROOT)}")
+
+
+def plan_report(cfg, proj, feats, U, R, xs):
+    print("\n== cross streets (s_orig, name)")
+    for s, n in xs:
+        print(f"  {s:7.0f}  {n}")
+    print("\n== landmarks")
+    for lm in cfg.get("landmarks", []):
+        g = feats.geom(lm["osm"], proj)
+        if g is None:
+            print("  MISSING", lm["id"], lm["osm"])
+            continue
+        s, d = U.project(g[0][None])
+        print(f"  {lm['id']:14} s={s[0]:7.0f} d={d[0]:7.0f}")
+    print("\n== heading profile (every 100 m): s, compass heading, change over next 100 m, max |dθ|/2m in window")
+    for s in np.arange(0, U.length - 100, 100.0):
+        h0 = math.degrees(U.heading(s, 2.0))
+        h1 = math.degrees(U.heading(s + 100, 2.0))
+        hh = np.unwrap(U.heading(np.arange(s, s + 100, 2.0), 1.0))
+        k = np.degrees(np.abs(np.diff(hh))).max()
+        print(f"  {s:7.0f} {(90 + h0) % 360:6.1f} {math.degrees(wrap(math.radians(h1 - h0))):6.2f} {k:5.2f}")
+
+
+if __name__ == "__main__":
+    main()

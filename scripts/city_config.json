@@ -1,0 +1,118 @@
+{
+  "source": "OpenStreetMap (© OpenStreetMap contributors, ODbL 1.0) via Geofabrik guangdong-latest.osm.pbf; processed by scripts/build_city_data.py",
+  "osm": {
+    "pbf": "data-raw/guangdong-latest.osm.pbf",
+    "extract": "data-raw/corridor.osm.pbf",
+    "cache": "data-raw/corridor_cache.pkl",
+    "bbox": [113.90, 22.50, 114.12, 22.585],
+    "keywords": ["腾讯", "Tencent", "世界之窗", "埃菲尔", "Eiffel", "平安金融", "Ping An Finance", "市民中心", "莲花山", "Lianhua", "京基", "Kingkey", "香蜜湖"]
+  },
+  "route": {
+    "mainRoadName": "深南大道",
+    "mainRoadRegex": "^深南(大道|中路)$",
+    "mainHighways": ["motorway", "trunk", "primary", "secondary"],
+    "turnRoadName": "益田路",
+    "turnRoadRegex": "^益田路$",
+    "turnHighways": ["trunk", "primary", "secondary"],
+    "turnChoiceNote": "益田路 northbound carriageway passes ~97 m from the west edge of the Civic Center outline (relation 10837975); 金田路 northbound passes ~112 m from its east edge. Both cross 深南大道 on overpasses in reality; simplified to an at-grade left turn.",
+    "hints": {
+      "mainStart": [113.9215, 22.5428],
+      "mainEnd": [114.0595, 22.5405],
+      "turnStart": [114.0512, 22.5372],
+      "turnEnd": [114.0512, 22.5505]
+    },
+    "startLandmark": "w600815118",
+    "startBeforeTencent": 200,
+    "finishLandmark": "r10837975",
+    "finishName": "深圳市民中心",
+    "finishBeforeFacade": 0,
+    "runout": 160,
+    "filletRadius": 30,
+    "smoothSigma": 20,
+    "sampleSpacing": 2.0
+  },
+  "cuts": [
+    { "s0": 800, "s1": 2600, "note": "科技园 east straight incl. 科苑北路/铜鼓路 crossings; also removes an OSM lane-shift jog (~35 m S-bend) near 铜鼓路" },
+    { "s0": 7500, "s1": 9500, "note": "竹子林 - 车公庙 west: 2 km dead-straight run (heading 80 deg), incl. 竹子林四路" }
+  ],
+  "cutProtect": {
+    "minDist": 400,
+    "landmarks": ["tencent", "eiffel", "pingan", "civic_center"],
+    "intersections": ["香蜜湖路"]
+  },
+  "road": { "lanes": 4, "laneWidth": 3.5, "halfWidthLeft": 7, "halfWidthRight": 7 },
+  "opposite": { "smoothSigma": 30, "spliceSigma": 20, "min": -60, "max": -14, "afterTurn": -16, "turnBlend": 40 },
+  "sections": [
+    { "id": "nanshan", "name": "南山科技园", "from": "start" },
+    { "id": "oct", "name": "世界之窗 / 华侨城", "from": "沙河东路" },
+    { "id": "chegongmiao", "name": "车公庙 / 香蜜湖", "from": "侨城东路" },
+    { "id": "futian", "name": "福田中心区", "from": "新洲路" }
+  ],
+  "checkpoints": [
+    { "at": "沙河东路" },
+    { "at": "landmark:eiffel", "name": "世界之窗" },
+    { "s": 6300, "name": "华侨城" },
+    { "at": "香蜜湖路" },
+    { "at": "香梅路" },
+    { "at": "turnEnd", "offset": 40, "name": "益田路" }
+  ],
+  "signs": [
+    { "at": "香蜜湖路", "offset": -150, "side": "right", "text": "深圳国际交流中心", "sub": "← 2026 APEC 主会场" },
+    { "at": "turnStart", "offset": -250, "side": "right", "text": "市民中心 ←", "sub": "左转 益田路" }
+  ],
+  "landmarks": [
+    { "id": "tencent", "name": "腾讯大厦", "osm": "w600815118" },
+    { "id": "eiffel", "name": "世界之窗 埃菲尔铁塔", "osm": "w264187661", "height": 108, "heightNote": "OSM says 170 (also roof:height=170); the 1:3 replica is 108 m" },
+    { "id": "pingan", "name": "平安金融中心", "osm": "w535860513" },
+    { "id": "civic_center", "name": "深圳市民中心", "osm": "r10837975", "height": 66, "heightNote": "outline has no height; max of its OSM building:part heights (way 783584168)" },
+    { "id": "lianhuashan", "name": "莲花山", "osm": "n1889340321", "footprintFrom": "w41281446", "heightNote": "peak node ele=106 m; footprint = 莲花山公园 boundary" },
+    { "id": "kingkey100", "name": "京基100", "osm": "w164033632", "maxDistFromFinish": 6000, "height": 441.8, "heightNote": "no height/levels tag in OSM; official height 441.8 m" }
+  ],
+  "buildings": {
+    "excludeIds": ["w600815118", "w535860513", "r10837975", "w264187661"],
+    "excludeNote": "replaced by hand-made landmarks: 腾讯大厦, 平安金融中心 (main tower), 深圳市民中心, 世界之窗 埃菲尔铁塔",
+    "nearDist": 300,
+    "farDist": 1500,
+    "farMinHeight": 80,
+    "minArea": 30,
+    "simplify": 0.5,
+    "simplifyFar": 1.5,
+    "oppositeMargin": 9,
+    "rightMargin": 10
+  },
+  "procedural": {
+    "enabled": true,
+    "note": "filler blocks (negative ids, counted as 'estimated') only where OSM has no building, road, park/water/plaza/parking or landmark",
+    "maxDist": 290,
+    "step": 30,
+    "bands": [36, 78, 125, 175, 228, 275],
+    "lateralJitter": 10,
+    "width": [18, 44],
+    "depth": [14, 34],
+    "rotJitter": 6,
+    "skipChance": 0.12,
+    "minRight": 22,
+    "minLeftBeyondOpposite": 22,
+    "gapToBuildings": 8,
+    "gapToRoads": 4,
+    "gapToLandmarks": 25,
+    "gapBetween": 7,
+    "roadHalfWidth": { "motorway": 15, "trunk": 14, "primary": 12, "secondary": 10, "tertiary": 8, "unclassified": 6, "residential": 5, "default": 6 }
+  },
+  "heights": {
+    "levelHeight": 3.2,
+    "min": 6,
+    "max": 450,
+    "lowTypes": ["industrial", "warehouse", "retail", "supermarket", "garage", "garages", "roof", "kiosk", "shed", "hut", "service", "transportation", "train_station", "greenhouse", "carport", "parking", "toilets", "gatehouse", "construction", "static_caravan", "grandstand", "pavilion", "cabin", "container", "ruins", "storage_tank", "bunker", "bridge"],
+    "lowRange": [6, 16],
+    "midTypes": ["school", "university", "college", "hospital", "public", "civic", "government", "church", "temple", "kindergarten", "sports_hall", "house", "detached", "terrace", "semidetached_house", "sports_centre", "stadium", "museum", "library", "theatre"],
+    "midRange": [12, 30],
+    "zonesNote": "for other types: [maxFootprintArea m2, [minH, maxH]] by zone; value = min + (max-min) * u^1.3, u = hash(osm id)",
+    "zones": {
+      "nanshan": [[300, [12, 30]], [1500, [24, 80]], [6000, [40, 140]], [1e12, [20, 50]]],
+      "oct": [[300, [9, 24]], [1500, [15, 50]], [6000, [20, 70]], [1e12, [15, 35]]],
+      "chegongmiao": [[300, [12, 32]], [1500, [30, 100]], [6000, [50, 170]], [1e12, [24, 60]]],
+      "futian": [[300, [12, 32]], [1500, [35, 120]], [6000, [60, 200]], [1e12, [24, 60]]]
+    }
+  }
+}

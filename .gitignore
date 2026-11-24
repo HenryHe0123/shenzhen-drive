@@ -1,4 +1,6 @@
 data-raw/*.pbf
+data-raw/*.pkl
+__pycache__/
 data-raw/download.log
 node_modules/
 dist/
