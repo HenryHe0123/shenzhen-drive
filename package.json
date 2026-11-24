@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "playtest": "vite build --outDir playtest --emptyOutDir && vite preview --outDir playtest --port 4173 --strictPort",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "e2e": "playwright test",
