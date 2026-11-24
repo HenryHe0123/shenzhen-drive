@@ -99,7 +99,7 @@ export const CONFIG = {
      * Wheels moved outward (m per side), an Ultra-like wider stance: straight from behind the
      * GLB body hides the tyres almost completely; this lets their shoulders show.
      */
-    wheelTrackOffset: 0.04,
+    wheelTrackOffset: 0,
     /** The GLB tyre textures are near black (albedo ≈ 0.01); scaled to dark grey rubber. */
     tireAlbedoScale: 3.2,
     tireRoughness: 0.85,

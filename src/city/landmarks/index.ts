@@ -12,20 +12,6 @@ import { buildHill, buildKK100, buildTencent } from './towers';
 /** Nothing of the Civic Center may come closer than this to the centerline of the final leg (m). */
 const CIVIC_CLEARANCE = 14;
 
-function glowTexture(): THREE.CanvasTexture {
-  const size = 64;
-  const cv = document.createElement('canvas');
-  cv.width = cv.height = size;
-  const g = cv.getContext('2d')!;
-  const grad = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  grad.addColorStop(0, 'rgba(255,255,255,1)');
-  grad.addColorStop(0.25, 'rgba(255,255,255,0.6)');
-  grad.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = grad;
-  g.fillRect(0, 0, size, size);
-  return new THREE.CanvasTexture(cv);
-}
-
 /**
  * Smallest signed offset d (right of the route) of the Civic Center outline on
  * the leg after the last turn, for a site moved `back` meters along local -z.
@@ -75,30 +61,10 @@ export async function createLandmarks(ctx: WorldContext): Promise<SceneryModule>
     return site;
   };
 
-  const glow = glowTexture();
-  disposables.push(glow);
-  const beaconMat = new THREE.SpriteMaterial({
-    map: glow,
-    color: new THREE.Color(6, 0.35, 0.25),
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    transparent: true,
-    fog: false,
-    sizeAttenuation: false,
-  });
-  disposables.push(beaconMat);
-  const beacons: THREE.Sprite[] = [];
-
   const pa = sites.get('pingan');
   if (pa && keep('pingan')) {
     const scale = pa.height > 400 && pa.height < 700 ? pa.height / 599 : 1;
-    const { object, beacon } = buildPingAn(mats, scale);
-    place(object, 'pingan');
-    const sp = new THREE.Sprite(beaconMat);
-    sp.position.copy(beacon);
-    sp.scale.setScalar(0.012);
-    object.add(sp);
-    beacons.push(sp);
+    place(buildPingAn(mats, scale), 'pingan');
   }
 
   const cc = keep('civic_center') ? buildCivicCenter(mats) : null;
@@ -131,15 +97,7 @@ export async function createLandmarks(ctx: WorldContext): Promise<SceneryModule>
   }
 
   const kk = sites.get('kk100');
-  if (kk && keep('kk100')) {
-    const obj = buildKK100(mats, kk.height > 300 && kk.height < 500 ? kk.height : 442);
-    place(obj, 'kk100');
-    const sp = new THREE.Sprite(beaconMat);
-    sp.position.set(0, (kk.height || 442) + 2, 0);
-    sp.scale.setScalar(0.009);
-    obj.add(sp);
-    beacons.push(sp);
-  }
+  if (kk && keep('kk100')) place(buildKK100(mats, kk.height > 300 && kk.height < 500 ? kk.height : 442), 'kk100');
 
   root.traverse((o) => {
     if (o instanceof THREE.Mesh) {
@@ -150,22 +108,15 @@ export async function createLandmarks(ctx: WorldContext): Promise<SceneryModule>
   scene.add(root);
   if (ctx.debug) (window as unknown as { __LANDMARKS__?: THREE.Group }).__LANDMARKS__ = root;
 
-  // Aviation beacons and floodlights are a night feature; daylight hides them.
-  let beaconLevel = 0;
   const applyNight = (night: number) => {
     mats.setNight(night);
     cc?.setNight(night);
-    beaconLevel = night;
-    for (const b of beacons) b.visible = night > 0.05;
   };
   applyNight(nightLevel());
   const unsubscribe = onTimeOfDayChange((t) => applyNight(nightLevel(t)));
 
   return {
-    update(frame: FrameInfo) {
-      const on = frame.time % 1.6 < 0.55;
-      beaconMat.opacity = (on ? 1 : 0.12) * beaconLevel;
-    },
+    update(_frame: FrameInfo) {},
     dispose() {
       unsubscribe();
       scene.remove(root);

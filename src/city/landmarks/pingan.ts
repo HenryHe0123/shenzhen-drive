@@ -38,10 +38,10 @@ const SPIRE_TOP = 599;
 
 /**
  * Ping An Finance Center: chamfered square tower with 8 continuous stainless
- * ribs at the chamfer corners, stepped crown, spire and a red aviation light.
+ * ribs at the chamfer corners, stepped crown and spire.
  * Built in local coordinates (faces along x/z); the caller positions it.
  */
-export function buildPingAn(mats: LandmarkMaterials, scale = 1): { object: THREE.Group; beacon: THREE.Vector3 } {
+export function buildPingAn(mats: LandmarkMaterials, scale = 1): THREE.Group {
   const group = new THREE.Group();
   group.name = 'pingan';
   const fb = new FacadeBuilder();
@@ -126,5 +126,5 @@ export function buildPingAn(mats: LandmarkMaterials, scale = 1): { object: THREE
   spire.translate(0, ((SPIRE_BASE + SPIRE_TOP) / 2) * scale, 0);
   group.add(new THREE.Mesh(spire, mats.steel));
 
-  return { object: group, beacon: new THREE.Vector3(0, SPIRE_TOP * scale + 1, 0) };
+  return group;
 }
