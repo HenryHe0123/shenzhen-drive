@@ -11,22 +11,32 @@
     "mainRoadName": "深南大道",
     "mainRoadRegex": "^深南(大道|中路)$",
     "mainHighways": ["motorway", "trunk", "primary", "secondary"],
-    "turnRoadName": "益田路",
-    "turnRoadRegex": "^益田路$",
-    "turnHighways": ["trunk", "primary", "secondary"],
-    "turnChoiceNote": "益田路 northbound carriageway passes ~97 m from the west edge of the Civic Center outline (relation 10837975); 金田路 northbound passes ~112 m from its east edge. Both cross 深南大道 on overpasses in reality; simplified to an at-grade left turn.",
     "hints": {
       "mainStart": [113.9215, 22.5428],
-      "mainEnd": [114.0595, 22.5405],
-      "turnStart": [114.0512, 22.5372],
-      "turnEnd": [114.0512, 22.5505]
+      "mainEnd": [114.0595, 22.5405]
     },
+    "legsNote": "one named road per leg, travelling `bearing` (deg) on the matching one-way carriageway; consecutive legs are joined by a tangent circular fillet of `radius` m at their crossing (`turn` = expected direction). 益田路 and 金田路 cross 深南大道 on overpasses in reality; simplified to at-grade junctions. The 福田 CBD loop passes the foot of 平安金融中心 (益田路 southbound, tower dead ahead) and ends on 福中三路 directly in front of the Civic Center's south facade.",
+    "legs": [
+      { "name": "深南大道", "regex": "^深南(大道|中路)$", "highways": ["motorway", "trunk", "primary", "secondary"], "bearing": 90,
+        "from": [113.9215, 22.5428], "to": [114.0595, 22.5405] },
+      { "name": "益田路", "regex": "^益田路$", "highways": ["trunk", "primary", "secondary"], "bearing": 180,
+        "from": [114.05112, 22.5453], "to": [114.05124, 22.53356], "turn": "right", "radius": 30 },
+      { "name": "福华三路", "regex": "^福华三路$", "highways": ["primary", "secondary", "tertiary"], "bearing": 90,
+        "from": [114.04869, 22.53525], "to": [114.06085, 22.53541], "turn": "left", "radius": 40 },
+      { "name": "金田路", "regex": "^金田路$", "highways": ["trunk", "primary", "secondary"], "bearing": 0,
+        "from": [114.05822, 22.53311], "to": [114.05798, 22.54819], "turn": "left", "radius": 40 },
+      { "name": "福中三路", "regex": "^福中三路$", "highways": ["primary", "secondary", "tertiary"], "bearing": 270,
+        "from": [114.05987, 22.54554], "to": [114.04869, 22.5454], "turn": "left", "radius": 32,
+        "offset": -7, "oppositeFixed": -14,
+        "offsetNote": "the real westbound carriageway (~2 lanes) runs 2-35 m from the Civic Center's south facade; our 4-lane carriageway is shifted 7 m south (into the Civic Square side) so its right edge sits on the real carriageway centre line" }
+    ],
     "startLandmark": "w600815118",
     "startBeforeTencent": 200,
     "finishLandmark": "r10837975",
     "finishName": "深圳市民中心",
-    "finishBeforeFacade": 0,
-    "runout": 160,
+    "finishNote": "finish abeam the finish landmark's centroid on the last leg (middle of the Civic Center's south facade) + finishOffset m",
+    "finishOffset": 0,
+    "runout": 200,
     "filletRadius": 30,
     "smoothSigma": 20,
     "sampleSpacing": 2.0
@@ -41,24 +51,30 @@
     "intersections": ["香蜜湖路"]
   },
   "road": { "lanes": 4, "laneWidth": 3.5, "halfWidthLeft": 7, "halfWidthRight": 7 },
-  "opposite": { "smoothSigma": 30, "spliceSigma": 20, "min": -60, "max": -14, "afterTurn": -16, "turnBlend": 40 },
+  "opposite": { "smoothSigma": 30, "spliceSigma": 20, "min": -60, "max": -14, "undivided": -14 },
   "sections": [
     { "id": "nanshan", "name": "南山科技园", "from": "start" },
     { "id": "oct", "name": "世界之窗 / 华侨城", "from": "沙河东路" },
     { "id": "chegongmiao", "name": "车公庙 / 香蜜湖", "from": "侨城东路" },
     { "id": "futian", "name": "福田中心区", "from": "新洲路" }
   ],
+  "race": {
+    "note": "optimal-lap estimator (SU7 Ultra): v <= sqrt(latAcc * R); a(v) = accel * (1 - (v / vmax)^2); constant braking; target ~2:45-3:15",
+    "vmax": 97.2, "accel": 12, "brake": 15, "latAcc": 10, "startS": 6, "curvatureWindow": 10
+  },
+  "lengthRatio": [0.6, 0.8],
   "checkpoints": [
     { "at": "沙河东路" },
     { "at": "landmark:eiffel", "name": "世界之窗" },
     { "s": 6300, "name": "华侨城" },
     { "at": "香蜜湖路" },
     { "at": "香梅路" },
-    { "at": "turnEnd", "offset": 40, "name": "益田路" }
+    { "at": "新洲路" },
+    { "at": "landmark:pingan", "name": "平安金融中心" },
+    { "at": "turn3End", "offset": 60, "name": "金田路" }
   ],
   "signs": [
-    { "at": "香蜜湖路", "offset": -150, "side": "right", "text": "深圳国际交流中心", "sub": "← 2026 APEC 主会场" },
-    { "at": "turnStart", "offset": -250, "side": "right", "text": "市民中心 ←", "sub": "左转 益田路" }
+    { "at": "香蜜湖路", "offset": -150, "side": "right", "text": "深圳国际交流中心", "sub": "← 2026 APEC 主会场" }
   ],
   "landmarks": [
     { "id": "tencent", "name": "腾讯大厦", "osm": "w600815118" },
@@ -80,6 +96,15 @@
     "oppositeMargin": 9,
     "rightMargin": 10
   },
+  "viewCorridorsNote": "artistic simplification: buildings crossing a sight line from the chase camera to a landmark are capped just below the line (dropped if the cap is < minKeep m or they are procedural fillers); s0/s1 are final route s or turnStart/turnEnd/finish; halfFov = bearing limit from the route tangent; swept wedges -> route.json clearZones",
+  "viewCorridorDefaults": { "cameraBack": 7, "cameraD": 1.75, "cameraHeight": 3.0, "margin": 2.0, "minKeep": 12, "targetSpacing": 25, "zoneSimplify": 4,
+    "keepIds": ["w694439493"], "keepNote": "never capped: 华侨城大厦 / OCT Tower (300 m, signature of the OCT section; hides the distant Ping An tip only around s 3000-3450)" },
+  "viewCorridors": [
+    { "landmark": "pingan", "s0": { "at": "landmark:eiffel", "offset": 300 }, "s1": "turn1Start", "step": 10, "minVisibleFrom": 220, "halfFov": 45 },
+    { "landmark": "pingan", "s0": "turn1End", "s1": "landmark:pingan", "step": 5, "minVisibleFrom": 30, "halfFov": 60 },
+    { "landmark": "civic_center", "s0": { "at": "深南大道", "offset": -200 }, "s1": "finish", "step": 5, "minVisibleFrom": 8, "halfFov": 100, "targetSpacing": 20 },
+    { "landmark": "eiffel", "s0": { "at": "landmark:eiffel", "offset": -890 }, "s1": "landmark:eiffel", "step": 10, "minVisibleFrom": 40, "halfFov": 75, "targetSpacing": 10 }
+  ],
   "procedural": {
     "enabled": true,
     "note": "filler blocks (negative ids, counted as 'estimated') only where OSM has no building, road, park/water/plaza/parking or landmark",

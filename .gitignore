@@ -2,6 +2,7 @@ data-raw/*.pbf
 data-raw/*.pkl
 __pycache__/
 data-raw/download.log
+data-raw/assets/
 node_modules/
 dist/
 .venv/

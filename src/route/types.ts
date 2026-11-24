@@ -57,8 +57,6 @@ export interface RouteData {
   intersections?: { s: number; name: string }[];
   landmarks: Landmark[];
   signs: { s: number; side: 'left' | 'right'; text: string; sub?: string }[];
-  /** Swept landmark sight-line wedges (pipeline viewCorridors); runtime filler blocks and billboards stay out of them. */
-  clearZones?: Vec2[][];
 }
 
 export interface Turn {

@@ -526,90 +526,108 @@ class Features:
         return proj.fwd(rec["ll"]), None, rec["tags"]
 
 
-def build_route(osm, cfg, proj, feats):
+def build_route(osm, cfg, proj, feats, quiet=False):
+    """Chains route.legs (one named road each, on the carriageway travelling its bearing) and joins
+    consecutive legs with tangent circular fillets at their crossing."""
     rc = cfg["route"]
     ways = osm["ways"]
     ll = lambda p: proj.fwd(np.asarray(p, float))  # noqa: E731
 
     tencent = feats.geom(rc["startLandmark"], proj)
-    civic = feats.geom(rc["finishLandmark"], proj)
-    if tencent is None or civic is None:
+    finish_lm = feats.geom(rc["finishLandmark"], proj)
+    if tencent is None or finish_lm is None:
         sys.exit("[route] start/finish landmark not found in OSM extract")
 
-    S_raw, S_ways = build_chain(
-        ways, proj, rc["mainRoadRegex"], rc["mainHighways"], 90,
-        ll(rc["hints"]["mainStart"]), ll(rc["hints"]["mainEnd"]), "main road eastbound",
-    )
-    N_raw, N_ways = build_chain(
-        ways, proj, rc["turnRoadRegex"], rc["turnHighways"], 0,
-        ll(rc["hints"]["turnStart"]), ll(rc["hints"]["turnEnd"]), f"{rc['turnRoadName']} northbound",
-    )
-    sig = rc["smoothSigma"]
-    S = Polyline(gaussian_smooth(S_raw, sig))
-    N = Polyline(gaussian_smooth(N_raw, sig))
-    arc, fi = fillet(S, N, rc["filletRadius"])
-    if fi["direction"] != "left":
-        print("[route] WARNING: turn is not a left turn")
+    legs = []
+    for lg in rc["legs"]:
+        raw, used = build_chain(ways, proj, lg["regex"], lg["highways"], lg["bearing"], ll(lg["from"]), ll(lg["to"]),
+                                f"{lg['name']} heading {lg['bearing']} deg")
+        p = gaussian_smooth(raw, rc["smoothSigma"])
+        if lg.get("offset"):
+            t = np.gradient(p, axis=0)
+            t /= np.linalg.norm(t, axis=1, keepdims=True)
+            p = p + np.column_stack([-t[:, 1], t[:, 0]]) * lg["offset"]
+        legs.append(dict(cfg=lg, P=Polyline(p), ways=used))
+    fillets = []
+    for prev, nxt in zip(legs, legs[1:]):
+        arc, fi = fillet(prev["P"], nxt["P"], nxt["cfg"]["radius"])
+        if fi["direction"] != nxt["cfg"].get("turn", fi["direction"]):
+            print(f"[route] WARNING: turn onto {nxt['cfg']['name']} is {fi['direction']}, expected {nxt['cfg']['turn']}")
+        fillets.append((arc, fi))
 
+    S = legs[0]["P"]
     sT, dT = S.project(tencent[0][None])
     s_start = float(sT[0]) - rc["startBeforeTencent"]
     if s_start < 0:
         sys.exit("[route] main chain does not reach far enough west of the start landmark")
 
-    # finish: abeam the south facade of the finish landmark (largest z = southmost)
-    ring = civic[1]
-    z_facade = float(ring[:, 1].max())
-    nn = np.arange(fi["nB"], N.length, 0.5)
-    zz = N.at(nn)[:, 1]
-    hit = np.nonzero(zz <= z_facade + rc["finishBeforeFacade"])[0]
-    if len(hit) == 0:
-        sys.exit("[route] turn road chain does not reach the finish landmark")
-    n_finish = float(nn[hit[0]])
+    # finish: abeam the finish landmark's centroid on the last leg
+    last = legs[-1]["P"]
+    nF, _ = last.project(finish_lm[0][None])
+    n_finish = float(nF[0]) + rc.get("finishOffset", 0.0)
     n_end = n_finish + rc["runout"]
-    if n_end > N.length:
-        sys.exit("[route] turn road chain too short for runout")
+    if n_end > last.length:
+        sys.exit("[route] last leg too short for the run-out")
 
-    part1 = S.slice(s_start, fi["sA"])
-    part3 = N.slice(fi["nB"], n_end)
-    U = np.vstack([part1[:-1], arc, part3[1:]])
-    s0_turn = fi["sA"] - s_start
-    s1_turn = s0_turn + fi["arcLen"]
-    s_finish = s1_turn + (n_finish - fi["nB"])
-    print(
-        f"[route] turn {fi['direction']} {fi['theta']:.1f} deg, R={rc['filletRadius']} m, tangent {fi['T']:.1f} m, "
-        f"join error {fi['err'] * 100:.1f} cm; start {float(dT[0]):.0f} m lateral from start landmark"
-    )
-    return dict(
-        U=U, turn=(s0_turn, s1_turn), s_finish=s_finish, S=S, N=N, s_start=s_start, fillet=fi,
-        S_ways=S_ways, N_ways=N_ways, z_facade=z_facade,
-    )
+    pieces, turns, leg_ranges = [], [], []
+    a, s = s_start, 0.0
+    for i, lg in enumerate(legs):
+        b = fillets[i][1]["sA"] if i < len(fillets) else n_end
+        if b <= a + 1:
+            sys.exit(f"[route] leg {lg['cfg']['name']} has no straight part between its turns")
+        part = lg["P"].slice(a, b)
+        pieces.append(part if i == 0 else part[1:])
+        leg_ranges.append((s, s + b - a, lg["cfg"]))
+        if i == len(legs) - 1:
+            s_finish = s + n_finish - a
+        s += b - a
+        if i < len(fillets):
+            arc, fi = fillets[i]
+            pieces[-1] = pieces[-1][:-1]
+            pieces.append(arc)
+            nm = legs[i + 1]["cfg"]
+            turns.append(dict(s0=s, s1=s + fi["arcLen"], direction=fi["direction"], name=nm["name"], radius=nm["radius"], fi=fi))
+            s += fi["arcLen"]
+            a = fi["nB"]
+    U = np.vstack(pieces)
+    if not quiet:
+        for t in turns:
+            fi = t["fi"]
+            print(f"[route] turn {t['direction']:5} onto {t['name']}: {fi['theta']:.1f} deg, R={t['radius']} m, tangent {fi['T']:.1f} m, "
+                  f"arc {fi['arcLen']:.1f} m, join error {fi['err'] * 100:.1f} cm, s_orig {t['s0']:.0f}-{t['s1']:.0f}")
+        print(f"[route] start {float(dT[0]):.0f} m lateral from start landmark; finish {s_finish:.0f}, run-out {rc['runout']} m")
+    return dict(U=U, turns=turns, legs=leg_ranges, s_finish=s_finish, s_start=s_start, S_ways=legs[0]["ways"])
 
 
-def westbound_chain(osm, cfg, proj):
+def opposite_chains(osm, cfg, proj):
+    """Opposite-direction carriageway of every leg (same named road, reversed bearing)."""
     rc = cfg["route"]
     ll = lambda p: proj.fwd(np.asarray(p, float))  # noqa: E731
-    pts, _ = build_chain(
-        osm["ways"], proj, rc["mainRoadRegex"], rc["mainHighways"], 270,
-        ll(rc["hints"]["mainEnd"]), ll(rc["hints"]["mainStart"]), "main road westbound (opposite)",
-    )
-    return Polyline(gaussian_smooth(pts, rc["smoothSigma"]))
+    out = []
+    for lg in rc["legs"]:
+        pts, _ = build_chain(osm["ways"], proj, lg["regex"], lg["highways"], (lg["bearing"] + 180) % 360,
+                             ll(lg["to"]), ll(lg["from"]), f"{lg['name']} opposite carriageway")
+        out.append(Polyline(gaussian_smooth(pts, rc["smoothSigma"])))
+    return out
 
 
 CROSS_HW = ("trunk", "primary", "secondary", "tertiary", "unclassified")
 CROSS_SKIP = re.compile(r"辅路|辅道|立交|匝道|隧道|通道|出口|入口")
 
 
-def cross_streets(osm, cfg, proj, U: Polyline, turn, buf=12.0, min_angle=35.0):
-    """Named roads meeting the uncut centerline (crossings and T-junctions)
-    -> sorted [(s_orig, name)]."""
-    rx_main = re.compile(cfg["route"]["mainRoadRegex"])
-    rx_turn = re.compile(cfg["route"]["turnRoadRegex"])
+def cross_streets(osm, cfg, proj, U: Polyline, R, buf=12.0, min_angle=35.0, turn_margin=55.0):
+    """Named roads meeting the uncut centerline (crossings and T-junctions) -> sorted [(s_orig, name)].
+    Skips the road being driven at s and, around each turn, the two roads the turn joins."""
+    skip = [(a, b, re.compile(lg["regex"])) for a, b, lg in R["legs"]]
+    for t, (_, _, lg0), (_, _, lg1) in zip(R["turns"], R["legs"], R["legs"][1:]):
+        for lg in (lg0, lg1):
+            skip.append((t["s0"] - turn_margin, t["s1"] + turn_margin, re.compile(lg["regex"])))
     corridor = U.line.buffer(buf)
     hits = defaultdict(list)
     for w in osm["ways"].values():
         t = w["tags"]
         name = t.get("name", "")
-        if not name or t.get("highway") not in CROSS_HW or rx_main.search(name) or CROSS_SKIP.search(name):
+        if not name or t.get("highway") not in CROSS_HW or CROSS_SKIP.search(name):
             continue
         xy = proj.fwd(w["ll"])
         line = LineString(xy)
@@ -630,7 +648,7 @@ def cross_streets(osm, cfg, proj, U: Polyline, turn, buf=12.0, min_angle=35.0):
             ang = math.degrees(math.acos(min(1.0, abs(float(v @ tan)) / np.linalg.norm(v))))
             if ang < min_angle:
                 continue
-            if rx_turn.search(name) and s > turn[1] + 1:
+            if any(a <= s <= b and rx.search(name) for a, b, rx in skip):
                 continue
             hits[name].append(s)
     out = []
@@ -773,13 +791,15 @@ def round_pts(p, nd=1):
 
 
 def resolve_anchor(spec, xs_map, lm_s, R):
+    """Original-frame s of an anchor: s, turn<N>Start/End (1-based), turnStart/End (last turn),
+    finish, landmark:<id> or a cross-street name."""
     at = spec.get("at")
     if "s" in spec:
         return float(spec["s"])
-    if at == "turnStart":
-        return R["turn"][0]
-    if at == "turnEnd":
-        return R["turn"][1]
+    m = re.match(r"^turn(\d*)(Start|End)$", at or "")
+    if m:
+        t = R["turns"][int(m.group(1)) - 1 if m.group(1) else -1]
+        return t["s0"] if m.group(2) == "Start" else t["s1"]
     if at == "finish":
         return R["s_finish"]
     if at and at.startswith("landmark:"):
@@ -789,20 +809,30 @@ def resolve_anchor(spec, xs_map, lm_s, R):
     sys.exit(f"[config] cannot resolve anchor {spec}")
 
 
-def opposite_orig(cfg, W: Polyline, U: Polyline, turn):
-    """Smoothed lateral offset of the opposite carriageway on the original s grid."""
+def opposite_orig(cfg, Ws, U: Polyline, R):
+    """Smoothed lateral offset of the opposite carriageway on the original s grid: each leg's
+    opposite-direction chain projected onto that leg; bridged linearly through the turns."""
     oc = cfg["opposite"]
     grid = np.arange(0.0, U.length + 2.0, 2.0)
-    wp = W.at(np.arange(0.0, W.length, 2.0))
-    s_w, d_w = U.project(wp)
-    m = (d_w < -4) & (d_w > -150) & (s_w > 1) & (s_w < turn[0])
-    o = np.argsort(s_w[m])
-    raw = np.interp(grid, s_w[m][o], d_w[m][o])
-    sm = np.clip(gauss1d(raw, oc["smoothSigma"] / 2.0), oc["min"], oc["max"])
-    a, b = turn[0] - oc["turnBlend"], turn[1]
-    w = np.clip((grid - a) / max(b - a, 1.0), 0, 1)
-    out = sm * (1 - w) + oc["afterTurn"] * w
-    return grid, out
+    raw = np.full(len(grid), np.nan)
+    for W, (a, b, lg) in zip(Ws, R["legs"]):
+        if "oppositeFixed" in lg:
+            raw[(grid >= a) & (grid <= b)] = lg["oppositeFixed"]
+            print(f"[opposite] {lg['name']}: fixed {lg['oppositeFixed']} m")
+            continue
+        s_w, d_w = U.project(W.at(np.arange(0.0, W.length, 2.0)))
+        m = (d_w < -4) & (d_w > -150) & (s_w > a + 15) & (s_w < b - 15)
+        if m.sum() < 2:
+            print(f"[opposite] {lg['name']}: no opposite carriageway found, using {oc['undivided']} m")
+            raw[(grid >= a) & (grid <= b)] = oc["undivided"]
+            continue
+        o = np.argsort(s_w[m])
+        sel = (grid >= s_w[m].min()) & (grid <= s_w[m].max())
+        raw[sel] = np.interp(grid[sel], s_w[m][o], d_w[m][o])
+        print(f"[opposite] {lg['name']}: median offset {np.median(d_w[m]):.1f} m")
+    ok = ~np.isnan(raw)
+    raw = np.interp(grid, grid[ok], raw[ok])
+    return grid, np.clip(gauss1d(raw, oc["smoothSigma"] / 2.0), oc["min"], oc["max"])
 
 
 def main():
@@ -819,7 +849,7 @@ def main():
 
     # pass 1 finds the start point; pass 2 re-projects everything centred on it
     p0 = Proj(*rc["hints"]["mainStart"])
-    r0 = build_route(osm, cfg, p0, feats)
+    r0 = build_route(osm, cfg, p0, feats, quiet=True)
     origin = p0.inv(r0["U"][0])
     proj = Proj(float(origin[0]), float(origin[1]))
     R = build_route(osm, cfg, proj, feats)
@@ -828,8 +858,8 @@ def main():
     origin = proj.inv(np.zeros(2))
     U = Polyline(resample(R["U"], 0.5))
     print(f"[route] origin {origin[0]:.6f}, {origin[1]:.6f}; real length {U.length:.0f} m; "
-          f"turn s {R['turn'][0]:.0f}-{R['turn'][1]:.0f}; finish s {R['s_finish']:.0f}")
-    xs = cross_streets(osm, cfg, proj, U, R["turn"])
+          f"{len(R['turns'])} turns; finish s {R['s_finish']:.0f}")
+    xs = cross_streets(osm, cfg, proj, U, R)
     if args.plan:
         plan_report(cfg, proj, feats, U, R, xs)
         return
@@ -868,8 +898,11 @@ def main():
     for s, n in xs:
         xs_map.setdefault(n, s)
     protect += [(xs_map[n], n) for n in cfg["cutProtect"]["intersections"] if n in xs_map]
-    protect += [(R["turn"][0], "turn")]
+    protect += [(t["s0"], f"turn onto {t['name']}") for t in R["turns"]]
+    leg0_end = R["legs"][0][1]
     for a, b in sp.cuts:
+        if b > leg0_end - cfg["cutProtect"]["minDist"]:
+            sys.exit(f"[cuts] cut {a:.0f}-{b:.0f} reaches into the CBD detour (main road ends at s {leg0_end:.0f})")
         for s, what in protect:
             gap = max(a - s, s - b)
             if gap < cfg["cutProtect"]["minDist"]:
@@ -885,12 +918,11 @@ def main():
           + ", ".join(f"{math.degrees(r):+.2f} deg" for r in sp.rot[1:]))
 
     # ---- opposite carriageway ----
-    W = westbound_chain(osm, cfg, proj)
-    grid, opp_o = opposite_orig(cfg, W, U, R["turn"])
+    grid, opp_o = opposite_orig(cfg, opposite_chains(osm, cfg, proj), U, R)
     opp_f = np.interp(sp.s_orig(ss), grid, opp_o)
     opp_f = np.clip(gauss1d(opp_f, cfg["opposite"]["spliceSigma"] / step), cfg["opposite"]["min"], cfg["opposite"]["max"])
-    turn_f = (sf(R["turn"][0]), sf(R["turn"][1]))
-    opp_f[ss >= turn_f[1]] = cfg["opposite"]["afterTurn"]
+    turns_f = [dict(s0=round(sf(t["s0"]), 1), s1=round(sf(t["s1"]), 1), direction=t["direction"], name=t["name"],
+                    radius=t["radius"]) for t in R["turns"]]
 
     # ---- sections / checkpoints / intersections / signs ----
     sections = []
@@ -961,21 +993,33 @@ def main():
         sections=[dict(id=s["id"], name=s["name"], s0=round(s["s0"], 1), s1=round(s["s1"], 1)) for s in sections],
         checkpoints=checkpoints,
         finish=finish,
-        turn=dict(s0=round(turn_f[0], 1), s1=round(turn_f[1], 1), direction=R["fillet"]["direction"], name=rc["turnRoadName"]),
+        turns=turns_f,
+        turn=turns_f[-1],
         intersections=intersections,
         landmarks=landmarks,
         signs=signs,
     )
     out_dir = ROOT / "public" / "data"
     out_dir.mkdir(parents=True, exist_ok=True)
-    write_json(out_dir / "route.json", route)
-    print(f"[out] route.json {(out_dir / 'route.json').stat().st_size / 1024:.0f} KB")
 
-    # ---- buildings ----
+    # ---- buildings (view corridors run after the fillers so fillers cannot re-block) ----
     blds, hs, obstacles = build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms)
     fill = procedural_fill(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, obstacles, lms)
-    hs["estimated"] += len(fill)
     blds = sorted(blds + fill, key=lambda r: (r["s"], r["id"]))
+    final_s = lambda v: v if isinstance(v, (int, float)) else (  # noqa: E731
+        sf(resolve_anchor({"at": v} if isinstance(v, str) else v, xs_map, lm_s, R)) + (v.get("offset", 0.0) if isinstance(v, dict) else 0.0))
+    blds, zones = apply_view_corridors(cfg, route, blds, F, final_s)
+    if zones:
+        route["clearZones"] = zones
+    lap = lap_time(cl, step, cfg["race"], route["finish"]["s"])
+    print(f"[lap] optimal lap estimate {lap['time'] // 60:.0f}:{lap['time'] % 60:05.2f} "
+          f"(top {lap['vmax'] * 3.6:.0f} km/h, slowest corner {lap['vmin_corner'] * 3.6:.0f} km/h, "
+          f"{lap['full'] / 1000:.1f} km at > 300 km/h)")
+    hs = dict(tag=0, levels=0, estimated=0)
+    for b in blds:
+        hs[b.pop("_src", "estimated")] += 1
+    write_json(out_dir / "route.json", route)
+    print(f"[out] route.json {(out_dir / 'route.json').stat().st_size / 1024:.0f} KB")
     bdata = dict(
         meta=dict(generatedAt=now, osmTimestamp=osm.get("timestamp"), count=len(blds), heightSources=hs),
         buildings=blds,
@@ -1100,6 +1144,7 @@ def build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms):
         if far:
             rec["far"] = True
         rec["fp"] = round_pts(fp2, 1)
+        rec["_src"] = src
         out.append(rec)
         hs[src] += 1
     out.sort(key=lambda r: (r["s"], r["id"]))
@@ -1189,6 +1234,157 @@ def procedural_fill(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, obstacles, l
     return out
 
 
+def lap_time(cl, step, rc, s_end):
+    """Optimal-lap estimate from startS to s_end: curvature cap v <= sqrt(latAcc * R), forward pass
+    with a(v) = accel * (1 - (v / vmax)^2), backward pass with constant braking."""
+    seg = np.diff(cl, axis=0)
+    h = np.unwrap(np.arctan2(seg[:, 1], seg[:, 0]))
+    s_pts = np.arange(len(cl)) * step
+    hp = np.interp(s_pts, (np.arange(len(h)) + 0.5) * step, h)
+    win = max(1, int(round(rc["curvatureWindow"] / step)))
+    kap = np.convolve(np.abs(np.gradient(hp, step)), np.ones(win) / win, "same")
+    vmax, a0, brake = rc["vmax"], rc["accel"], rc["brake"]
+    cap = np.minimum(vmax, np.sqrt(rc["latAcc"] / np.maximum(kap, 1e-9)))
+    i0, i1 = int(round(rc["startS"] / step)), int(round(s_end / step))
+    v = np.zeros(i1 + 1)
+    for i in range(i0, i1):
+        v[i + 1] = min(cap[i + 1], math.sqrt(v[i] ** 2 + 2 * a0 * (1 - (v[i] / vmax) ** 2) * step))
+    for i in range(i1 - 1, i0 - 1, -1):
+        v[i] = min(v[i], math.sqrt(v[i + 1] ** 2 + 2 * brake * step))
+    vv = v[i0:i1 + 1]
+    t = float(np.sum(2 * step / np.maximum(vv[1:] + vv[:-1], 1e-6)))
+    tail = vv[int(200 / step):]
+    return dict(time=t, vmax=float(vv.max()), vmin_corner=float(tail.min()), full=float(np.sum(vv > 300 / 3.6) * step), v=v, i0=i0)
+
+
+def roof_cap(top, minimum):
+    """Largest height whose runtime extrusion (roof boxes up to +6.5 m from 25 m, crown up to
+    +14 m above 90 m, see src/city/buildings) stays below `top`; None when under `minimum`."""
+    if top >= 110.5:
+        h = top - 20.5
+    elif top >= 96.5:
+        h = 90.0
+    elif top >= 31.5:
+        h = top - 6.5
+    else:
+        h = min(top, 24.9)
+    return h if h >= minimum else None
+
+
+def apply_view_corridors(cfg, route, blds, F, final_s):
+    """Sight-line clearing toward landmarks (artistic simplification, README).
+
+    For camera points along [s0, s1] (route point cameraBack m behind s, d = cameraD, cameraHeight
+    m up) whose bearing to a landmark target lies within +-halfFov of the route tangent, 2D sight
+    lines run to the landmark centroid and densified footprint outline (stopping where they enter
+    the footprint). A building whose footprint crosses a sight line and rises above the 3D line
+    (camera -> target at minVisibleFrom) is capped just below it, or dropped when the cap would be
+    under minKeep or it is a procedural filler (id < 0). Buildings off every sight line are untouched.
+    Returns (kept buildings, clear-zone rings = simplified union of the swept wedges)."""
+    vcs = cfg.get("viewCorridors") or []
+    if not vcs:
+        return blds, []
+    dflt = cfg.get("viewCorridorDefaults", {})
+    lmk = {l["id"]: l for l in route["landmarks"]}
+    L = route["meta"]["length"]
+    polys = []
+    for b in blds:
+        p = Polygon(b["fp"])
+        polys.append(p if p.is_valid else p.buffer(0))
+    polys = np.array(polys, dtype=object)
+    tree = shapely.STRtree(polys)
+    cap = np.full(len(blds), np.inf)
+    owner = [None] * len(blds)
+    zones = []
+    for vc in vcs:
+        o = {**dflt, **vc}
+        l = lmk.get(o["landmark"])
+        if l is None:
+            print(f"[view] WARNING landmark {o['landmark']} missing, corridor skipped")
+            continue
+        if l.get("footprint"):
+            lpoly = Polygon(l["footprint"])
+            lpoly = lpoly if lpoly.is_valid else lpoly.buffer(0)
+        else:
+            lpoly = Point(l["x"], l["z"]).buffer(o.get("radius", 20.0), 8)
+        ring = LineString(lpoly.exterior.coords)
+        n_t = max(4, int(ring.length / o["targetSpacing"]))
+        targets = [np.array(ring.interpolate(i / n_t, normalized=True).coords[0]) for i in range(n_t)]
+        targets.append(np.array([l["x"], l["z"]]))
+        s0, s1 = final_s(o["s0"]), final_s(o["s1"])
+        H, ch, half = o["minVisibleFrom"], o["cameraHeight"], math.radians(o["halfFov"])
+        segs, cams, dists, wedges = [], [], [], []
+        prev = []
+        for s in np.arange(s0, s1 + 1e-6, o["step"]):
+            sc = float(np.clip(s - o["cameraBack"], 0, L))
+            t = F.tangent(np.clip(sc, 1, L - 1), 2.0)
+            cam = F.at(sc) + np.array([-t[1], t[0]]) * o["cameraD"]
+            tv = F.tangent(np.clip(s, 1, L - 1), 2.0)
+            ends = []
+            for tp in targets:
+                v = tp - cam
+                if abs(math.atan2(tv[0] * v[1] - tv[1] * v[0], float(tv @ v))) > half:
+                    continue
+                seg = LineString([cam, tp])
+                hit = seg.intersection(lpoly)
+                dist = float(shapely.distance(Point(cam), hit)) if not hit.is_empty else float(np.hypot(*v))
+                if dist < 1:
+                    continue
+                end = cam + v / np.hypot(*v) * dist
+                segs.append(LineString([cam, end]))
+                cams.append(cam)
+                dists.append(dist)
+                ends.append(end)
+            # swept wedge: hull of this and the previous viewpoint's fan, so the zone has no gaps
+            cur = [cam] + ends if len(ends) >= 2 else []
+            if cur:
+                wedges.append(shapely.MultiPoint(cur + prev).convex_hull)
+            prev = cur
+        if not segs:
+            print(f"[view] {o['landmark']}: no viewpoint has it within +-{o['halfFov']} deg")
+            continue
+        segs = np.array(segs, dtype=object)
+        si, bi = tree.query(segs, predicate="intersects")
+        inter = shapely.intersection(segs[si], polys[bi])
+        t_in = shapely.distance(shapely.points(np.array(cams)[si]), inter)
+        y = ch + (H - ch) * t_in / np.array(dists)[si] - o["margin"]
+        hit = set()
+        for b, top in zip(bi, y):
+            hit.add(int(b))
+            if top < cap[b]:
+                cap[b] = top
+                owner[b] = o["landmark"]
+        zone = shapely.union_all(wedges).simplify(o["zoneSimplify"])
+        for g in getattr(zone, "geoms", [zone]):
+            if g.geom_type == "Polygon" and g.area > 1:
+                zones.append(round_pts(np.asarray(g.exterior.coords)[:-1], 1))
+        print(f"[view] {o['landmark']}: {len(segs)} sight lines from s {s0:.0f}-{s1:.0f}, {len(hit)} buildings on them")
+
+    protect = {int(r[1:]) for r in dflt.get("keepIds", [])}
+    keep, stats = [], defaultdict(lambda: dict(capped=0, dropped=0, lost=0.0))
+    for i, b in enumerate(blds):
+        if not np.isfinite(cap[i]) or b["id"] in protect:
+            keep.append(b)
+            continue
+        h_ok = roof_cap(cap[i], 0.0)
+        if h_ok is not None and b["h"] <= h_ok:
+            keep.append(b)
+            continue
+        st = stats[owner[i]]
+        h_new = roof_cap(cap[i], dflt.get("minKeep", 12.0))
+        if h_new is None or b["id"] < 0:
+            st["dropped"] += 1
+            st["lost"] += b["h"]
+            continue
+        st["capped"] += 1
+        st["lost"] += b["h"] - h_new
+        keep.append({**b, "h": round(float(h_new), 1)})
+    for k, st in stats.items():
+        print(f"[view] {k}: capped {st['capped']}, dropped {st['dropped']} (removed {st['lost']:.0f} m of height in total)")
+    print(f"[view] {len(zones)} clear-zone polygons, {sum(len(z) for z in zones)} vertices")
+    return keep, zones
+
+
 # ----------------------------------------------------------------------------
 # validation / reports / plot
 # ----------------------------------------------------------------------------
@@ -1214,26 +1410,37 @@ def validate(route, bdata, cfg):
     h = np.unwrap(np.arctan2(np.diff(cl[:, 1]), np.diff(cl[:, 0])))
     dh = np.degrees(np.abs(np.diff(h)))
     s_mid = (np.arange(len(dh)) + 1) * sp
-    t0, t1 = route["turn"]["s0"], route["turn"]["s1"]
-    outside = (s_mid < t0 - 2 * sp) | (s_mid > t1 + 2 * sp)
+    turns = route.get("turns") or [route["turn"]]
+    outside = np.ones(len(s_mid), bool)
+    for t in turns:
+        outside &= (s_mid < t["s0"] - 2 * sp) | (s_mid > t["s1"] + 2 * sp)
     worst = int(np.argmax(np.where(outside, dh, 0)))
-    check(dh[outside].max() < 1.5, f"max heading change outside turn {dh[outside].max():.2f} deg/sample at s={s_mid[worst]:.0f}")
-    turn_deg = math.degrees(abs(h[min(int(t1 / sp) + 2, len(h) - 1)] - h[max(int(t0 / sp) - 2, 0)]))
-    check(turn_deg > 60, f"turn {route['turn']['direction']} {turn_deg:.1f} deg on {route['turn']['name']} s {t0}-{t1} (arc {t1 - t0:.1f} m)")
+    check(dh[outside].max() < 1.5, f"max heading change outside the {len(turns)} turns {dh[outside].max():.2f} deg/sample at s={s_mid[worst]:.0f}")
+    check(all(a["s1"] + 100 < b["s0"] for a, b in zip(turns, turns[1:])), "turns ordered, >= 100 m apart")
+    check(route["turn"] == turns[-1], "legacy turn = last turn")
+    for t in turns:
+        t0, t1 = t["s0"], t["s1"]
+        turn = math.degrees(h[min(int(t1 / sp) + 2, len(h) - 1)] - h[max(int(t0 / sp) - 2, 0)])
+        ok_dir = (turn < 0) == (t["direction"] == "left")  # z points south: a left turn decreases the x/z heading
+        check(60 < abs(turn) < 120 and ok_dir, f"turn {t['direction']:5} {abs(turn):5.1f} deg onto {t['name']} at s {t0}-{t1} "
+                                               f"(R {t.get('radius')} m, arc {t1 - t0:.1f} m)")
     for c in m["cuts"]:
         s = c["s0"] - sum(cc["s1"] - cc["s0"] for cc in m["cuts"] if cc["s1"] <= c["s0"])
         i = int(round(s / sp))
         win = dh[max(i - 20, 0): i + 20]
         print(f"       splice at final s={s:.0f}: max heading change nearby {win.max():.3f} deg/sample")
     ratio = L / m["realLength"]
-    check(0.6 <= ratio <= 0.8, f"length {L:.0f} m = {ratio:.1%} of real {m['realLength']:.0f} m")
+    lo, hi = cfg["lengthRatio"]
+    check(lo <= ratio <= hi, f"length {L:.0f} m = {ratio:.1%} of real {m['realLength']:.0f} m (allowed {lo:.0%}-{hi:.0%})")
     cps = [c["s"] for c in route["checkpoints"]]
     fin = route["finish"]["s"]
     check(all(a < b for a, b in zip(cps, cps[1:])), "checkpoints strictly increasing")
     check(cps[0] >= 300 and cps[-1] < fin < L, f"first cp {cps[0]:.0f} >= 300, last cp {cps[-1]:.0f} < finish {fin:.0f} < length {L:.0f}")
     gaps = np.diff([0] + cps + [fin])
     check(gaps.max() <= 2000, f"max gap between start/checkpoints/finish {gaps.max():.0f} m")
-    check(t1 < cps[-1] < fin, "last checkpoint after the turn and before finish")
+    between = [c for c in cps if any(a["s1"] < c < b["s0"] for a, b in zip(turns, turns[1:]))]
+    check(len(turns) < 2 or between, f"{len(between)} checkpoint(s) between turns: {between}")
+    check(6 <= len(cps) <= 9, f"{len(cps)} checkpoints")
     check(L - fin >= 150, f"run-out after finish {L - fin:.0f} m")
     secs = route["sections"]
     check(secs[0]["s0"] == 0 and secs[-1]["s1"] == L and all(a["s1"] == b["s0"] and a["s0"] < a["s1"] for a, b in zip(secs, secs[1:])),
@@ -1245,6 +1452,9 @@ def validate(route, bdata, cfg):
     check(all(w in have for w in want if w != "kingkey100"), f"landmarks found: {have} (missing {[w for w in want if w not in have]})")
     b = bdata["buildings"]
     check(len(b) > 0 and bdata["meta"]["count"] == len(b), f"{len(b)} buildings")
+    cz = route.get("clearZones")
+    if cz is not None:
+        check(all(len(z) >= 3 and Polygon(z).area > 1 for z in cz), f"{len(cz)} clear zones are polygons")
     return ok
 
 
@@ -1300,13 +1510,14 @@ def plot(route, bdata, sp, U, F, path):
     fig = plt.figure(figsize=(22, 16))
     gs = fig.add_gridspec(2, 3, height_ratios=[1.25, 1])
     axes = [fig.add_subplot(gs[0, :])] + [fig.add_subplot(gs[1, i]) for i in range(3)]
-    s_turn = route["turn"]["s0"]
+    turns = route.get("turns") or [route["turn"]]
     splice_s = []
     for c in route["meta"]["cuts"]:
         splice_s.append(c["s0"] - sum(cc["s1"] - cc["s0"] for cc in route["meta"]["cuts"] if cc["s1"] <= c["s0"]))
-    views = [None, (0, 900), (splice_s[-1] - 450, splice_s[-1] + 450) if splice_s else (4000, 5000), (s_turn - 350, L)]
-    titles = ["SHENZHEN DRIVE route (local metres, north up; cuts spliced; grey = procedural filler, pale = far skyline)",
-              "start / 腾讯大厦", "last splice", "turn / finish / 市民中心"]
+    views = [None, (0, 900), (splice_s[-1] - 450, splice_s[-1] + 450) if splice_s else (4000, 5000), (turns[0]["s0"] - 250, L)]
+    titles = ["SHENZHEN DRIVE route (local metres, north up; cuts spliced; magenta = turns; grey = procedural filler, "
+              "pale = far skyline, dashed cyan = landmark view-corridor clear zones)",
+              "start / 腾讯大厦", "last splice", "福田 CBD loop / 平安金融中心 / 市民中心"]
     polys = [np.array(b["fp"]) for b in bdata["buildings"]]
     cols = ["#8c8c8c" if b["id"] < 0 else zc[b["zone"]] for b in bdata["buildings"]]
     alphas = [0.25 if b.get("far") else 0.6 for b in bdata["buildings"]]
@@ -1318,6 +1529,9 @@ def plot(route, bdata, sp, U, F, path):
         pc.set_alpha(None)
         pc.set_facecolor([matplotlib.colors.to_rgba(c, a) for c, a in zip(cols, alphas)])
         ax.add_collection(pc)
+        if route.get("clearZones"):
+            ax.add_collection(PolyCollection([np.array(z) for z in route["clearZones"]], facecolors=(0.0, 0.75, 0.85, 0.12),
+                                             edgecolors=(0.0, 0.6, 0.7, 0.8), linewidths=0.8, linestyles="--"))
         for side in (-7, 7):
             e = cl + nn * side
             ax.plot(e[:, 0], e[:, 1], color="0.35", lw=0.6)
@@ -1325,8 +1539,12 @@ def plot(route, bdata, sp, U, F, path):
             o = cl + nn * opp[:, None]
             ax.plot(o[:, 0], o[:, 1], color="0.6", lw=0.6, ls="--")
         ax.plot(cl[:, 0], cl[:, 1], color="k", lw=1.2)
-        ti = (ss >= route["turn"]["s0"]) & (ss <= route["turn"]["s1"])
-        ax.plot(cl[ti, 0], cl[ti, 1], color="magenta", lw=3)
+        for k, t in enumerate(turns):
+            ti = (ss >= t["s0"]) & (ss <= t["s1"])
+            ax.plot(cl[ti, 0], cl[ti, 1], color="magenta", lw=3)
+            if view is not None:
+                ax.annotate(f"T{k + 1} {t['direction']} R{t.get('radius', '?')}\n→ {t['name']}", at((t["s0"] + t["s1"]) / 2),
+                            xytext=(8, -4), textcoords="offset points", color="magenta", fontsize=8, weight="bold")
         for s in splice_s:
             p = at(s)
             ax.plot(*p, marker="X", color="red", ms=12, zorder=6)

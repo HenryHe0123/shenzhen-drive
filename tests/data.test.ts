@@ -70,10 +70,29 @@ function routeShapeErrors(r: RouteData): string[] {
   req(Array.isArray(r.checkpoints) && r.checkpoints.length > 0, 'checkpoints non-empty');
   if (Array.isArray(r.checkpoints)) e.push(...firstBad(r.checkpoints, (c) => isNum(c.s) && isStr(c.name), 'checkpoints'));
   req(r.finish && isNum(r.finish.s) && isStr(r.finish.name), 'finish {s, name}');
-  req(
-    r.turn && isNum(r.turn.s0) && isNum(r.turn.s1) && ['left', 'right'].includes(r.turn.direction) && isStr(r.turn.name),
-    'turn {s0, s1, direction, name}',
-  );
+  const turnOk = (t: RouteData['turn']) =>
+    !!t &&
+    isNum(t.s0) &&
+    isNum(t.s1) &&
+    ['left', 'right'].includes(t.direction) &&
+    isStr(t.name) &&
+    (t.radius === undefined || (isNum(t.radius) && t.radius > 0));
+  req(turnOk(r.turn), 'turn {s0, s1, direction, name, radius?}');
+  if (r.turns !== undefined) {
+    req(Array.isArray(r.turns) && r.turns.length > 0, 'turns non-empty array');
+    if (Array.isArray(r.turns) && r.turns.length) {
+      e.push(...firstBad(r.turns, turnOk, 'turns'));
+      const last = r.turns[r.turns.length - 1];
+      req(
+        r.turn && (['s0', 's1', 'direction', 'name'] as const).every((k) => last[k] === r.turn[k]),
+        'turn must match the last of turns',
+      );
+    }
+  }
+  if (r.clearZones !== undefined) {
+    req(Array.isArray(r.clearZones), 'clearZones array');
+    if (Array.isArray(r.clearZones)) e.push(...firstBad(r.clearZones, (z) => Array.isArray(z) && z.length >= 3 && z.every(isVec2), 'clearZones'));
+  }
   if (r.intersections !== undefined) {
     req(Array.isArray(r.intersections), 'intersections array');
     if (Array.isArray(r.intersections)) e.push(...firstBad(r.intersections, (x) => isNum(x.s) && isStr(x.name), 'intersections'));
@@ -110,8 +129,12 @@ function orderErrors(r: RouteData, length: number): string[] {
   }
   if (!(cps[cps.length - 1] < r.finish.s)) e.push(`last checkpoint ${cps[cps.length - 1]} must be < finish ${r.finish.s}`);
   if (!(r.finish.s < length)) e.push(`finish.s ${r.finish.s} must be < length ${length}`);
-  if (!(r.turn.s0 > 0 && r.turn.s0 < r.turn.s1)) e.push(`turn [${r.turn.s0}, ${r.turn.s1}] must satisfy 0 < s0 < s1`);
-  if (!(r.turn.s1 < r.finish.s)) e.push(`turn.s1 ${r.turn.s1} must be before finish ${r.finish.s}`);
+  turnsOf(r).forEach((t, i, all) => {
+    if (!(t.s0 > 0 && t.s0 < t.s1)) e.push(`turn ${i} [${t.s0}, ${t.s1}] must satisfy 0 < s0 < s1`);
+    if (i > 0 && !(t.s0 > all[i - 1].s1)) e.push(`turn ${i} starts at ${t.s0}, before turn ${i - 1} ends (${all[i - 1].s1})`);
+  });
+  const lastTurn = turnsOf(r)[turnsOf(r).length - 1];
+  if (!(lastTurn.s1 < r.finish.s)) e.push(`last turn ends at ${lastTurn.s1}, must be before finish ${r.finish.s}`);
   const secs = r.sections;
   if (Math.abs(secs[0].s0) > 1e-6) e.push(`first section starts at ${secs[0].s0}, expected 0`);
   secs.forEach((sec, i) => {
@@ -153,14 +176,17 @@ function spacingErrors(r: RouteData): string[] {
   return e;
 }
 
-/** Heading change per sample < MAX_KINK_DEG, except around the deliberate turn. */
+const turnsOf = (r: RouteData) => (r.turns?.length ? r.turns : [r.turn]);
+
+/** Heading change per sample < MAX_KINK_DEG, except around the deliberate turns. */
 function kinkErrors(r: RouteData): string[] {
   const e: string[] = [];
   const pts = r.centerline;
+  const turns = turnsOf(r);
   let s = 0;
   for (let i = 1; i + 1 < pts.length; i++) {
     s += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
-    if (s > r.turn.s0 - TURN_MARGIN && s < r.turn.s1 + TURN_MARGIN) continue;
+    if (turns.some((t) => s > t.s0 - TURN_MARGIN && s < t.s1 + TURN_MARGIN)) continue;
     const a = Math.atan2(pts[i][1] - pts[i - 1][1], pts[i][0] - pts[i - 1][0]);
     const b = Math.atan2(pts[i + 1][1] - pts[i][1], pts[i + 1][0] - pts[i][0]);
     const deg = Math.abs(wrap(b - a)) * DEG;
@@ -275,18 +301,21 @@ describe.skipIf(!routeJson)('public/data/route.json', () => {
     expect(ratio).toBeLessThanOrEqual(0.8);
   });
 
-  it('turns once, in the declared direction, with a fillet radius of roughly 20 m or more', () => {
+  it('turns in the declared directions, each with a fillet radius of roughly 20 m or more', () => {
     const route = new Route(r);
-    const delta = wrap(route.headingAt(r.turn.s1 + TURN_MARGIN) - route.headingAt(r.turn.s0 - TURN_MARGIN)) * DEG;
-    // Yaw increases on a left turn.
-    expect(Math.sign(delta)).toBe(r.turn.direction === 'left' ? 1 : -1);
-    expect(Math.abs(delta)).toBeGreaterThan(45);
-    expect(Math.abs(delta)).toBeLessThan(135);
-    // Radius over 3-sample windows; 18 m leaves room for coordinate rounding.
-    const h = route.spacing;
-    for (let s = r.turn.s0; s + 3 * h <= r.turn.s1; s += h) {
-      const turned = Math.abs(wrap(route.headingAt(s + 3 * h) - route.headingAt(s)));
-      expect((3 * h) / Math.max(turned, 1e-9), `s=${s.toFixed(1)}`).toBeGreaterThan(18);
+    expect(route.turns.length).toBeGreaterThanOrEqual(1);
+    for (const t of route.turns) {
+      const delta = wrap(route.headingAt(t.s1 + TURN_MARGIN) - route.headingAt(t.s0 - TURN_MARGIN)) * DEG;
+      // Yaw increases on a left turn.
+      expect(Math.sign(delta), `turn onto ${t.name}`).toBe(t.direction === 'left' ? 1 : -1);
+      expect(Math.abs(delta)).toBeGreaterThan(45);
+      expect(Math.abs(delta)).toBeLessThan(135);
+      // Radius over 3-sample windows; 18 m leaves room for coordinate rounding.
+      const h = route.spacing;
+      for (let s = t.s0; s + 3 * h <= t.s1; s += h) {
+        const turned = Math.abs(wrap(route.headingAt(s + 3 * h) - route.headingAt(s)));
+        expect((3 * h) / Math.max(turned, 1e-9), `${t.name} s=${s.toFixed(1)}`).toBeGreaterThan(18);
+      }
     }
   });
 });
