@@ -106,7 +106,7 @@ export class Route {
   segmentAt(s: number): number {
     const last = this.n - 2;
     let i = Math.floor(s / this.spacing);
-    if (i < 0) return 0;
+    if (!(i >= 0)) return 0;
     if (i > last) i = last;
     while (i < last && this.cum[i + 1] < s) i++;
     while (i > 0 && this.cum[i] > s) i--;
