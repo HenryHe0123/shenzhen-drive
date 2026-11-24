@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>banyan impostor bake</title>
+    <link rel="icon" href="data:," />
+    <script type="importmap">
+      { "imports": { "three": "/three/build/three.module.js", "three/addons/": "/three/examples/jsm/" } }
+    </script>
+    <style>
+      body {
+        margin: 0;
+        background: #404040;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      Dev-only bake page, served and driven by scripts/bake_banyan_impostor.mjs (never part of the game build).
+      Renders the banyan from `frames` azimuths with orthographic cameras into three atlases:
+        colour: unlit albedo (linear → sRGB), alpha = coverage (supersampled, premultiplied box filter)
+        normal: frame-space normal (x right, y up, z toward the viewer); leaves use normals bent toward the
+                canopy ellipsoid so the impostor shades as a soft volume
+        ao:     sky visibility = shadowed / unshadowed irradiance from a sphere of shadow-casting lights
+      and POSTs the 8-bit pixels back to the driver.
+    -->
+    <script type="module">
+      import * as THREE from 'three';
+      import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+      const B = (window.__BAKE__ = { done: false, error: null });
+      const log = (...a) => console.log(`[bake] ${a.join(' ')}`);
+
+      main().then(
+        () => (B.done = true),
+        (e) => {
+          B.error = String(e?.stack ?? e);
+          console.error(e);
+        },
+      );
+
+      async function main() {
+        const C = await (await fetch('/bake-config.json')).json();
+        const { frames: N, cols: COLS, rows: ROWS, framePx: FP, normalPx: NP, supersample: SS } = C;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
+        renderer.setPixelRatio(1);
+        renderer.setSize(256, 256);
+        document.body.appendChild(renderer.domElement);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFShadowMap;
+        renderer.shadowMap.autoUpdate = false;
+        renderer.autoClear = false;
+        renderer.toneMapping = THREE.NoToneMapping;
+        renderer.setClearColor(0x000000, 0);
+
+        // ---------------- Model → world-space parts, trunk base at the origin ----------------
+        const gltf = await new GLTFLoader().loadAsync('/model.glb');
+        const root = gltf.scene;
+        root.updateMatrixWorld(true);
+        const anchor = root.getObjectByName(C.groundNode);
+        if (!anchor) throw new Error(`ground node ${C.groundNode} not found`);
+        const groundY = anchor.getWorldPosition(new THREE.Vector3()).y;
+
+        const parts = [];
+        root.traverse((o) => {
+          if (!o.isMesh) return;
+          const m = o.material;
+          const name = m.name ?? '';
+          const kind = /Leaves/i.test(name) ? 'leaf' : /Branches/i.test(name) ? 'twig' : /Vines/i.test(name) ? 'vine' : 'bark';
+          const geo = o.geometry.clone();
+          geo.applyMatrix4(o.matrixWorld);
+          for (const k of Object.keys(geo.attributes)) if (!['position', 'normal', 'uv', 'color'].includes(k)) geo.deleteAttribute(k);
+          parts.push({ name, kind, geo, map: m.map, alphaTest: m.alphaTest ?? 0, vertexColors: !!geo.attributes.color });
+        });
+
+        // Trunk axis: centroid of the bark between 0.3 m and 2.0 m above the ground.
+        let sx = 0;
+        let sz = 0;
+        let sn = 0;
+        for (const p of parts.filter((q) => q.kind === 'bark')) {
+          const pos = p.geo.attributes.position;
+          for (let i = 0; i < pos.count; i++) {
+            const y = pos.getY(i) - groundY;
+            if (y > 0.3 && y < 2.0) {
+              sx += pos.getX(i);
+              sz += pos.getZ(i);
+              sn++;
+            }
+          }
+        }
+        const axis = new THREE.Vector3(sx / sn, groundY, sz / sn);
+        for (const p of parts) p.geo.translate(-axis.x, -axis.y, -axis.z);
+
+        let top = 0;
+        let radius = 0;
+        let minY = Infinity;
+        const leafBox = new THREE.Box3();
+        const leafYs = [];
+        for (const p of parts) {
+          const pos = p.geo.attributes.position;
+          for (let i = 0; i < pos.count; i++) {
+            const x = pos.getX(i);
+            const y = pos.getY(i);
+            const z = pos.getZ(i);
+            if (y < -0.05) continue;
+            top = Math.max(top, y);
+            minY = Math.min(minY, y);
+            radius = Math.max(radius, Math.hypot(x, z));
+            if (p.kind === 'leaf') {
+              leafBox.expandByPoint(new THREE.Vector3(x, y, z));
+              leafYs.push(y);
+            }
+          }
+        }
+        leafYs.sort((a, b) => a - b);
+        const canopyBottom = leafYs[Math.floor(leafYs.length * 0.02)];
+        const cC = leafBox.getCenter(new THREE.Vector3());
+        const cR = leafBox.getSize(new THREE.Vector3()).multiplyScalar(0.5);
+        const rH = Math.max(cR.x, cR.z);
+        cR.set(rH, cR.y, rH);
+        log(`ground ${groundY.toFixed(2)} axis ${axis.x.toFixed(2)},${axis.z.toFixed(2)} top ${top.toFixed(2)} radius ${radius.toFixed(2)} canopy ${canopyBottom.toFixed(2)}..${leafBox.max.y.toFixed(2)} c ${cC.toArray().map((v) => v.toFixed(2))} r ${cR.toArray().map((v) => v.toFixed(2))}`);
+
+        // Bent normals for foliage cards: flip each card normal to the outside of the canopy ellipsoid,
+        // then blend toward the ellipsoid normal (soft volume shading instead of per-card noise).
+        const bend = { leaf: C.bendLeaf, twig: C.bendTwig, vine: C.bendVine };
+        const S = new THREE.Vector3();
+        const Nv = new THREE.Vector3();
+        for (const p of parts) {
+          if (p.kind === 'bark') continue;
+          const pos = p.geo.attributes.position;
+          const nor = p.geo.attributes.normal;
+          for (let i = 0; i < pos.count; i++) {
+            S.set((pos.getX(i) - cC.x) / (cR.x * cR.x), (pos.getY(i) - cC.y) / (cR.y * cR.y), (pos.getZ(i) - cC.z) / (cR.z * cR.z)).normalize();
+            S.y += C.bendUp;
+            S.normalize();
+            Nv.fromBufferAttribute(nor, i).normalize();
+            if (Nv.dot(S) < 0) Nv.negate();
+            Nv.lerp(S, bend[p.kind]).normalize();
+            nor.setXYZ(i, Nv.x, Nv.y, Nv.z);
+          }
+          nor.needsUpdate = true;
+        }
+
+        // Square frame: trunk axis at the horizontal centre, ground slightly above the bottom edge.
+        const margin = C.marginFrac * Math.max(2 * radius, top);
+        const size = Math.max(2 * radius, top) + 2 * margin;
+        const bottom = -margin;
+        const yc = bottom + size / 2;
+
+        // Street banyans are pruned: aerial roots (vine cards, and thin bark strands away from the trunk) end
+        // 45–90 % of the way down to the canopy base, cut per 0.5 m cell so strands end at different heights.
+        const cutLo = canopyBottom * C.vineCutLo;
+        const cutHi = canopyBottom * C.vineCutHi;
+        /** Minimum distance from the trunk axis for the cut (model m): vines everywhere, bark only thin outer strands. */
+        const cutR0 = (p) => (p.kind === 'vine' ? -1 : p.kind === 'bark' ? C.barkCutRadius : null);
+        const cutGlsl = (r0) => /* glsl */ `
+          varying vec3 vCutPos;
+          float vineCut(vec3 p) {
+            float h = fract(sin(dot(floor(p.xz * 2.0), vec2(12.9898, 78.233))) * 43758.5453);
+            return ${r0.toFixed(3)} < 0.0 || length(p.xz) > ${r0.toFixed(3)} ? ${cutLo.toFixed(4)} + ${(cutHi - cutLo).toFixed(4)} * h : -1.0;
+          }
+        `;
+        const addCut = (mat, key, r0) => {
+          if (r0 === null) return mat;
+          const prev = mat.onBeforeCompile;
+          const prevKey = mat.customProgramCacheKey.bind(mat);
+          mat.onBeforeCompile = (sh, r) => {
+            prev?.call(mat, sh, r);
+            sh.vertexShader = `varying vec3 vCutPos;\n${sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvCutPos = position;')}`;
+            sh.fragmentShader = `${cutGlsl(r0)}\n${sh.fragmentShader.replace(/void main\(\)\s*\{/, 'void main() {\n  if (vCutPos.y < vineCut(vCutPos)) discard;')}`;
+          };
+          mat.customProgramCacheKey = () => `${prevKey()}|cut-${key}-${r0}`;
+          return mat;
+        };
+        const cutShader = (mat, r0) => {
+          if (r0 === null) return mat;
+          mat.vertexShader = `varying vec3 vCutPos;\n${mat.vertexShader.replace('void main() {', 'void main() {\n  vCutPos = position;')}`;
+          mat.fragmentShader = `${cutGlsl(r0)}\n${mat.fragmentShader.replace('void main() {', 'void main() {\n  if (vCutPos.y < vineCut(vCutPos)) discard;')}`;
+          return mat;
+        };
+
+        // ---------------- Scene and passes ----------------
+        const scene = new THREE.Scene();
+        const meshes = parts.map((p) => {
+          const m = new THREE.Mesh(p.geo);
+          m.castShadow = true;
+          m.receiveShadow = true;
+          m.frustumCulled = false;
+          if (cutR0(p) !== null) m.customDepthMaterial = addCut(new THREE.MeshDepthMaterial(), 'depth', cutR0(p));
+          scene.add(m);
+          return m;
+        });
+        // Linear colour grade per part: the source leaves are a grey olive, the bark a yellowish tan.
+        const grade = (p) => new THREE.Color(...(p.kind === 'leaf' || p.kind === 'twig' ? C.gradeLeaf : C.gradeBark));
+        const albedoMats = parts.map((p) =>
+          addCut(
+            new THREE.MeshBasicMaterial({ color: grade(p), map: p.map, alphaTest: p.alphaTest, side: THREE.DoubleSide, vertexColors: p.vertexColors }),
+            'albedo',
+            cutR0(p),
+          ),
+        );
+        const right = new THREE.Vector3();
+        const fwd = new THREE.Vector3();
+        const normalMats = parts.map((p) => {
+          const m = new THREE.ShaderMaterial({
+              side: THREE.DoubleSide,
+              uniforms: { map: { value: p.map }, alphaTest: { value: p.alphaTest }, uRight: { value: right }, uFwd: { value: fwd }, uFlip: { value: p.kind === 'bark' ? 1 : 0 } },
+              vertexShader: /* glsl */ `
+                varying vec3 vN;
+                varying vec2 vUv;
+                void main() {
+                  vN = normal;
+                  vUv = uv;
+                  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }`,
+              fragmentShader: /* glsl */ `
+                uniform sampler2D map;
+                uniform float alphaTest;
+                uniform vec3 uRight;
+                uniform vec3 uFwd;
+                uniform float uFlip;
+                varying vec3 vN;
+                varying vec2 vUv;
+                void main() {
+                  if (texture2D(map, vUv).a < alphaTest) discard;
+                  vec3 n = normalize(vN);
+                  if (uFlip > 0.5 && !gl_FrontFacing) n = -n;
+                  gl_FragColor = vec4(dot(n, uRight), n.y, dot(n, uFwd), 1.0);
+                }`,
+          });
+          return cutShader(m, cutR0(p));
+        });
+        // White Lambert lit by one shadowed light at a time; only the map's alpha is used.
+        const aoMats = parts.map((p) => {
+          const m = new THREE.MeshLambertMaterial({ color: 0xffffff, map: p.map, alphaTest: p.alphaTest, side: THREE.DoubleSide });
+          const foliage = p.kind !== 'bark';
+          m.onBeforeCompile = (sh) => {
+            sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', '#ifdef USE_MAP\n diffuseColor.a *= texture2D( map, vMapUv ).a;\n#endif');
+            if (foliage) sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', THREE.ShaderChunk.normal_fragment_begin.replace('normal *= faceDirection;', ''));
+          };
+          m.customProgramCacheKey = () => (foliage ? 'ao-foliage' : 'ao-bark');
+          return addCut(m, 'ao', cutR0(p));
+        });
+        const setMats = (mats) => meshes.forEach((m, i) => (m.material = mats[i]));
+
+        const cam = new THREE.OrthographicCamera(-size / 2, size / 2, size / 2, -size / 2, 0.1, 400);
+        const frameCam = (k) => {
+          const th = (k / N) * Math.PI * 2;
+          fwd.set(Math.sin(th), 0, Math.cos(th));
+          right.set(Math.cos(th), 0, -Math.sin(th));
+          cam.position.set(fwd.x * 150, yc, fwd.z * 150);
+          cam.up.set(0, 1, 0);
+          cam.lookAt(0, yc, 0);
+          cam.updateMatrixWorld();
+        };
+
+        const rtOpts = { type: THREE.HalfFloatType, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true };
+        const rtColorFrame = new THREE.WebGLRenderTarget(FP * SS, FP * SS, rtOpts);
+        const rtNormalFrame = new THREE.WebGLRenderTarget(NP * SS, NP * SS, rtOpts);
+        const atlasOpts = { type: THREE.HalfFloatType, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: false };
+        const atlasColor = new THREE.WebGLRenderTarget(COLS * FP, ROWS * FP, atlasOpts);
+        const atlasNormal = new THREE.WebGLRenderTarget(COLS * NP, ROWS * NP, atlasOpts);
+        const atlasAoS = new THREE.WebGLRenderTarget(COLS * NP, ROWS * NP, atlasOpts);
+        const atlasAoU = new THREE.WebGLRenderTarget(COLS * NP, ROWS * NP, atlasOpts);
+
+        // Box downsample of one supersampled frame into its atlas cell.
+        const tri = new THREE.BufferGeometry();
+        tri.setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3));
+        const dsMat = new THREE.ShaderMaterial({
+          uniforms: { src: { value: null }, uOffset: { value: new THREE.Vector2() }, uSS: { value: SS }, uMode: { value: 0 } },
+          depthTest: false,
+          depthWrite: false,
+          vertexShader: 'void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }',
+          fragmentShader: /* glsl */ `
+            precision highp float;
+            uniform sampler2D src;
+            uniform vec2 uOffset;
+            uniform int uSS;
+            uniform int uMode;
+            void main() {
+              ivec2 base = ivec2(floor(gl_FragCoord.xy - uOffset)) * uSS;
+              vec4 acc = vec4(0.0);
+              for (int j = 0; j < 8; j++) {
+                for (int i = 0; i < 8; i++) {
+                  if (i >= uSS || j >= uSS) continue;
+                  vec4 c = texelFetch(src, base + ivec2(i, j), 0);
+                  acc += vec4(c.rgb * c.a, c.a);
+                }
+              }
+              float n = float(uSS * uSS);
+              if (uMode == 0) gl_FragColor = vec4(acc.a > 0.0 ? acc.rgb / acc.a : vec3(0.0), acc.a / n);
+              else gl_FragColor = acc / n;
+            }`,
+        });
+        const dsAdd = dsMat.clone();
+        Object.assign(dsAdd, {
+          blending: THREE.CustomBlending,
+          blendEquation: THREE.AddEquation,
+          blendSrc: THREE.OneFactor,
+          blendDst: THREE.OneFactor,
+          blendSrcAlpha: THREE.OneFactor,
+          blendDstAlpha: THREE.OneFactor,
+        });
+        const quad = new THREE.Mesh(tri, dsMat);
+        quad.frustumCulled = false;
+        const quadScene = new THREE.Scene();
+        quadScene.add(quad);
+        const quadCam = new THREE.OrthographicCamera();
+
+        const cell = (k, px) => [(k % COLS) * px, (ROWS - 1 - Math.floor(k / COLS)) * px];
+        const downsample = (src, dst, k, px, mode, add) => {
+          const mat = add ? dsAdd : dsMat;
+          mat.uniforms.src.value = src.texture;
+          mat.uniforms.uMode.value = mode;
+          const [x, y] = cell(k, px);
+          mat.uniforms.uOffset.value.set(x, y);
+          quad.material = mat;
+          dst.viewport.set(x, y, px, px);
+          dst.scissor.set(x, y, px, px);
+          dst.scissorTest = true;
+          renderer.setRenderTarget(dst);
+          renderer.render(quadScene, quadCam);
+        };
+        const clearRT = (rt) => {
+          rt.scissorTest = false;
+          rt.viewport.set(0, 0, rt.width, rt.height);
+          renderer.setRenderTarget(rt);
+          renderer.clear(true, true, true);
+        };
+        const renderFrame = (rt) => {
+          rt.scissorTest = false;
+          rt.viewport.set(0, 0, rt.width, rt.height);
+          renderer.setRenderTarget(rt);
+          renderer.clear(true, true, true);
+          renderer.render(scene, cam);
+        };
+        [atlasColor, atlasNormal, atlasAoS, atlasAoU].forEach(clearRT);
+
+        // Albedo + normals.
+        for (let k = 0; k < N; k++) {
+          frameCam(k);
+          setMats(albedoMats);
+          renderFrame(rtColorFrame);
+          downsample(rtColorFrame, atlasColor, k, FP, 0, false);
+          setMats(normalMats);
+          renderFrame(rtNormalFrame);
+          downsample(rtNormalFrame, atlasNormal, k, NP, 1, false);
+        }
+        log('albedo + normal frames done');
+
+        // Sky visibility: sphere of lights (upper hemisphere weight 1, lower = ground bounce).
+        const sun = new THREE.DirectionalLight(0xffffff, 1);
+        sun.castShadow = true;
+        sun.shadow.mapSize.set(C.shadowMapSize, C.shadowMapSize);
+        sun.shadow.bias = -0.0004;
+        sun.shadow.normalBias = 0.03;
+        sun.shadow.radius = 1.5;
+        const center = new THREE.Vector3(0, top / 2, 0);
+        const rb = Math.hypot(radius, top / 2) + 0.5;
+        Object.assign(sun.shadow.camera, { left: -rb, right: rb, top: rb, bottom: -rb, near: 0.5, far: 4 * rb + 20 });
+        sun.shadow.camera.updateProjectionMatrix();
+        scene.add(sun, sun.target);
+        sun.target.position.copy(center);
+        sun.target.updateMatrixWorld();
+        setMats(aoMats);
+        const K = C.aoLights;
+        for (let j = 0; j < K; j++) {
+          const y = 1 - (2 * (j + 0.5)) / K;
+          const r = Math.sqrt(1 - y * y);
+          const phi = j * Math.PI * (3 - Math.sqrt(5));
+          const L = new THREE.Vector3(Math.cos(phi) * r, y, Math.sin(phi) * r);
+          sun.intensity = y > 0 ? 1 : C.groundBounce;
+          sun.position.copy(center).addScaledVector(L, rb + 10);
+          sun.updateMatrixWorld();
+          renderer.shadowMap.needsUpdate = true;
+          for (let k = 0; k < N; k++) {
+            frameCam(k);
+            sun.shadow.intensity = 1;
+            renderFrame(rtNormalFrame);
+            downsample(rtNormalFrame, atlasAoS, k, NP, 2, true);
+            sun.shadow.intensity = 0;
+            renderFrame(rtNormalFrame);
+            downsample(rtNormalFrame, atlasAoU, k, NP, 2, true);
+          }
+        }
+        log(`ao from ${K} lights done`);
+
+        // ---------------- 8-bit encode + upload ----------------
+        const encMat = new THREE.ShaderMaterial({
+          uniforms: { tA: { value: null }, tB: { value: null }, tC: { value: null }, uMode: { value: 0 } },
+          depthTest: false,
+          depthWrite: false,
+          vertexShader: 'void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }',
+          fragmentShader: /* glsl */ `
+            precision highp float;
+            uniform sampler2D tA;
+            uniform sampler2D tB;
+            uniform sampler2D tC;
+            uniform int uMode;
+            vec3 toSRGB(vec3 c) {
+              c = clamp(c, 0.0, 1.0);
+              return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), c));
+            }
+            void main() {
+              ivec2 p = ivec2(gl_FragCoord.xy);
+              vec4 a = texelFetch(tA, p, 0);
+              if (uMode == 0) {
+                gl_FragColor = vec4(toSRGB(a.rgb), a.a);
+              } else {
+                if (a.a <= 0.0) { gl_FragColor = vec4(0.0); return; }
+                vec3 n = normalize(a.rgb);
+                float ao = clamp(texelFetch(tB, p, 0).r / max(texelFetch(tC, p, 0).r, 1e-6), 0.0, 1.0);
+                gl_FragColor = vec4(n * 0.5 + 0.5, max(ao, 1.0 / 255.0));
+              }
+            }`,
+        });
+        quad.material = encMat;
+        const readback = async (name, mode, src, extra) => {
+          const w = src.width;
+          const h = src.height;
+          const out = new THREE.WebGLRenderTarget(w, h, { type: THREE.UnsignedByteType, depthBuffer: false });
+          encMat.uniforms.tA.value = src.texture;
+          encMat.uniforms.tB.value = extra?.[0]?.texture ?? null;
+          encMat.uniforms.tC.value = extra?.[1]?.texture ?? null;
+          encMat.uniforms.uMode.value = mode;
+          renderer.setRenderTarget(out);
+          renderer.render(quadScene, quadCam);
+          const buf = new Uint8Array(w * h * 4);
+          renderer.readRenderTargetPixels(out, 0, 0, w, h, buf);
+          const res = await fetch(`/upload/${name}?w=${w}&h=${h}`, { method: 'POST', body: buf });
+          if (!res.ok) throw new Error(`upload ${name}: ${res.status}`);
+          out.dispose();
+        };
+        await readback('color', 0, atlasColor);
+        await readback('normal', 1, atlasNormal, [atlasAoS, atlasAoU]);
+
+        let tris = 0;
+        for (const p of parts) tris += (p.geo.index ? p.geo.index.count : p.geo.attributes.position.count) / 3;
+        const meta = { groundY, axis: [axis.x, axis.z], top, radius, minY, canopyBottom, canopyCenter: cC.toArray(), canopyRadii: cR.toArray(), size, bottom, tris };
+        await fetch('/upload/meta', { method: 'POST', body: JSON.stringify(meta) });
+        log('uploaded');
+      }
+    </script>
+  </body>
+</html>

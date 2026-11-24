@@ -4,13 +4,15 @@ import type { FrameInfo, SceneryModule, WorldContext } from '../../game/contract
 import { getTimeOfDay, nightLevel, onTimeOfDayChange, type TimeOfDay } from '../../render/timeOfDay';
 import { yawFromDir } from '../../route/Route';
 import type { RGB } from '../road/builder';
-import { getRoadLayout, inClearZone, type Interval, inJunction, inLandmark, SIDE, type TurnLayout } from '../road/layout';
+import { FIRST_ROAD, getRoadLayout, inClearZone, type Interval, inJunction, SIDE, type TurnLayout } from '../road/layout';
 import { mulberry32 } from '../road/textures';
 import { placeMatrix, PropGeo, type V3 } from './geo';
 import { type InstanceItem, WindowedInstances } from './instances';
+import { createKeepOut } from './keepout';
 import { DOUBLE_HEADS, doubleLampGeometry, lampMaterials, lensGeometry, poolGeometry, poolMaterial, SINGLE_HEADS, singleLampGeometry } from './lamps';
+import { isSquareSign, RoadSignAtlas, type RoadSignKind, signPanel } from './roadSigns';
 import { BillboardAtlas, drawBanner, drawChevron, drawGuide, drawJunction, drawPlate, SignAtlas, type Slot } from './signs';
-import { banyanGeometry, foliageAtlas, foliageMaterial, palmGeometry, shrubGeometry } from './trees';
+import { banyanInstances, foliageAtlas, foliageMaterial, palmGeometry, shrubGeometry } from './trees';
 
 const METAL: RGB = [0.42, 0.44, 0.47];
 const DARK: RGB = [0.16, 0.17, 0.19];
@@ -52,10 +54,14 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
     const p = route.pointAt(s, d, P);
     return placeMatrix(p.x, y, p.z, yawAt(s) + yawOff, scale);
   };
-  /** False when (s, d) lies inside a landmark footprint grown by `margin`. */
+  const keptOut = createKeepOut(l, ctx.cityModels);
+  /** Road sign posts placed so far; lamps and trees placed later stay POST_CLEARANCE away. */
+  const posts: THREE.Vector2[] = [];
+  const POST_CLEARANCE = 4.5;
+  /** False when (s, d) lies inside a landmark or real-building model footprint grown by `margin`, or next to a sign post. */
   const clear = (s: number, d: number, margin = 3) => {
     const p = route.pointAt(s, d, Q);
-    return !inLandmark(l, p.x, p.z, margin);
+    return !keptOut(p.x, p.z, margin) && !posts.some((q) => Math.hypot(q.x - p.x, q.y - p.z) < POST_CLEARANCE);
   };
   const reserved: Record<'right' | 'left', Interval[]> = { right: [], left: [] };
   const lawnReserved: Interval[] = [];
@@ -74,6 +80,23 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
 
   const board = (m: THREE.Matrix4, x: number, y: number, z: number, w: number, h: number, slot: Slot, back?: Slot, depth = 0.12) =>
     boards.box(m, x, y, z, w, h, depth, WHITE, slot.uv, grey, back?.uv ?? grey);
+
+  // GB 5768 road signs (round / square plates from public/textures/signs, speed limits drawn).
+  const roadSigns = new RoadSignAtlas(aniso);
+  roadSigns.load(import.meta.env.BASE_URL);
+  const signFaces = new PropGeo();
+  const roadAt = (s: number) => [...turns].reverse().find((t) => s > t.s1)?.name ?? FIRST_ROAD;
+  /** Plate size: 1.0 m on 深南大道 (60 km/h arterial), 0.8 m on the CBD streets. */
+  const plateSize = (s: number) => (roadAt(s) === FIRST_ROAD ? 1.0 : 0.8);
+  const signPlate = (m: THREE.Matrix4, x: number, y: number, z: number, size: number, kind: RoadSignKind) =>
+    signPanel(signFaces, struct, m, x, y, z, size, isSquareSign(kind), roadSigns.uv(kind));
+  /** Lane-direction signs on a signal arm, leftmost lane first; they repeat the lane arrows painted on the approach. */
+  const laneSigns = (turn?: TurnLayout): RoadSignKind[] =>
+    Array.from({ length: l.lanes }, (_, k) => {
+      if (!turn) return 'straight';
+      const turnLane = turn.left ? k < 2 : k >= l.lanes - 2;
+      return turnLane ? (turn.left ? 'turn_left' : 'turn_right') : 'straight';
+    });
 
   /** F-type cantilever sign over the outer two lanes of one side. */
   const cantilever = (s: number, side: 'right' | 'left', slot: Slot, w: number, h: number) => {
@@ -125,11 +148,12 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
     reserve('both', s, 6);
   };
 
-  /** Chinese cantilever traffic signal on the near-right corner, one head per lane, green for us. */
-  const signal = (s: number) => {
+  /** Chinese cantilever traffic signal on the near-right corner, one head per lane, green for us, a lane sign beside each head. */
+  const signal = (s: number, lanes: RoadSignKind[]) => {
     const dPole = l.edgeR + 1.0;
     if (!clear(s, dPole)) return;
     const m = place(s, dPole);
+    const size = plateSize(s);
     const armEnd = route.dMin + 1.2 - dPole;
     struct.cylinder(m, [0, 0, 0], [0, 7.4, 0], 0.17, 0.13, 10, METAL);
     struct.box(m, 0, 0.2, 0, 0.6, 0.4, 0.6, DARK);
@@ -145,6 +169,7 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
       ] as [number, RGB][]) struct.box(m, x, y, 0.17, 0.26, 0.26, 0.02, col);
       glow.box(m, x, 5.95, 0.17, 0.26, 0.26, 0.02, SIGNAL_GREEN);
       struct.box(m, x, 6.75, 0.24, 0.32, 0.04, 0.16, LENS_DARK);
+      if (lanes[k]) signPlate(m, x + 1.05, 6.8 - size / 2, 0.05, size, lanes[k]);
     }
     reserve('right', s, 3);
   };
@@ -153,7 +178,8 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
   for (const sg of route.data.signs ?? []) {
     if (!sg || !Number.isFinite(sg.s) || sg.s < 20 || sg.s > len - 20) continue;
     let s = sg.s;
-    while (inJunction(l, s, 6) && s > 40) s -= 20;
+    const dPole = sg.side === 'left' ? l.edgeL - 0.9 : l.edgeR + 0.9;
+    while ((inJunction(l, s, 6) || !clear(s, dPole)) && s > 40) s -= 20;
     const text = sg.text ?? '';
     const sub = sg.sub;
     const apec = /APEC|国际交流中心/.test(text + (sub ?? ''));
@@ -174,7 +200,7 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
     const dir = t.left ? '左转' : '右转';
     for (const back of [500, 200]) {
       let s = t.sA - back;
-      while ((inJunction(l, s, 10) || inAny(reserved.right, s, 8)) && s > 60) s -= 10;
+      while ((inJunction(l, s, 10) || inAny(reserved.right, s, 8) || !clear(s, l.edgeR + 0.9) || !clear(s, l.edgeL - 0.9)) && s > 60) s -= 10;
       if (s < 60 || (prev && s < prev.sB + 50)) continue;
       const dist = Math.max(50, Math.round((t.s0 - s) / 50) * 50);
       const hP = 3.6;
@@ -185,6 +211,9 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
       const straightPanel = t.left ? { d0: route.dMax - 6.7, d1: route.dMax - 0.1 } : { d0: route.dMin + 0.1, d1: route.dMin + 6.7 };
       gantry(s, [{ ...turnPanel, slot: turnSlot }, { ...straightPanel, slot: straightSlot }], hP);
       gantryS.push(s);
+      const shennan = roadAt(s) === FIRST_ROAD;
+      const columnSign: RoadSignKind = back === 500 ? (shennan ? 'limit60' : 'limit50') : shennan ? 'no_stopping' : 'no_parking';
+      signPlate(place(s, l.edgeR + 0.9), 0, 2.4 + plateSize(s) / 2, 0.3, plateSize(s), columnSign);
     }
     const plateD = l.edgeR + SIDE.walk[0] + 1.2;
     if (t.name && clear(t.sA - 3, plateD)) {
@@ -214,7 +243,7 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
   for (const c of l.cross) {
     const sAdv = c.s - c.hw - 150;
     const nearTurn = turns.some((t) => sAdv > t.sA - 560 && sAdv < t.sB + 30);
-    if (c.name && sAdv > 60 && !nearTurn && !signsS.some((x) => Math.abs(x - sAdv) < 60) && !gantryS.some((x) => Math.abs(x - sAdv) < 80) && !inJunction(l, sAdv, 10)) {
+    if (c.name && sAdv > 60 && !nearTurn && !signsS.some((x) => Math.abs(x - sAdv) < 60) && !gantryS.some((x) => Math.abs(x - sAdv) < 80) && !inJunction(l, sAdv, 10) && clear(sAdv, l.edgeR + 0.9)) {
       const prevRoad = [...turns].reverse().find((t) => t.s1 < c.s)?.name ?? '深南大道';
       cantilever(sAdv, 'right', drawJunction(atlas, 5.6 * PX, 3.2 * PX, c.name, prevRoad), 5.6, 3.2);
     }
@@ -230,9 +259,9 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
         board(m, 0, 3.45, 0.08, 2.4, 0.65, plate, plate, 0.06);
       }
     }
-    signal(c.s - c.hw - 1.2);
+    signal(c.s - c.hw - 1.2, laneSigns());
   }
-  for (const t of turns) signal(t.sA - 1.2);
+  for (const t of turns) signal(t.sA - 1.2, laneSigns(t));
 
   // Road-closed barriers at both ends.
   for (const s of [l.s0 + 1.2, l.s1 - 1.2]) {
@@ -289,7 +318,7 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
     const m = place(s, d, 0, yaw);
     for (const x of [-BW / 2, 0, BW / 2]) {
       const v = new THREE.Vector3(x, 0, 0).applyMatrix4(m);
-      if (inClearZone(route, v.x, v.z) || inLandmark(l, v.x, v.z, 4)) return false;
+      if (inClearZone(route, v.x, v.z) || keptOut(v.x, v.z, 4)) return false;
     }
     return true;
   };
@@ -332,6 +361,54 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
     bbPlaced.push(`${Math.round(s)}${side === 'left' ? 'L' : 'R'}`);
   }
   if (ctx.debug) console.info(`[props] billboards at s = ${bbPlaced.join(', ')}`);
+
+  // ---------------- Road signs on posts ----------------
+  // GB 5768 signs facing traffic, lowest plate edge 2.2 m above the walk. Right kerb: a crosswalk
+  // sign at each crosswalk, no U-turn over no left turn before 深南大道 junctions, speed limits after
+  // them and after each turn, no stopping along 深南大道 and no long parking on the CBD streets;
+  // keep right on the median nose past each 深南大道 junction. Placed after the billboards (which keep
+  // their spacing) and before lamps and trees (which make room).
+  const medianWidth = (s: number) => l.edgeL - 0.3 - (l.opp(s) + 7.6);
+  const postLog: string[] = [];
+  const postSign = (s0: number, kinds: RoadSignKind[], median = false) => {
+    const side = median ? 'left' : 'right';
+    for (const off of [0, -4, 4, -8, 8]) {
+      const s = s0 + off;
+      if (s < 30 || s > len - 30) return;
+      const w = medianWidth(s);
+      const d = !median ? l.edgeR + 0.9 : w < 2.4 ? l.edgeL - 0.3 - w / 2 : l.edgeL - 1.0;
+      if (median ? w < 1.2 || inAny(l.gaps.median, s, 1) : inAny(l.gaps.right, s, 1)) continue;
+      if (inAny(reserved[side], s, 1.5) || !clear(s, d)) continue;
+      const size = plateSize(s);
+      const m = place(s, d);
+      const top = 2.2 + kinds.length * (size + 0.1) - 0.1;
+      struct.cylinder(m, [0, 0, 0], [0, top + 0.05, 0], 0.04, 0.035, 8, METAL);
+      kinds.forEach((kind, i) => signPlate(m, 0, top - size / 2 - i * (size + 0.1), 0.06, size, kind));
+      reserve(side, s, 2);
+      const p = route.pointAt(s, d);
+      posts.push(new THREE.Vector2(p.x, p.z));
+      postLog.push(`${Math.round(s)}${median ? 'M' : ''} ${kinds.join('+')}`);
+      return;
+    }
+  };
+  const finishS = route.data.finish?.s ?? len;
+  for (const c of l.cross) {
+    const shennan = roadAt(c.s) === FIRST_ROAD;
+    postSign(c.s - c.hw - 7.3, ['crosswalk']);
+    if (!shennan) continue;
+    postSign(c.s - c.hw - 35, ['no_u_turn', 'no_left_turn']);
+    postSign(c.s + c.hw + 9, ['keep_right'], true);
+    if (c.s + c.hw + 45 < finishS - 20) postSign(c.s + c.hw + 45, ['limit60']);
+  }
+  for (const t of turns) {
+    postSign(t.sA - 7.3, ['crosswalk']);
+    postSign(t.sB + 35, ['limit50']);
+    postSign(t.sB + 95, ['no_parking']);
+  }
+  postSign(150, ['limit60']);
+  const firstTurn = turns[0]?.sA ?? len;
+  for (let s = 420; s < firstTurn - 250; s += 560) if (!inJunction(l, s, 70)) postSign(s, ['no_stopping']);
+  if (ctx.debug) console.info(`[props] ${postLog.length} road sign posts: ${postLog.join(', ')}`);
 
   // ---------------- Lamps ----------------
   const lampSp = CONFIG.city.lampSpacing;
@@ -436,6 +513,11 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
     }
   }
 
+  if (ctx.debug) {
+    const { modelFootprints, modelHits } = keptOut.stats;
+    console.info(`[props] keep-out: ${modelFootprints} real-building footprints rejected ${modelHits} prop spots (+3 m margin)`);
+  }
+
   // ---------------- Meshes ----------------
   const fol = foliageAtlas(aniso);
   const folMat = foliageMaterial(fol);
@@ -445,7 +527,7 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
   const behind = CONFIG.city.propViewBehind;
   const lampAhead = CONFIG.city.lampViewAhead;
   const windows = [
-    new WindowedInstances(banyanGeometry(), folMat, banyans, ahead, behind),
+    await banyanInstances(banyans, ahead, behind, folMat, aniso, route),
     new WindowedInstances(palmGeometry(), folMat, palms, ahead, behind),
     new WindowedInstances(shrubGeometry(), folMat, shrubs, ahead * 0.6, behind),
     new WindowedInstances(doubleLampGeometry(), lampMats.pole, doubles, lampAhead, behind),
@@ -479,17 +561,27 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
     roughness: 0.55,
     metalness: 0,
   });
+  // Retro-reflective sheeting, not lit: no emission by day, a little at night (headlights).
+  const roadSignMat = new THREE.MeshStandardMaterial({
+    map: roadSigns.texture,
+    emissiveMap: roadSigns.texture,
+    emissive: new THREE.Color(1, 1, 1),
+    emissiveIntensity: 0,
+    roughness: 0.5,
+    metalness: 0,
+  });
   const statics: THREE.Mesh[] = [
     new THREE.Mesh(struct.geometry(), new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.35, roughness: 0.5 })),
     new THREE.Mesh(boards.geometry(), boardMat),
     new THREE.Mesh(glow.geometry(), glowMat),
     new THREE.Mesh(faces.geometry(), bbMat),
+    new THREE.Mesh(signFaces.geometry(), roadSignMat),
   ];
-  ['structures', 'sign-boards', 'glow', 'billboards'].forEach((n, i) => {
+  ['structures', 'sign-boards', 'glow', 'billboards', 'road-signs'].forEach((n, i) => {
     const m = statics[i];
     m.name = n;
     m.castShadow = i < 2;
-    m.receiveShadow = i < 2;
+    m.receiveShadow = i < 2 || i === 4;
     m.matrixAutoUpdate = false;
     root.add(m);
   });
@@ -510,6 +602,7 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
     glowMat.color.setScalar(0.3 + 0.7 * n);
     boardMat.emissiveIntensity = CONFIG.city.signEmissive * (0.3 + 0.7 * n);
     bbMat.emissiveIntensity = CONFIG.city.billboardBrightness * (0.22 + 0.78 * n);
+    roadSignMat.emissiveIntensity = CONFIG.city.roadSignNightGlow * n;
   };
   applyTime(getTimeOfDay());
   const unsubscribe = onTimeOfDayChange(applyTime);
@@ -528,7 +621,7 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
         (m.material as THREE.Material).dispose();
       }
       for (const m of [folMat, lampMats.pole, lampMats.lens, poolMat]) m.dispose();
-      for (const t of [fol, signTex, bb.texture]) t.dispose();
+      for (const t of [fol, signTex, bb.texture, roadSigns.texture]) t.dispose();
     },
   };
 }

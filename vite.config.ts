@@ -33,7 +33,6 @@ export default defineConfig({
       'postprocessing',
       'three/examples/jsm/controls/OrbitControls.js',
       'three/examples/jsm/loaders/GLTFLoader.js',
-      'three/examples/jsm/loaders/HDRLoader.js',
       'three/examples/jsm/libs/meshopt_decoder.module.js',
       'three/examples/jsm/utils/BufferGeometryUtils.js',
     ],

@@ -8,6 +8,26 @@
 
 署名（CC BY 4.0）：“[Xiaomi SU7](https://sketchfab.com/3d-models/xiaomi-su7-ca2cda599f5341068c992c9f44551bf9)” by Car2022 (Mona x Supercars), licensed under CC BY 4.0. Changes: body paint material replaced at runtime.
 
+### 小叶榕行道树 impostor
+
+| 文件 | 来源 | 作者 | 授权 | 使用方式 |
+|---|---|---|---|---|
+| `public/textures/trees/banyan_color.webp`、`banyan_normal.webp`、`banyan.json`（原始 GLB 在 `data-raw/assets/sketchfab/`，不入库） | Sketchfab：[Chinese Banyan (Ficus Microcarpa)](https://sketchfab.com/3d-models/chinese-banyan-ficus-microcarpa-2a0dbcdf8f5d48f5ad79987c7a8170ce) | Valery.Li | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | 由 `scripts/bake_banyan_impostor.mjs` 离线渲染成 16 个方位的 impostor 图集（反照率 + 覆盖度、法线 + 天空可见度）；烘焙时修剪下垂气根、调整叶片与树皮颜色。原始网格和贴图不随游戏分发；运行时见 `src/city/props/trees.ts`、`treeImpostor.ts` |
+
+署名（CC BY 4.0）：“[Chinese Banyan (Ficus Microcarpa)](https://sketchfab.com/3d-models/chinese-banyan-ficus-microcarpa-2a0dbcdf8f5d48f5ad79987c7a8170ce)” by Valery.Li, licensed under CC BY 4.0. Changes: rendered into a 16-azimuth impostor atlas (albedo, normals, ambient occlusion), aerial roots trimmed and colours graded during the bake; the original mesh is not shipped.
+
+### 国标路牌贴图
+
+| 文件 | 来源 | 作者 | 授权 | 使用方式 |
+|---|---|---|---|---|
+| `public/textures/signs/*.png`（11 张，248 px：直行、向左/向右转弯、直行和向左/向右转弯、靠右侧道路行驶、禁止停车、禁止长时停车、禁止掉头、禁止向左转弯、人行横道；原始 GLB 在 `data-raw/assets/sketchfab/`，不入库） | Sketchfab：[Chinese Road Signs (32 road signs and more)](https://sketchfab.com/3d-models/chinese-road-signs-32-road-signs-and-more-241ed4fd2fc145259ff9b51bd6f04877) | notbadworks（下载包内署名 bobymonsuta） | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | 由 `scripts/process_env_and_signs.mjs` 从包内底色贴图中裁出牌面、上下翻正（原图倒置存放）、牌面外缘补白、缩到 248 px；运行时拼进路牌图集，装在程序生成的立柱、信号灯横臂和龙门架立柱上（`src/city/props/roadSigns.ts`）。不使用包内模型网格；限速牌（包内没有）为 Canvas 程序绘制 |
+
+署名（CC BY 4.0）：“[Chinese Road Signs (32 road signs and more)](https://sketchfab.com/3d-models/chinese-road-signs-32-road-signs-and-more-241ed4fd2fc145259ff9b51bd6f04877)” by notbadworks (bobymonsuta), licensed under CC BY 4.0. Changes: sign-face textures extracted, flipped upright, cropped and downscaled to 248 px, placed on procedural posts; the model meshes are not used.
+
+### HDRI（评估后未采用）
+
+Poly Haven 的 [Shanghai Riverside](https://polyhaven.com/a/shanghai_riverside)（Alex Radosnov）和 [Shanghai Bund](https://polyhaven.com/a/shanghai_bund)（Greg Zaal），均为 [CC0](https://polyhaven.com/license)。`scripts/process_env_and_signs.mjs` 可把 2k 原图降采样到 1k，但游戏不分发也不加载：日落预设下车漆反射 Riverside 偏冷、偏平，不如程序生成的暖色天空与天际线环境；Bund 对应的入夜预设已取消。
+
 **免责声明**：本项目为课程作业，与小米集团（Xiaomi）无任何关联，亦未获其认可或赞助。“Xiaomi”“SU7” 为其各自所有者的商标。
 
 ### 3D Warehouse 真实建筑模型
