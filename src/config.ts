@@ -74,8 +74,9 @@ export const CONFIG = {
     /** Exponential smoothing rates (1/s). */
     posLerp: 6,
     yawLerp: 5,
-    near: 0.2,
-    far: 6000,
+    near: 0.5,
+    /** Large enough to see Ping An Finance Center from the start (skyline guide). */
+    far: 15000,
   },
 
   race: {
