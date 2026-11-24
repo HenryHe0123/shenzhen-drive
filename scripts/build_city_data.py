@@ -1625,6 +1625,7 @@ def finalize_city_models(cfg, regs, reg_polys, route, blds, sp, U, F, L, opp_fin
     zones = [Polygon(z) for z in route.get("clearZones") or []]
     zones = [z if z.is_valid else z.buffer(0) for z in zones]
     half = max(road["halfWidthLeft"], road["halfWidthRight"])
+    keep_ids = set(cfg.get("viewCorridorDefaults", {}).get("keepIds", []))
     kept, skipped = [], []
     # landmark parts (e.g. the Civic Square columns) follow their landmark's replacement: placed first
     # are the models that replace a hand-built landmark
@@ -1682,7 +1683,8 @@ def finalize_city_models(cfg, regs, reg_polys, route, blds, sp, U, F, L, opp_fin
             if inside.any():
                 skipped.append((r, f"road corridor (d {dp_[inside].min():.0f}..{dp_[inside].max():.0f} m at s {sp_[inside].mean():.0f})"))
                 continue
-        if not replaces:
+        # models replacing a building the view corridors deliberately keep (keepIds) may stay too
+        if not replaces and not set(r["targets"]) & keep_ids:
             hit = [z for z in zones if r["fp_f"].intersection(z).area > rc["clearZoneMinArea"]]
             if hit:
                 a = sum(r["fp_f"].intersection(z).area for z in hit)

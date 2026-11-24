@@ -15,6 +15,14 @@ const cityModelsJson =
   Object.values(
     import.meta.glob<CityModelsData>('../public/data/city_models.json', { eager: true, import: 'default' }),
   )[0] ?? null;
+const cityConfig = Object.values(
+  import.meta.glob<{ viewCorridorDefaults?: { keepIds?: string[] } }>('../scripts/city_config.json', {
+    eager: true,
+    import: 'default',
+  }),
+)[0];
+/** OSM buildings the view corridors deliberately keep inside clear zones (e.g. OCT Tower). */
+const CLEAR_ZONE_KEEP = new Set((cityConfig?.viewCorridorDefaults?.keepIds ?? []).map((ref) => Number(ref.slice(1))));
 
 const SECTION_IDS: readonly string[] = ['nanshan', 'oct', 'chegongmiao', 'futian'] satisfies SectionId[];
 const MAX_KINK_DEG = 2;
@@ -455,10 +463,10 @@ describe.skipIf(!cityModelsJson || !routeJson)('public/data/city_models.json', (
     expect(bad).toEqual([]);
   });
 
-  it('keeps models out of the landmark clear zones unless they replace the landmark', () => {
+  it('keeps models out of the landmark clear zones unless they replace the landmark (or a kept building)', () => {
     const bad: string[] = [];
     for (const m of c.models) {
-      if (m.replacesLandmark) continue;
+      if (m.replacesLandmark || m.replacesOsm.some((id) => CLEAR_ZONE_KEEP.has(id))) continue;
       const a = (r.clearZones ?? []).reduce((acc, z) => acc + overlapArea(m.footprint, z), 0);
       if (a > 2) bad.push(`${m.id}: ${a.toFixed(0)} m2 inside clear zones`);
     }

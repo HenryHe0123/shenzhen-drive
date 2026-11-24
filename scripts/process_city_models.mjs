@@ -1114,8 +1114,13 @@ async function processModel(entry, manifest) {
     height = Math.max(height, s.P[i * 3 + 1]);
   }
   const hMin = Math.min(PROC.footprintMinHeight, 0.3 * height);
+  // all vertices of faces reaching above hMin (walls bring their ground corners, a pyramid its base)
   const high = [];
-  for (let i = 0; i < s.n * 3; i++) if (s.P[i * 3 + 1] > hMin) high.push([s.P[i * 3], s.P[i * 3 + 2]]);
+  for (let t = 0; t < s.n; t++) {
+    const o = t * 9;
+    if (Math.max(s.P[o + 1], s.P[o + 4], s.P[o + 7]) <= hMin) continue;
+    for (let k = 0; k < 3; k++) high.push([s.P[o + k * 3], s.P[o + k * 3 + 2]]);
+  }
   const hull0 = convexHull(high);
   const [cx, cz] = polyCentroid(hull0);
   for (let i = 0; i < s.n * 3; i++) {
