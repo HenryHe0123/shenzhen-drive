@@ -212,6 +212,42 @@ export const CONFIG = {
     billboardAngleDeg: 26,
   },
 
+  /** APEC facade LED screens on real buildings (src/city/screens); one per s-window, picked from the data. */
+  screens: {
+    textureUrl: 'textures/ai/facade_apec_01.jpg',
+    windows: [
+      { name: 'apec-sign', s0: 5800, s1: 6400, side: 'left' },
+      { name: 'shennan-futian', s0: 7600, s1: 8800 },
+      { name: 'cbd-loop', s0: 9960, s1: 11680 },
+    ],
+    /** Preferred / smallest width (m); 9:16 portrait, so 20 m wide is 35.6 m tall. */
+    width: 20,
+    minWidth: 16,
+    /** Preferred / lowest bottom edge (m), above the street and median trees. */
+    bottom: 22,
+    minBottom: 15,
+    roofGap: 3,
+    /** Wall run kept free beside the screen (m). */
+    edgeMargin: 1.5,
+    minHeight: 55,
+    /** Wall distance from the centerline of the carriageway on its side (the opposite one on the left, m). */
+    minDist: 25,
+    maxDist: 90,
+    /** Wall normal within this angle of the direction to the road; preferred tilt toward oncoming traffic (deg). */
+    maxFacingDeg: 30,
+    preferFacingDeg: 12,
+    /** Sight lines from these distances before the screen (m) must mostly reach it. */
+    viewBack: [260, 170, 90],
+    /** Screen face / frame front distance from the wall, frame border (m). */
+    offset: 0.42,
+    frameFront: 0.3,
+    border: 0.6,
+    /** Color multiplier per time-of-day preset (dusk blooms: threshold 0.85). */
+    brightness: { day: 1.1, golden: 1.3, dusk: 1.7 },
+    /** LED pitch (m) and depth of the pixel-grid shading, faded out once a cell is under ~1.5 px. */
+    ledPitch: 0.125,
+    ledGrid: 0.22,
+  },
   audio: {
     masterVolume: 0.6,
     /** Motor whine fundamental at a crawl and at refSpeed (Hz), linear in speed (single-ratio drive). */
