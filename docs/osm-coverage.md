@@ -39,6 +39,26 @@ game corridor (`scripts/build_city_data.py`, after cuts, ≤ 300 m from the driv
 
 So the zone/area height rules carry most of the near field; the skyline is fully data-backed.
 
+**v0.5.0 height sources** (`buildings.json` `meta.heightSources`, full uncut route, near ≤ 300 m plus far
+skyline 300–1500 m with h ≥ 80 m; procedural blocks are off, so every record is a real footprint):
+
+| footprints | count | OSM `height` | OSM levels × 3.2 m | CMAB | zone estimate |
+|---|---:|---:|---:|---:|---:|
+| OSM (incl. 575 far) | 1,430 | 220 | 746 | 49 | 415 (29%) |
+| Overture machine-learned rooftops | 762 | – | – | 129 | 633 (83%) |
+| all | 2,192 | 220 (10%) | 746 (34%) | 178 (8%) | 1,048 (48%) |
+
+v0.4.3 for comparison: 1,624 records = 224 `height`, 743 levels, 453 estimated OSM footprints and 204
+procedural blocks (60% data-backed counting the blocks, 68% of the real footprints).
+
+CMAB (`scripts/clip_cmab.py`, file `province/广东省/zhusanjiaoyi20220302` of `CMAB_origin.rar`) covers
+Shenzhen only east of lon 114.028 (福田 / 罗湖); 南山 and most of the route west of 香蜜湖 have no
+CMAB rooftops, which is why Overture additions there mostly keep zone estimates. Calibration on the
+corridor (pipeline log `[cmab]`): on 31 OSM buildings with `height`, CMAB is a median 122 m too low
+(+6 m below 30 m, −37 m at 30–100 m, −173 m above 100 m); 平安金融中心 has no CMAB rooftop at all.
+On 370 buildings with `height` or levels, CMAB beats the zone estimate except on 1500–3000 m²
+footprints (towers), so CMAB is used below OSM levels and never for those footprint sizes.
+
 **2. Footprint gaps: yes.** Footprint share of the 600 m wide corridor, per 250 m of real route,
 has a median of only 13% (dense Shenzhen blocks are typically 25–40%). Bins below 6% (real arc
 length from the start; the full bins are written to `data-raw/coverage_bins.json` on each pipeline run, not committed):
@@ -53,11 +73,20 @@ length from the start; the full bins are written to `data-raw/coverage_bins.json
 | 10500–11750 | 香蜜湖 – 新洲路 | north: 52 ha construction site (香蜜湖 redevelopment); south: Shenzhen Golf Club, metro yard, woods |
 | 13000–13250 | 益田路 north of 深南大道 | 市民广场 / 市民中心南广场 plaza, real open space |
 
-Decision: the pipeline adds deterministic **procedural filler blocks** (negative `id`, counted as
-`estimated`) only where OSM has no building, road (buffered by class width), park / water / plaza /
-surface parking / theme park, landmark, cut interval or route end. Real open spaces therefore stay
-open; unmapped urban land (e.g. the 香蜜湖 construction site edge, 华侨城 estates) gets filler.
-Disable with `"procedural": {"enabled": false}` in `scripts/city_config.json`.
+Decision until v0.4.3: the pipeline added deterministic **procedural filler blocks** (negative `id`,
+counted as `estimated`) only where OSM had no building, road (buffered by class width), park / water /
+plaza / surface parking / theme park, landmark, cut interval or route end, and the game added runtime
+street-wall blocks on top.
+
+**v0.5.0:** both are off (`"procedural": {"enabled": false}`, `CONFIG.city.buildingFiller = false`).
+Instead, Overture Maps footprints whose source is not OSM (machine-learned rooftops,
+doi:10.5281/zenodo.8174931) fill OSM's gaps where they overlap no OSM building (< 20% of their area)
+and lie outside open space (now also `landuse=construction / brownfield`): 762 buildings. Coverage
+(`[coverage]` in the pipeline log, same 600 m corridor per 250 m): median 15% (OSM) → 16% (OSM +
+Overture); bins below 6%: 10 → 6. 华侨城 east (6250–6500) and 世界之窗 north (3750–4000) now have real
+outlines; what stays below 6% is real open land: 2750–3250 沙河 green belt and water, 7250–7500 竹子林
+metro depot, 8750–9000, 10000–10250 香蜜湖 interchange, 10500–10750 香蜜湖 construction site (north)
+and woods (south).
 
 **3. Landmark OSM ids** (used for landmarks and for excluding the hand-made ones from `buildings.json`):
 

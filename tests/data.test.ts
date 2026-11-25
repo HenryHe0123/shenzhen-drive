@@ -129,6 +129,31 @@ function routeShapeErrors(r: RouteData): string[] {
   if (Array.isArray(r.signs)) {
     e.push(...firstBad(r.signs, (g) => isNum(g.s) && (g.side === 'left' || g.side === 'right') && isStr(g.text), 'signs'));
   }
+  for (const key of ['sideRoadRight', 'sideRoadLeft'] as const) {
+    const arr = r[key];
+    if (arr === undefined) continue;
+    req(Array.isArray(arr) && arr.length === r.centerline?.length, `${key} must have one value per centerline sample`);
+    if (Array.isArray(arr)) {
+      const opp = r.oppositeOffset;
+      e.push(
+        ...firstBad(
+          arr.map((v, i) => [v, i] as const),
+          ([v, i]) => v === null || (isNum(v) && (key === 'sideRoadRight' ? v > r.road.halfWidthRight : v < (opp?.[i] ?? 0) - r.road.halfWidthLeft)),
+          key,
+        ),
+      );
+    }
+  }
+  if (r.sideRoadLanes !== undefined) {
+    e.push(...firstBad(r.sideRoadLanes, (x) => (x.side === 'left' || x.side === 'right') && isNum(x.s0) && isNum(x.s1) && x.s0 < x.s1 && Number.isInteger(x.lanes) && x.lanes >= 1, 'sideRoadLanes'));
+  }
+  if (r.footbridges !== undefined) {
+    e.push(...firstBad(r.footbridges, (b) => [b.s, b.d0, b.d1, b.skew].every(isNum) && b.d0 < -r.road.halfWidthLeft && b.d1 > r.road.halfWidthRight, 'footbridges'));
+  }
+  for (const key of ['busStops', 'subwayEntrances'] as const) {
+    const arr = r[key];
+    if (arr !== undefined) e.push(...firstBad(arr, (x) => isNum(x.s) && isNum(x.d) && (x.side === 'left' || x.side === 'right') && (x.name === undefined || isStr(x.name)), key));
+  }
   return e;
 }
 
@@ -392,6 +417,19 @@ describe.skipIf(!routeJson)('public/data/route.json', () => {
 
   it('has ordered checkpoints < finish < length and contiguous sections', () => {
     expect(orderErrors(r, r.meta.length)).toEqual([]);
+  });
+
+  it('has side roads only off the carriageway, and roadside items on their declared side', () => {
+    const route = new Route(r);
+    const bad: string[] = [];
+    for (const key of ['busStops', 'subwayEntrances'] as const) {
+      for (const x of r[key] ?? []) {
+        const opp = route.oppositeOffsetAt(x.s);
+        if (x.side === 'right' ? !(x.d > r.road.halfWidthRight) : !(x.d < opp - r.road.halfWidthLeft)) bad.push(`${key} at s ${x.s}: d ${x.d} not on the ${x.side}`);
+      }
+    }
+    expect(bad).toEqual([]);
+    expect(r.sideRoadRight?.some((v) => v !== null) ?? true).toBe(true);
   });
 
   it('is the full real route, without cuts', () => {

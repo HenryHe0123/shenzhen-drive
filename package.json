@@ -1,13 +1,14 @@
 {
   "name": "shenzhen-drive",
   "private": true,
-  "version": "0.4.3",
+  "version": "0.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "playtest": "vite build --outDir playtest --emptyOutDir && vite preview --outDir playtest --port 4173 --strictPort",
+    "playtest:next": "vite build --outDir playtest-next --emptyOutDir && vite preview --outDir playtest-next --port 4174 --strictPort",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "e2e": "playwright test",

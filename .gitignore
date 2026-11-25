@@ -12,6 +12,7 @@ test-results/
 playwright-report/
 .DS_Store
 playtest/
+playtest-next/
 data-raw/dev/
 /shenzhen-drive-*.mp4
 /shenzhen-drive-*.webm
