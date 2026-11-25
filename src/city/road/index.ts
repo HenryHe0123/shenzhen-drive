@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { CONFIG } from '../../config';
 import type { FrameInfo, SceneryModule, WorldContext } from '../../game/contracts';
+import { LIGHTING } from '../../render/presets';
+import { getTimeOfDay, onTimeOfDayChange } from '../../render/timeOfDay';
 import { ChunkSet, FrameMapper, intersect, type Mapper, Painter, RouteMapper, type RGB, type Style, subtract } from './builder';
 import { groundMaterial } from './ground';
 import { getRoadLayout, HEIGHT, type Interval, type RoadLayout, SIDE, type TurnLayout, XWALK } from './layout';
@@ -274,6 +276,30 @@ function buildEnds(p: Painter, l: RoadLayout) {
   p.box('paving', 'paving', end, 0, 90, be0, b1, HEIGHT.walk, S_PLAZA, S_CURB);
 }
 
+/**
+ * Pulls the sky part of the lighting toward neutral grey: the reflection fully, the ambient
+ * (hemisphere + environment irradiance) by 75 %, by `amount` (0..1, per preset). Under a blue sky
+ * the shaded asphalt otherwise turns visibly blue; the direct sun and its color are untouched.
+ */
+function neutralSkyLight(mat: THREE.MeshStandardMaterial, amount: { value: number }): void {
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uSkyNeutral = amount;
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uSkyNeutral;')
+      .replace(
+        '#include <lights_fragment_end>',
+        `{
+  const vec3 sdLw = vec3(0.2126, 0.7152, 0.0722);
+  radiance = mix(radiance, vec3(dot(radiance, sdLw)), uSkyNeutral);
+  irradiance = mix(irradiance, vec3(dot(irradiance, sdLw)), 0.75 * uSkyNeutral);
+  iblIrradiance = mix(iblIrradiance, vec3(dot(iblIrradiance, sdLw)), 0.75 * uSkyNeutral);
+}
+#include <lights_fragment_end>`,
+      );
+  };
+  mat.customProgramCacheKey = () => 'sd-asphalt-neutral-sky';
+}
+
 export async function createRoad(ctx: WorldContext): Promise<SceneryModule> {
   const { route, scene, renderer } = ctx;
   const l = getRoadLayout(route);
@@ -296,6 +322,9 @@ export async function createRoad(ctx: WorldContext): Promise<SceneryModule> {
   padMat.polygonOffset = true;
   padMat.polygonOffsetFactor = 1;
   padMat.polygonOffsetUnits = 2;
+  const skyNeutral = { value: LIGHTING[getTimeOfDay()].roadSkyNeutral };
+  for (const m of [asphaltMat, padMat]) neutralSkyLight(m, skyNeutral);
+  const unsubscribe = onTimeOfDayChange((t) => (skyNeutral.value = LIGHTING[t].roadSkyNeutral));
   const mats: Record<string, THREE.Material> = {
     asphalt: asphaltMat,
     pad: padMat,
@@ -371,6 +400,7 @@ export async function createRoad(ctx: WorldContext): Promise<SceneryModule> {
       for (const c of groups) c.g.visible = c.s1 > frame.s - behind && c.s0 < frame.s + ahead;
     },
     dispose() {
+      unsubscribe();
       scene.remove(root);
       root.traverse((o) => {
         if (o instanceof THREE.Mesh) o.geometry.dispose();

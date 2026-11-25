@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CONFIG } from '../../config';
-import { nightUniform } from '../../render/timeOfDay';
+import { getTimeOfDay, nightUniform, onTimeOfDayChange, type TimeOfDay } from '../../render/timeOfDay';
 import { WINDOW_GLSL } from './windowPattern';
 
 const M = CONFIG.cityModels;
@@ -15,9 +15,20 @@ export interface PhotoMaterialOptions {
   fogScale?: number;
   /** Per-building random seed 0..1 (window layout, lit pattern). */
   seed: number;
+  /** Large roof underside (Civic Center): downward faces get the soffit tone, coffers and plaza bounce. */
+  soffit?: boolean;
 }
 
 const nightTint = new THREE.Color(M.photoNightTint);
+const soffitTone = new THREE.Color(M.soffit.tone);
+/** Plaza bounce on soffits for the current preset (linear), shared by every soffit material. */
+const soffitBounce = { value: new THREE.Color() };
+const setBounce = (t: TimeOfDay) => {
+  const [hex, k] = M.soffit.bounce[t];
+  soffitBounce.value.set(hex).multiplyScalar(k);
+};
+setBounce(getTimeOfDay());
+onTimeOfDayChange(setBounce);
 
 /**
  * Facade material for old photo-textured models (Google Earth snapshots baked
@@ -47,6 +58,7 @@ export function createPhotoFacadeMaterial(o: PhotoMaterialOptions): THREE.MeshSt
   const defines: Record<string, string> = {};
   if (o.atlas) defines.SD_ATLAS = '';
   if (o.fogScale !== undefined) defines.FOG_SCALE = o.fogScale.toFixed(3);
+  if (o.soffit) defines.SD_SOFFIT = '';
   mat.defines = defines;
   const uniforms = {
     uNight: nightUniform,
@@ -60,6 +72,9 @@ export function createPhotoFacadeMaterial(o: PhotoMaterialOptions): THREE.MeshSt
     uNightTint: { value: nightTint },
     uDetail: { value: M.photoDetail },
     uSharpen: { value: M.photoSharpen },
+    uSoffitTone: { value: soffitTone },
+    uSoffitGrid: { value: M.soffit.grid },
+    uSoffitBounce: soffitBounce,
   };
   mat.userData.uniforms = uniforms;
   mat.onBeforeCompile = (shader) => {
@@ -91,9 +106,9 @@ vSdAtlas = aAtlas;
         `#include <roughnessmap_fragment>
 roughnessFactor = mix(roughnessFactor, 0.3, sdGlass * sdVert);`,
       )
-      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${PHOTO_NIGHT}`);
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${PHOTO_NIGHT}\n${PHOTO_SOFFIT_EMIS}`);
   };
-  mat.customProgramCacheKey = () => 'sd-city-photo-v1';
+  mat.customProgramCacheKey = () => 'sd-city-photo-v2';
   return mat;
 }
 
@@ -109,6 +124,9 @@ uniform float uNightDim;
 uniform vec3 uNightTint;
 uniform float uDetail;
 uniform float uSharpen;
+uniform vec3 uSoffitTone;
+uniform float uSoffitGrid;
+uniform vec3 uSoffitBounce;
 varying vec3 vSdObj;
 #ifdef SD_ATLAS
 varying vec4 vSdAtlas;
@@ -167,6 +185,29 @@ const PHOTO_GRADE = /* glsl */ `
   float n2 = uNight * uNight;
   diffuseColor.rgb = c * mix(vec3(1.0), uNightTint * uNightDim, n2);
 }
+#ifdef SD_SOFFIT
+// Roof underside: only lit by the dim ground hemisphere it reads as a flat grey lid. Light metal
+// panels with recessed coffer joints; the joints also break up the large flat area.
+float sdDown = smoothstep(0.35, 0.6, -sdFN.y);
+float sdJoint = 0.0;
+if (sdDown > 0.0) {
+  vec2 sdG = vSdObj.xz / uSoffitGrid;
+  vec2 sdGw = fwidth(sdG);
+  vec2 sdGd = abs(fract(sdG + 0.5) - 0.5);
+  vec2 sdGl = 1.0 - smoothstep(vec2(0.025), vec2(0.025) + sdGw * 1.5, sdGd);
+  sdJoint = max(sdGl.x, sdGl.y) * (1.0 - smoothstep(0.3, 0.8, max(sdGw.x, sdGw.y)));
+  vec3 sdPanel = uSoffitTone * (0.92 + 0.16 * swHash12(floor(sdG) + uSeed * 97.0));
+  sdPanel *= mix(vec3(1.0), uNightTint * uNightDim, uNight * uNight);
+  diffuseColor.rgb = mix(diffuseColor.rgb, sdPanel * (1.0 - 0.3 * sdJoint), sdDown);
+}
+#endif
+`;
+
+const PHOTO_SOFFIT_EMIS = /* glsl */ `
+#ifdef SD_SOFFIT
+// Bounce from the sunlit plaza below (per preset; none at night).
+totalEmissiveRadiance += diffuseColor.rgb * uSoffitBounce * sdDown * (1.0 - 0.6 * sdJoint);
+#endif
 `;
 
 const PHOTO_NIGHT = /* glsl */ `

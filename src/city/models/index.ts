@@ -21,6 +21,9 @@ const CLEAN_STYLE: [RegExp, (height: number) => FaceStyler][] = [
   [/^tencent/, () => () => STYLE.tencent],
 ];
 
+/** Models whose roof underside gets the soffit treatment (photo material). */
+const SOFFIT = /^(civic_center_|citizen_centre_)/;
+
 type SlotState = 'queued' | 'loading' | 'loaded' | 'failed';
 
 interface Slot {
@@ -98,7 +101,7 @@ export async function createCityModels(ctx: WorldContext): Promise<SceneryModule
   let facadeNear: THREE.Material | null = null;
   let facadeFar: THREE.Material | null = null;
   const facade = (far: boolean) => {
-    if (far) return (facadeFar ??= createTintedFacadeMaterial({ fogScale: C.landmarkFogScale }));
+    if (far) return (facadeFar ??= createTintedFacadeMaterial({ fogScale: M.farFogScale, farTone: true }));
     return (facadeNear ??= createTintedFacadeMaterial());
   };
 
@@ -192,6 +195,7 @@ export async function createCityModels(ctx: WorldContext): Promise<SceneryModule
       facadeMaterial: () => facade(far),
       styler,
       podium: rec.role === 'frontage' ? 5.5 : 0,
+      soffit: SOFFIT.test(rec.id),
     });
     const obj = new THREE.Group();
     obj.name = `city-model:${rec.id}`;

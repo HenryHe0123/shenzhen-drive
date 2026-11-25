@@ -142,6 +142,12 @@ export const CONFIG = {
     /** Tail light material (shared with some red interior trim) and its emissive gain while braking. */
     tailLightMaterial: 'Mesh19Mtl',
     brakeLightGain: 3,
+    /** Tinted window glass and the glossy black glass roof / windscreen backing. */
+    glassMaterials: ['Mesh26Mtl', 'Mesh72Mtl'],
+    /** HDRI reflection strength (× the preset's hdri.intensity) of paint, glass and rims. */
+    hdriPaintGain: 1.0,
+    hdriGlassGain: 0.7,
+    hdriRimGain: 1.0,
   },
 
   camera: {
@@ -221,6 +227,17 @@ export const CONFIG = {
     bloomSmoothing: 0.3,
     bloomRadius: 0.7,
     vignette: 0.4,
+    /**
+     * Car reflections in presets with `hdri` (golden): Poly Haven shanghai_riverside, 1k, made by
+     * scripts/process_env_and_signs.mjs (which prints the sun's equirect u). The photo's sky is a
+     * cool blue; the tint warms it toward the generated sunset sky. Luminance is capped again at load.
+     */
+    hdriUrl: 'textures/env/shanghai_riverside_1k.hdr',
+    hdriSunU: 0.6003,
+    hdriTint: '#ffe2c4',
+    hdriMaxLuminance: 24,
+    /** Below-horizon multiplier: the photo's pale plaza → the game's darker asphalt. */
+    hdriGroundScale: 0.3,
   },
 
   city: {
@@ -292,8 +309,26 @@ export const CONFIG = {
     maxConcurrentLoads: 3,
     /** Models at least this tall stay visible at any distance (skyline guides, m); others use city.buildingDrawDistance. */
     skylineHeight: 300,
-    /** Role 'skyline' and models at least this tall get the thinned landmark fog (m). */
+    /** Role 'skyline' and models at least this tall get the thinned fog farFogScale and the far tone (m). */
     fogScaleHeight: 350,
+    /** Fog multiplier of those clean-geometry skyline towers (Ping An); photo models use city.landmarkFogScale. */
+    farFogScale: 0.2,
+    /** Distance (m) over which their facade darkens, and the specular / diffuse reduction reached. */
+    farTone: { near: 1200, far: 5000, spec: 0.6, diffuse: 0.45 },
+    /**
+     * Civic Center glass halls below `height` (m): mullion spacing, transom heights (m), daylit
+     * lobby glow (linear emission, off at night) and minimum glass reflectance.
+     */
+    civicLobby: { height: 14, bay: 1.5, transom: 3.6, transom2: 7.4, interior: [0.075, 0.068, 0.056], reflectance: 0.16 },
+    /**
+     * Civic Center roof underside (downward faces): coffer grid (m), light metal tone, and the
+     * sunlit plaza's bounce per preset as [sRGB, multiplier] (added as emission on the soffit).
+     */
+    soffit: {
+      grid: 3.0,
+      tone: '#b8b4ac',
+      bounce: { day: ['#efe4d2', 0.32], golden: ['#ffc58e', 0.26], dusk: ['#000000', 0] },
+    },
     /** Draw calls per model (spec 7.4): ordinary buildings / landmarks; more materials are atlased at load. */
     drawCallsBuilding: 2,
     drawCallsLandmark: 8,
