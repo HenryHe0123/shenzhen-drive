@@ -4,7 +4,7 @@ import type { FrameInfo, SceneryModule, WorldContext } from '../../game/contract
 import { getTimeOfDay, nightLevel, onTimeOfDayChange, type TimeOfDay } from '../../render/timeOfDay';
 import { yawFromDir } from '../../route/Route';
 import type { RGB } from '../road/builder';
-import { FIRST_ROAD, getRoadLayout, inClearZone, type Interval, inJunction, SIDE, type TurnLayout } from '../road/layout';
+import { FIRST_ROAD, getRoadLayout, inClearZone, type Interval, inJunction, SIDE, type SideRoad, type TurnLayout } from '../road/layout';
 import { mulberry32 } from '../road/textures';
 import { placeMatrix, PropGeo, type V3 } from './geo';
 import { type InstanceItem, WindowedInstances } from './instances';
@@ -13,6 +13,7 @@ import { createKeepOut } from './keepout';
 import { DOUBLE_HEADS, doubleLampGeometry, lampMaterials, lensGeometry, poolGeometry, poolMaterial, SINGLE_HEADS, singleLampGeometry } from './lamps';
 import { isSquareSign, RoadSignAtlas, type RoadSignKind, signPanel } from './roadSigns';
 import { BillboardAtlas, drawBanner, drawChevron, drawGuide, drawJunction, drawPlate, SignAtlas, type Slot } from './signs';
+import { BRIDGE, busShelter, footbridge, subwayCanopy } from './streetFurniture';
 import { banyanInstances, foliageAtlas, foliageMaterial, palmGeometry, shrubGeometry } from './trees';
 
 const METAL: RGB = [0.42, 0.44, 0.47];
@@ -71,6 +72,9 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
     if (side !== 'left') reserved.right.push([s - half, s + half]);
     if (side !== 'right') reserved.left.push([s - half, s + half]);
   };
+  /** OSM footbridges over the route (placed later); gantries, banners, lamps and trees keep clear of them. */
+  const bridges = (route.data.footbridges ?? []).filter((b) => b && Number.isFinite(b.s) && b.s > 30 && b.s < len - 30);
+  const underBridge = (s: number, margin: number) => bridges.some((b) => Math.abs(b.s - s) < margin);
 
   // ---------------- Signs, gates and other static structures ----------------
   const atlas = new SignAtlas(4096, 2048);
@@ -201,7 +205,7 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
     const dir = t.left ? '左转' : '右转';
     for (const back of [500, 200]) {
       let s = t.sA - back;
-      while ((inJunction(l, s, 10) || inAny(reserved.right, s, 8) || !clear(s, l.edgeR + 0.9) || !clear(s, l.edgeL - 0.9)) && s > 60) s -= 10;
+      while ((inJunction(l, s, 10) || inAny(reserved.right, s, 8) || underBridge(s, 16) || !clear(s, l.edgeR + 0.9) || !clear(s, l.edgeL - 0.9)) && s > 60) s -= 10;
       if (s < 60 || (prev && s < prev.sB + 50)) continue;
       const dist = Math.max(50, Math.round((t.s0 - s) / 50) * 50);
       const hP = 3.6;
@@ -216,7 +220,7 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
       const columnSign: RoadSignKind = back === 500 ? (shennan ? 'limit60' : 'limit50') : shennan ? 'no_stopping' : 'no_parking';
       signPlate(place(s, l.edgeR + 0.9), 0, 2.4 + plateSize(s) / 2, 0.3, plateSize(s), columnSign);
     }
-    const plateD = l.edgeR + SIDE.walk[0] + 1.2;
+    const plateD = l.walkR(t.sA - 3)[0] + 1.2;
     if (t.name && clear(t.sA - 3, plateD)) {
       const plate = drawPlate(atlas, t.name);
       const m = place(t.sA - 3, plateD);
@@ -251,8 +255,8 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
     if (c.name) {
       const plate = drawPlate(atlas, c.name);
       for (const [s, d, yawOff] of [
-        [c.s - c.hw - 2.5, l.edgeR + SIDE.walk[0] + 1.2, 0],
-        [c.s + c.hw + 2.5, l.opp(c.s) - 7.3 - SIDE.walk[0] - 1.2, Math.PI],
+        [c.s - c.hw - 2.5, l.walkR(c.s - c.hw - 2.5)[0] + 1.2, 0],
+        [c.s + c.hw + 2.5, l.walkL(c.s + c.hw + 2.5)[0] - 1.2, Math.PI],
       ] as [number, number, number][]) {
         if (!clear(s, d)) continue;
         const m = place(s, d, 0, yawOff);
@@ -280,7 +284,7 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
     const m = place(cp.s, 0);
     glow.quad(m, [route.dMin, 0.03, 0.2], [route.dMax, 0.03, 0.2], [route.dMax, 0.03, -0.2], [route.dMin, 0.03, -0.2], grey, CYAN);
     let sb = cp.s;
-    while ((inJunction(l, sb, 2) || gantryS.some((x) => Math.abs(x - sb) < 12)) && sb < len - 30) sb += 10;
+    while ((inJunction(l, sb, 2) || gantryS.some((x) => Math.abs(x - sb) < 12) || underBridge(sb, 10)) && sb < len - 30) sb += 10;
     const mb = place(sb, 0);
     const dL = l.edgeL - 0.7;
     const dR = l.edgeR + 0.7;
@@ -308,11 +312,11 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
   const legX = BW / 2 - 0.8;
   const bbOff = SIDE.green[0] + 1.6 + legX * Math.cos(bbYaw);
   const bbSide = (side: 'right' | 'left', s: number) =>
-    side === 'right' ? { d: l.edgeR + bbOff, yaw: bbYaw } : { d: l.opp(s) - 7.3 - bbOff, yaw: -bbYaw };
+    side === 'right' ? { d: l.kerbR(s) + bbOff, yaw: bbYaw } : { d: l.kerbL(s) - bbOff, yaw: -bbYaw };
   const bbStart = 450;
   const bbEnd = (turns[0]?.sA ?? len) - 700;
   const bbOk = (side: 'right' | 'left', s: number) => {
-    if (inJunction(l, s, 45) || inAny(reserved[side], s, 30) || gantryS.some((x) => Math.abs(x - s) < 60)) return false;
+    if (inJunction(l, s, 45) || inAny(reserved[side], s, 30) || gantryS.some((x) => Math.abs(x - s) < 60) || underBridge(s, 40)) return false;
     if (side === 'left' && (inAny(l.gaps.farLawn, s, 20) || inAny(l.gaps.opp, s, 20))) return false;
     if (Math.abs(((yawAt(s) - yawAt(s - 250) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI) > 0.14) return false;
     const { d, yaw } = bbSide(side, s);
@@ -379,7 +383,7 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
       const w = medianWidth(s);
       const d = !median ? l.edgeR + 0.9 : w < 2.4 ? l.edgeL - 0.3 - w / 2 : l.edgeL - 1.0;
       if (median ? w < 1.2 || inAny(l.gaps.median, s, 1) : inAny(l.gaps.right, s, 1)) continue;
-      if (inAny(reserved[side], s, 1.5) || !clear(s, d)) continue;
+      if (inAny(reserved[side], s, 1.5) || underBridge(s, 4) || !clear(s, d)) continue;
       const size = plateSize(s);
       const m = place(s, d);
       const top = 2.2 + kinds.length * (size + 0.1) - 0.1;
@@ -411,6 +415,69 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
   for (let s = 420; s < firstTurn - 250; s += 560) if (!inJunction(l, s, 70)) postSign(s, ['no_stopping']);
   if (ctx.debug) console.info(`[props] ${postLog.length} road sign posts: ${postLog.join(', ')}`);
 
+  // ---------------- Footbridges, bus shelters, subway entrances (OSM positions) ----------------
+  // Visual only: deck clearance BRIDGE.clearance, no collision. Lamps and trees placed below keep
+  // POST_CLEARANCE from the piers, stairs, shelters and canopies.
+  const addPost = (s: number, d: number) => {
+    const p = route.pointAt(s, d);
+    posts.push(new THREE.Vector2(p.x, p.z));
+  };
+  const furnitureLog: string[] = [];
+  for (const b of bridges) {
+    const s = b.s;
+    const [nearL, farL] = l.walkL(s);
+    const [nearR, farR] = l.walkR(s);
+    const x0 = Math.max(Math.min(b.d0, nearL - 1.5), farL - 4);
+    const x1 = Math.min(Math.max(b.d1, nearR + 1.5), farR + 4);
+    const piers = [x0 + 0.6, x1 - 0.6];
+    const med = l.edgeL - 0.3 - (l.opp(s) + 7.6);
+    if (med >= 1.0) piers.push(l.edgeL - 0.3 - med / 2);
+    if (l.side.right.has(s)) piers.push(l.plantR(s));
+    if (l.side.left.has(s)) piers.push(l.plantL(s));
+    footbridge(struct, place(s, 0, 0, b.skew), x0, x1, piers);
+    for (const x of piers) addPost(s, x);
+    for (const x of [x0 + BRIDGE.stairWidth / 2, x1 - BRIDGE.stairWidth / 2]) {
+      for (let k = 0; k < 4; k++) addPost(s - BRIDGE.width / 2 - 1.5 - k * 3.2, x);
+    }
+    furnitureLog.push(`bridge ${Math.round(s)}`);
+  }
+  const stopSign = drawPlate(atlas, '公交车站');
+  for (const st of route.data.busStops ?? []) {
+    if (!st || !Number.isFinite(st.s) || st.s < 40 || st.s > len - 40) continue;
+    const right = st.side === 'right';
+    for (const off of [0, -8, 8, -16, 16]) {
+      const s = st.s + off;
+      if (inJunction(l, s, 8) || underBridge(s, 14) || inAny(right ? lawnReserved : farLawnReserved, s, 2)) continue;
+      if (inAny(right ? l.gaps.right : [...l.gaps.far, ...l.gaps.opp], s, 6)) continue;
+      const near = (right ? l.walkR(s) : l.walkL(s))[0];
+      const d = right ? near + 1.4 : near - 1.4;
+      if (![s - 4, s, s + 4].every((x) => clear(x, d, 2))) continue;
+      const m = place(s, d, 0, right ? 0 : Math.PI);
+      const [px, pz] = busShelter(struct, glow, m);
+      board(m, px, 2.95, pz, 1.1, 0.3, stopSign, stopSign, 0.05);
+      for (const x of [s - 3.5, s, s + 3.5]) addPost(x, d);
+      furnitureLog.push(`stop ${Math.round(s)}${right ? 'R' : 'L'}`);
+      break;
+    }
+  }
+  for (const ex of route.data.subwayEntrances ?? []) {
+    if (!ex || !Number.isFinite(ex.s) || ex.s < 40 || ex.s > len - 40) continue;
+    const right = ex.side === 'right';
+    for (const off of [0, -6, 6, -12, 12]) {
+      const s = ex.s + off;
+      if (inJunction(l, s, 6) || underBridge(s, 12) || inAny(right ? lawnReserved : farLawnReserved, s, 2)) continue;
+      if (inAny(right ? l.gaps.right : [...l.gaps.far, ...l.gaps.opp], s, 5)) continue;
+      const farW = (right ? l.walkR(s) : l.walkL(s))[1];
+      const d = right ? Math.min(Math.max(ex.d, farW - 1.9), farW + 12) : Math.max(Math.min(ex.d, farW + 1.9), farW - 12);
+      if (![s - 3.5, s, s + 3.5].every((x) => clear(x, d, 2))) continue;
+      subwayCanopy(struct, glow, place(s, d, 0, right ? 0 : Math.PI));
+      for (const x of [s - 3, s, s + 3]) addPost(x, d);
+      furnitureLog.push(`metro ${Math.round(s)}${right ? 'R' : 'L'}`);
+      break;
+    }
+  }
+  if (ctx.debug) console.info(`[props] ${furnitureLog.length} street furniture items: ${furnitureLog.join(', ')}`);
+
   // ---------------- Lamps ----------------
   const lampSp = CONFIG.city.lampSpacing;
   const medianW = (s: number) => l.edgeL - 0.3 - (l.opp(s) + 7.6);
@@ -432,12 +499,18 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
     }
     return true;
   };
+  // Roadside lamps: single arms over the carriageway; on a side road's separator, double arms lighting both.
+  const sepWide = (side: SideRoad, s: number, edge: number) => side.has(s) && Math.abs(side.inner(s) - edge) >= 1.6;
   for (let s = lampSp / 2; s < len - 5; s += lampSp) {
-    if (inJunction(l, s, 3)) continue;
+    if (inJunction(l, s, 3) || underBridge(s, 4)) continue;
     if (!inAny(reserved.right, s, 3) && !inAny(l.gaps.right, s, 3)) {
-      if (addLamp(singles, SINGLE_HEADS, s, l.edgeR + 0.8, 0)) lampAt.right.push(s);
+      const ok = sepWide(l.side.right, s, l.edgeR) ? addLamp(doubles, DOUBLE_HEADS, s, l.plantR(s), 0) : addLamp(singles, SINGLE_HEADS, s, l.edgeR + 0.8, 0);
+      if (ok) lampAt.right.push(s);
     }
-    if (!inAny(l.gaps.far, s, 3) && !inAny(l.gaps.opp, s, 3) && !inAny(farLawnReserved, s, 3)) addLamp(singles, SINGLE_HEADS, s, l.opp(s) - 7.3 - 0.8, Math.PI);
+    if (!inAny(l.gaps.far, s, 3) && !inAny(l.gaps.opp, s, 3) && !inAny(farLawnReserved, s, 3)) {
+      if (sepWide(l.side.left, s, l.opp(s) - 7.3)) addLamp(doubles, DOUBLE_HEADS, s, l.plantL(s), 0);
+      else addLamp(singles, SINGLE_HEADS, s, l.opp(s) - 7.3 - 0.8, Math.PI);
+    }
   }
   for (let s = 0; s < len - 5; s += lampSp) {
     if (inJunction(l, s, 3) || inAny(l.gaps.median, s, 3) || inAny(reserved.left, s, 3)) continue;
@@ -461,19 +534,18 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
     return new THREE.Color(v * (0.92 + rand() * 0.1), v * g, v * (0.85 + rand() * 0.1));
   };
   const tree = (list: InstanceItem[], s: number, d: number, sc: number, c: THREE.Color) => {
-    if (clear(s, d)) list.push({ s, m: place(s, d, 0, rand() * Math.PI * 2, sc), c });
+    if (clear(s, d) && !underBridge(s, 6)) list.push({ s, m: place(s, d, 0, rand() * Math.PI * 2, sc), c });
   };
   const sp = CONFIG.city.treeSpacing;
   for (let s0 = 6; s0 < len + 2; s0 += sp) {
     const s = s0 + (rand() - 0.5) * 2;
-    // Right planting strip.
+    // Right planting strip (the separator where a side road runs).
     if (!inAny(l.gaps.right, s, 4) && !inAny(reserved.right, s, 4) && !nearLamp('right', s, 3.5)) {
-      if (rand() < 0.85) tree(banyans, s, l.edgeR + 2.0, 0.9 + rand() * 0.2, tint(0.75, 1.1));
-      else tree(palms, s, l.edgeR + 1.9, 0.85 + rand() * 0.2, tint(0.85, 1.1));
+      if (rand() < 0.85) tree(banyans, s, l.plantR(s), 0.9 + rand() * 0.2, tint(0.75, 1.1));
+      else tree(palms, s, l.plantR(s) - 0.1, 0.85 + rand() * 0.2, tint(0.85, 1.1));
     }
     // Far planting strip.
-    const oppFar = l.opp(s) - 7.3;
-    if (!inAny(l.gaps.far, s, 4) && !inAny(l.gaps.opp, s, 4) && !inAny(farLawnReserved, s, 4)) tree(banyans, s, oppFar - 2.0, 0.9 + rand() * 0.25, tint(0.75, 1.1));
+    if (!inAny(l.gaps.far, s, 4) && !inAny(l.gaps.opp, s, 4) && !inAny(farLawnReserved, s, 4)) tree(banyans, s, l.plantL(s), 0.9 + rand() * 0.25, tint(0.75, 1.1));
     // Median.
     const w = medianW(s);
     if (!inAny(l.gaps.median, s, 3) && w >= 1.4) {
@@ -492,12 +564,12 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
     }
     // Lawn rows behind the sidewalks.
     if (rand() < 0.7 && !inAny(l.gaps.lawn, s, 6) && !inAny(lawnReserved, s)) {
-      const d = l.edgeR + SIDE.lawn[0] + 4 + rand() * 9;
+      const d = l.walkR(s)[1] + 4 + rand() * 9;
       if (rand() < 0.6) tree(banyans, s, d, 1.2 + rand() * 0.5, tint(0.7, 1.05));
       else for (let k = 0; k < 2; k++) tree(palms, s + k * 2.5, d + (rand() - 0.5) * 3, 0.95 + rand() * 0.3, tint(0.85, 1.1));
     }
     if (rand() < 0.6 && !inAny(l.gaps.farLawn, s, 6) && !inAny(l.gaps.opp, s, 6) && !inAny(farLawnReserved, s)) {
-      tree(rand() < 0.6 ? banyans : palms, s, oppFar - SIDE.lawn[0] - 4 - rand() * 9, 1.1 + rand() * 0.5, tint(0.7, 1.05));
+      tree(rand() < 0.6 ? banyans : palms, s, l.walkL(s)[1] - 4 - rand() * 9, 1.1 + rand() * 0.5, tint(0.7, 1.05));
     }
   }
   for (let s = 3; s < len; s += 2.6) {

@@ -1093,6 +1093,7 @@ def street_furniture(cfg, osm, proj, U, sp, sf, F, L, opp_o, grid):
             if d1 < edge + 2 or d0 > opp - edge - 2:
                 continue
             ang = math.atan2(float(v @ tan), float(v @ np.array([-tan[1], tan[0]])))
+            ang = (ang + math.pi / 2) % math.pi - math.pi / 2
             bridges.append(dict(s=round(sf(s0), 1), d0=round(d0, 1), d1=round(d1, 1), skew=round(ang, 3), osmId=b["id"]))
     bridges.sort(key=lambda r: r["s"])
     dedup = []

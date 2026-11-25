@@ -5,7 +5,7 @@ import { LIGHTING } from '../../render/presets';
 import { getTimeOfDay, onTimeOfDayChange } from '../../render/timeOfDay';
 import { ChunkSet, FrameMapper, intersect, type Mapper, Painter, RouteMapper, type RGB, type Style, subtract } from './builder';
 import { groundMaterial } from './ground';
-import { getRoadLayout, HEIGHT, type Interval, type RoadLayout, SIDE, type TurnLayout, XWALK } from './layout';
+import { AUX, getRoadLayout, HEIGHT, type Interval, type RoadLayout, SIDE, type TurnLayout, XWALK } from './layout';
 import { dashes, paintRouteMarkings, solid, WHITE, YELLOW, zebra } from './markings';
 import { asphaltTextures, grassTexture, mulberry32, pavingTexture, wearTexture } from './textures';
 
@@ -60,7 +60,17 @@ interface SectionGaps {
  * Boulevard cross-section (carriageways, median, both roadsides) between a0 and a1 of
  * a mapper. Used along the route and for the straight continuation past the turn.
  */
-function crossSection(p: Painter, m: Mapper, l: RoadLayout, a0: number, a1: number, opp: (a: number) => number, gaps: SectionGaps, farClip = -Infinity) {
+function crossSection(
+  p: Painter,
+  m: Mapper,
+  l: RoadLayout,
+  a0: number,
+  a1: number,
+  opp: (a: number) => number,
+  gaps: SectionGaps,
+  farClip = -Infinity,
+  side?: RoadLayout['side'],
+) {
   const { route, lanes, laneW, edgeL, edgeR } = l;
   const dMin = route.dMin;
   const dMax = route.dMax;
@@ -111,15 +121,34 @@ function crossSection(p: Painter, m: Mapper, l: RoadLayout, a0: number, a1: numb
     p.ribbon('asphalt', m, s, e, mIn0, mIn1, 0, st(C_ASPHALT, 1 / 3.5, 1 / 7));
   }
 
-  // Right roadside: curb, planting strip, bike lane, sidewalk, lawn.
-  for (const [s, e] of subtract(a0, a1, gaps.right)) {
+  // Right roadside: curb, planting strip, bike lane, sidewalk, lawn; where a side road runs: curb,
+  // planted separator, side road, curb, bike lane, sidewalk, lawn.
+  const runsR = side ? side.right.runs : [];
+  const runsL = side ? side.left.runs : [];
+  for (const [s, e] of subtract(a0, a1, [...gaps.right, ...runsR])) {
     p.box('paving', 'paving', m, s, e, edgeR + SIDE.curb[0], edgeR + SIDE.curb[1], HEIGHT.curb, S_CURB, S_CURB);
     p.box('green', 'paving', m, s, e, edgeR + SIDE.green[0], edgeR + SIDE.green[1], HEIGHT.green, S_GRASS, S_CURB);
     p.box('asphalt', 'paving', m, s, e, edgeR + SIDE.bike[0], edgeR + SIDE.bike[1], HEIGHT.walk, S_BIKE, S_CURB);
     p.box('paving', 'paving', m, s, e, edgeR + SIDE.walk[0], edgeR + SIDE.walk[1], HEIGHT.walk, S_WALK, S_CURB);
   }
-  for (const [s, e] of subtract(a0, a1, gaps.lawn)) {
+  for (const [s, e] of subtract(a0, a1, [...gaps.lawn, ...runsR])) {
     p.box('green', 'green', m, s, e, edgeR + SIDE.lawn[0], edgeR + SIDE.lawn[1], HEIGHT.lawn, S_LAWN, S_LAWN);
+  }
+  if (side) {
+    const r = side.right;
+    for (const [s, e] of intersect(a0, a1, runsR).flatMap(([x, y]) => subtract(x, y, gaps.right))) {
+      const out = (k: number) => (a: number) => r.outer(a) + k;
+      p.box('paving', 'paving', m, s, e, edgeR, edgeR + 0.3, HEIGHT.median, S_CURB, S_CURB);
+      p.box('green', 'paving', m, s, e, edgeR + 0.3, (a) => r.inner(a) - 0.3, HEIGHT.medianGrass, S_GRASS, S_CURB);
+      p.box('paving', 'paving', m, s, e, (a) => r.inner(a) - 0.3, r.inner, HEIGHT.median, S_CURB, S_CURB);
+      sideRoadSurface(p, m, s, e, r.inner, r.outer, r.lanes((s + e) / 2), 0);
+      p.box('paving', 'paving', m, s, e, out(AUX.curb[0]), out(AUX.curb[1]), HEIGHT.curb, S_CURB, S_CURB);
+      p.box('asphalt', 'paving', m, s, e, out(AUX.bike[0]), out(AUX.bike[1]), HEIGHT.walk, S_BIKE, S_CURB);
+      p.box('paving', 'paving', m, s, e, out(AUX.walk[0]), out(AUX.walk[1]), HEIGHT.walk, S_WALK, S_CURB);
+    }
+    for (const [s, e] of intersect(a0, a1, runsR).flatMap(([x, y]) => subtract(x, y, gaps.lawn))) {
+      p.box('green', 'green', m, s, e, (a) => r.outer(a) + AUX.lawn[0], (a) => r.outer(a) + AUX.lawn[1], HEIGHT.lawn, S_LAWN, S_LAWN);
+    }
   }
 
   // Far roadside beyond the opposite carriageway (mirrored bands).
@@ -128,15 +157,44 @@ function crossSection(p: Painter, m: Mapper, l: RoadLayout, a0: number, a1: numb
     if (opp(s) - 7.3 - band[0] <= farClip + 0.2) return;
     p.box(layer, side === S_LAWN ? 'green' : 'paving', m, s, e, far(band[1]), far(band[0]), y, top, side);
   };
-  for (const [s, e] of subtract(a0, a1, [...gaps.far, ...gaps.opp])) {
+  for (const [s, e] of subtract(a0, a1, [...gaps.far, ...gaps.opp, ...runsL])) {
     farBand('paving', s, e, SIDE.curb, HEIGHT.curb, S_CURB, S_CURB);
     farBand('green', s, e, SIDE.green, HEIGHT.green, S_GRASS, S_CURB);
     farBand('asphalt', s, e, SIDE.bike, HEIGHT.walk, S_BIKE, S_CURB);
     farBand('paving', s, e, SIDE.walk, HEIGHT.walk, S_WALK, S_CURB);
   }
-  for (const [s, e] of subtract(a0, a1, [...gaps.farLawn, ...gaps.opp])) {
+  for (const [s, e] of subtract(a0, a1, [...gaps.farLawn, ...gaps.opp, ...runsL])) {
     farBand('green', s, e, SIDE.lawn, HEIGHT.lawn, S_LAWN, S_LAWN);
   }
+  if (side) {
+    const q = side.left;
+    const fe = (a: number) => opp(a) - 7.3;
+    for (const [s, e] of intersect(a0, a1, runsL).flatMap(([x, y]) => subtract(x, y, [...gaps.far, ...gaps.opp]))) {
+      const out = (k: number) => (a: number) => q.outer(a) - k;
+      p.box('paving', 'paving', m, s, e, (a) => fe(a) - 0.3, fe, HEIGHT.median, S_CURB, S_CURB);
+      p.box('green', 'paving', m, s, e, (a) => q.inner(a) + 0.3, (a) => fe(a) - 0.3, HEIGHT.medianGrass, S_GRASS, S_CURB);
+      p.box('paving', 'paving', m, s, e, q.inner, (a) => q.inner(a) + 0.3, HEIGHT.median, S_CURB, S_CURB);
+      sideRoadSurface(p, m, s, e, q.outer, q.inner, q.lanes((s + e) / 2), 8);
+      p.box('paving', 'paving', m, s, e, out(AUX.curb[1]), out(AUX.curb[0]), HEIGHT.curb, S_CURB, S_CURB);
+      p.box('asphalt', 'paving', m, s, e, out(AUX.bike[1]), out(AUX.bike[0]), HEIGHT.walk, S_BIKE, S_CURB);
+      p.box('paving', 'paving', m, s, e, out(AUX.walk[1]), out(AUX.walk[0]), HEIGHT.walk, S_WALK, S_CURB);
+    }
+    for (const [s, e] of intersect(a0, a1, runsL).flatMap(([x, y]) => subtract(x, y, [...gaps.farLawn, ...gaps.opp]))) {
+      p.box('green', 'green', m, s, e, (a) => q.outer(a) - AUX.lawn[1], (a) => q.outer(a) - AUX.lawn[0], HEIGHT.lawn, S_LAWN, S_LAWN);
+    }
+  }
+}
+
+/** Side road asphalt between b0 < b1 (lane tones from `toneBase`), white edge lines and dashed lane lines. */
+function sideRoadSurface(p: Painter, m: Mapper, s: number, e: number, b0: (a: number) => number, b1: (a: number) => number, lanes: number, toneBase: number) {
+  const n = Math.max(1, Math.round(lanes));
+  const at = (k: number) => (a: number) => b0(a) + ((b1(a) - b0(a)) * k) / n;
+  for (let k = 0; k < n; k++) {
+    p.ribbon('asphalt', m, s, e, at(k), at(k + 1), 0, st((a) => laneTone(toneBase + k, a), 0, 1 / 7, (a, b) => (b - b0(a)) / 3.25));
+  }
+  solid(p, m, s, e, (a) => b0(a) + 0.15, (a) => b0(a) + 0.3, WHITE);
+  solid(p, m, s, e, (a) => b1(a) - 0.3, (a) => b1(a) - 0.15, WHITE);
+  for (let k = 1; k < n; k++) dashes(p, m, s, e, at(k), 0.15, 4, 6, WHITE);
 }
 
 /**
@@ -344,7 +402,7 @@ export async function createRoad(ctx: WorldContext): Promise<SceneryModule> {
   const chunks = new ChunkSet(l.sMin, l.sMax, CONFIG.city.roadChunkLength);
   const p = new Painter(chunks);
   const rm = new RouteMapper(route, chunks);
-  crossSection(p, rm, l, l.s0, l.s1, l.opp, l.gaps);
+  crossSection(p, rm, l, l.s0, l.s1, l.opp, l.gaps, -Infinity, l.side);
   paintRouteMarkings(p, rm, l);
   buildIntersections(p, l);
   for (const t of l.turns) buildTurn(p, rm, l, t);

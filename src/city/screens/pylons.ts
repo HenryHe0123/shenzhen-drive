@@ -122,9 +122,9 @@ export function placePylons(
 
   /** Lateral band (route d) the footprint must stay inside on each side, or null where there is none. */
   const band = (side: PylonSide, s: number): [number, number] | null => {
-    const walk = SIDE.walk[1] + spec.clearance;
-    if (side === 'right') return [l.edgeR + walk, l.edgeR + SIDE.lawn[1] + 40];
-    if (side === 'left') return [l.opp(s) - 7.3 - SIDE.lawn[1] - 40, l.opp(s) - 7.3 - walk];
+    const lawn = SIDE.lawn[1] - SIDE.lawn[0];
+    if (side === 'right') return [l.walkR(s)[1] + spec.clearance, l.walkR(s)[1] + lawn + 40];
+    if (side === 'left') return [l.walkL(s)[1] - lawn - 40, l.walkL(s)[1] - spec.clearance];
     const lo = l.opp(s) + 7.3 + 0.3 + spec.clearance;
     const hi = l.edgeL - 0.3 - spec.clearance;
     return hi > lo ? [lo, hi] : null;
@@ -136,11 +136,11 @@ export function placePylons(
    */
   const inGap = (list: [number, number][], s: number, pad: number) => list.some(([a, b]) => s > a - pad && s < b + pad);
   const rows = [
-    { d0: (_s: number) => l.edgeR + 2 - spec.canopyRadius, d1: (_s: number) => l.edgeR + 2 + spec.canopyRadius, gap: (s: number) => inGap(l.gaps.right, s, 4) },
+    { d0: (s: number) => l.plantR(s) - spec.canopyRadius, d1: (s: number) => l.plantR(s) + spec.canopyRadius, gap: (s: number) => inGap(l.gaps.right, s, 4) },
     { d0: (s: number) => l.opp(s) + 7.6, d1: (_s: number) => l.edgeL - 0.3, gap: (s: number) => inGap(l.gaps.median, s, 3) },
     {
-      d0: (s: number) => l.opp(s) - 9.3 - spec.canopyRadius,
-      d1: (s: number) => l.opp(s) - 9.3 + spec.canopyRadius,
+      d0: (s: number) => l.plantL(s) - spec.canopyRadius,
+      d1: (s: number) => l.plantL(s) + spec.canopyRadius,
       gap: (s: number) => inGap(l.gaps.far, s, 4) || inGap(l.gaps.opp, s, 4),
     },
   ];

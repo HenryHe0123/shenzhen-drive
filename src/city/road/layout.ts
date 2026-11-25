@@ -18,6 +18,32 @@ export const SIDE = {
 
 export const HEIGHT = { curb: 0.16, median: 0.2, medianGrass: 0.18, green: 0.12, walk: 0.15, lawn: 0.08, hedge: 0.95 };
 
+/**
+ * Roadside bands where a side road (辅路) runs beside a carriageway, measured outward from the
+ * side road's outer asphalt edge: curb, bike lane, sidewalk, lawn. The planted separator (侧分带)
+ * fills the space between the carriageway curb and the side road.
+ */
+export const AUX = {
+  laneWidth: 3.25,
+  curb: [0, 0.3],
+  bike: [0.3, 2.5],
+  walk: [2.5, 7.0],
+  lawn: [7.0, 23.0],
+} as const;
+
+/** Side road along one side of the route; offsets d at route s. */
+export interface SideRoad {
+  /** Runs [s0, s1] that have a side road. */
+  runs: Interval[];
+  lanes(s: number): number;
+  /** Side road centre (NaN outside the runs). */
+  centre(s: number): number;
+  /** Inner (toward the carriageway) and outer asphalt edges. */
+  inner(s: number): number;
+  outer(s: number): number;
+  has(s: number): boolean;
+}
+
 /** Crosswalk / stop line placement relative to the edge of an intersection zone. */
 export const XWALK = { near: 1.5, far: 6.5, stop0: 8.1, stop1: 8.5 };
 
@@ -87,6 +113,78 @@ export interface RoadLayout {
   };
   /** Landmark footprints (world x/z) with bounding boxes, for keeping props clear. */
   footprints: { pts: Vec2[]; x0: number; x1: number; z0: number; z1: number }[];
+  /** Side roads from route.json (empty runs when the data has none). */
+  side: { right: SideRoad; left: SideRoad };
+  /**
+   * Kerb line where the roadside (bike lane / sidewalk) starts: the carriageway edge, or the side
+   * road's outer edge where there is one. Right: d > 0 increasing outward; left: decreasing.
+   */
+  kerbR(s: number): number;
+  kerbL(s: number): number;
+  /** Sidewalk [near, far] edges (near = closer to the road). */
+  walkR(s: number): [number, number];
+  walkL(s: number): [number, number];
+  /** d of the street-tree row next to the carriageway (planting strip, or the separator mid-line). */
+  plantR(s: number): number;
+  plantL(s: number): number;
+}
+
+/** Nullable per-sample array → value at s (NaN where either neighbour is null). */
+function sampler(arr: readonly (number | null)[] | undefined, spacing: number): (s: number) => number {
+  if (!arr || arr.length < 2) return () => NaN;
+  const n = arr.length;
+  return (s) => {
+    const x = Math.min(n - 1, Math.max(0, s / spacing));
+    const i = Math.min(n - 2, Math.floor(x));
+    const a = arr[i];
+    const b = arr[i + 1];
+    const f = x - i;
+    if (a == null || b == null) {
+      if (a != null && f < 1e-3) return a;
+      if (b != null && f > 1 - 1e-3) return b;
+      return NaN;
+    }
+    return a + (b - a) * f;
+  };
+}
+
+function sideRoad(route: Route, side: 'right' | 'left', gaps: Interval[]): SideRoad {
+  const centre = sampler(side === 'right' ? route.data.sideRoadRight : route.data.sideRoadLeft, route.spacing);
+  const recs = (route.data.sideRoadLanes ?? []).filter((r) => r.side === side && r.s1 > r.s0);
+  // Pieces between junction gaps shorter than this are dropped (no stubs at intersections).
+  const MIN_PIECE = 25;
+  const runs: Interval[] = [];
+  for (const r of recs) {
+    for (const [a, b] of subtractIntervals(r.s0, r.s1, gaps)) if (b - a >= MIN_PIECE) runs.push([a, b]);
+  }
+  const lanesAt = (s: number) => recs.find((r) => s >= r.s0 && s <= r.s1)?.lanes ?? 2;
+  const half = (s: number) => (lanesAt(s) * AUX.laneWidth) / 2;
+  const has = (s: number) => runs.some(([a, b]) => s >= a && s <= b) && Number.isFinite(centre(s));
+  const sgn = side === 'right' ? 1 : -1;
+  return {
+    runs,
+    lanes: lanesAt,
+    centre,
+    inner: (s) => centre(s) - sgn * half(s),
+    outer: (s) => centre(s) + sgn * half(s),
+    has,
+  };
+}
+
+function subtractIntervals(a: number, b: number, gaps: Interval[]): Interval[] {
+  let out: Interval[] = [[a, b]];
+  for (const [g0, g1] of gaps) {
+    const next: Interval[] = [];
+    for (const [x, y] of out) {
+      if (g1 <= x || g0 >= y) next.push([x, y]);
+      else {
+        if (g0 > x) next.push([x, g0]);
+        if (g1 < y) next.push([g1, y]);
+      }
+    }
+    out = next;
+  }
+  return out;
 }
 
 /** Half width of wide boulevards crossed at grade (default CONFIG.city.crossHalfWidth). */
@@ -223,6 +321,9 @@ function computeLayout(route: Route): RoadLayout {
 
   const s0 = -20;
   const s1 = route.length + 3;
+  const right = sideRoad(route, 'right', gaps.right);
+  const left = sideRoad(route, 'left', [...gaps.far, ...gaps.opp]);
+  const farEdge = (s: number) => opp(s) - 7.3;
   return {
     route,
     s0,
@@ -239,6 +340,13 @@ function computeLayout(route: Route): RoadLayout {
     opp,
     gaps,
     footprints,
+    side: { right, left },
+    kerbR: (s) => (right.has(s) ? right.outer(s) : edgeR),
+    kerbL: (s) => (left.has(s) ? left.outer(s) : farEdge(s)),
+    walkR: (s) => (right.has(s) ? [right.outer(s) + AUX.walk[0], right.outer(s) + AUX.walk[1]] : [edgeR + SIDE.walk[0], edgeR + SIDE.walk[1]]),
+    walkL: (s) => (left.has(s) ? [left.outer(s) - AUX.walk[0], left.outer(s) - AUX.walk[1]] : [farEdge(s) - SIDE.walk[0], farEdge(s) - SIDE.walk[1]]),
+    plantR: (s) => (right.has(s) ? (edgeR + right.inner(s)) / 2 : edgeR + 2.0),
+    plantL: (s) => (left.has(s) ? (farEdge(s) + left.inner(s)) / 2 : farEdge(s) - 2.0),
   };
 }
 
