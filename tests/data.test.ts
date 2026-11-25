@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Route } from '../src/route/Route';
 import { makeSyntheticRoute } from '../src/route/synthetic';
-import type { BuildingsData, CityModelsData, RouteData, SectionId, Vec2 } from '../src/route/types';
+import type { BuildingsData, BuildingUse, CityModelsData, RouteData, SectionId, Vec2 } from '../src/route/types';
 
 // Globs resolve to {} when the pipeline has not produced the file yet.
 const routeJson =
@@ -25,6 +25,7 @@ const cityConfig = Object.values(
 const CLEAR_ZONE_KEEP = new Set((cityConfig?.viewCorridorDefaults?.keepIds ?? []).map((ref) => Number(ref.slice(1))));
 
 const SECTION_IDS: readonly string[] = ['nanshan', 'oct', 'chegongmiao', 'futian'] satisfies SectionId[];
+const BUILDING_USES: readonly string[] = ['office', 'residential', 'commercial', 'public', 'industrial'] satisfies BuildingUse[];
 const MAX_KINK_DEG = 2;
 const TURN_MARGIN = 5;
 
@@ -233,6 +234,9 @@ function buildingErrors(b: BuildingsData): string[] {
     if (!(isNum(r.h) && r.h >= 3 && r.h <= 650)) why.push(`h=${r.h}`);
     if (!SECTION_IDS.includes(r.zone)) why.push(`zone=${r.zone}`);
     if (r.far !== undefined && typeof r.far !== 'boolean') why.push('far');
+    if (r.src !== undefined && r.src !== 'overture') why.push(`src=${r.src}`);
+    if (r.use !== undefined && !BUILDING_USES.includes(r.use)) why.push(`use=${r.use}`);
+    if (r.age !== undefined && !/^(19|20)\d0s$/.test(r.age)) why.push(`age=${r.age}`);
     if (!(Array.isArray(r.fp) && r.fp.length >= 3 && r.fp.every(isVec2))) why.push('fp needs >= 3 finite points');
     else {
       const [f, l] = [r.fp[0], r.fp[r.fp.length - 1]];

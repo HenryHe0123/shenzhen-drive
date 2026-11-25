@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CONFIG } from '../../config';
 import type { FrameInfo, SceneryModule, WorldContext } from '../../game/contracts';
-import type { SectionId, Vec2 } from '../../route/types';
+import type { BuildingUse, SectionId, Vec2 } from '../../route/types';
 import { insideLandmarkSite, resolveLandmarkSites } from '../landmarks/placement';
 import { FacadeBuilder, rectRing, ringArea, ringCentroid } from './builder';
 import { STYLE, createFacadeMaterial } from './facadeMaterial';
@@ -28,8 +28,29 @@ function seedFromId(id: number): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
-/** Facade family by zone: tech-park glass, OCT stone and tile, Chegongmiao mixed, CBD glass towers. */
-function styleFor(zone: SectionId, h: number, r: number): number {
+/**
+ * Facade family from the building's use and age when the data has them (offices glass, 1980s–90s
+ * housing tile, low industrial sheds metal cladding), else by zone: tech-park glass, OCT stone and
+ * tile, Chegongmiao mixed, CBD glass towers.
+ */
+function styleFor(zone: SectionId, h: number, r: number, use?: BuildingUse, age?: string): number {
+  const old = age === '1980s' || age === '1990s';
+  switch (use) {
+    case 'office':
+      if (old) return r < 0.4 ? STYLE.mixed : r < 0.7 ? STYLE.bronzeGlass : STYLE.tealGlass;
+      return r < 0.45 ? STYLE.blueGlass : r < 0.75 ? STYLE.silverGlass : STYLE.tealGlass;
+    case 'commercial':
+      if (h < 24) return r < 0.6 ? STYLE.mixed : STYLE.stone;
+      if (old) return r < 0.6 ? STYLE.mixed : STYLE.bronzeGlass;
+      return r < 0.45 ? STYLE.blueGlass : r < 0.7 ? STYLE.silverGlass : STYLE.mixed;
+    case 'residential':
+      if (old || h < 60) return r < 0.8 ? STYLE.residential : STYLE.stone;
+      return r < 0.65 ? STYLE.residential : STYLE.mixed;
+    case 'public':
+      return r < 0.55 ? STYLE.stone : STYLE.mixed;
+    case 'industrial':
+      return h < 20 ? STYLE.mech : STYLE.stone;
+  }
   if (h < 18) return r < 0.45 ? STYLE.stone : r < 0.7 ? STYLE.residential : STYLE.mixed;
   switch (zone) {
     case 'nanshan':
@@ -347,7 +368,7 @@ export async function createBuildings(ctx: WorldContext): Promise<SceneryModule>
       }
       if (hitsAny(rec.fp, zones, 0)) osmInZones++;
       const seed = seedFromId(rec.id);
-      const style = styleFor(rec.zone, rec.h, seed);
+      const style = styleFor(rec.zone, rec.h, seed, rec.use, rec.age);
       const podium = rec.far ? 0 : rec.h > 24 ? 5.5 + seed * 6 : rec.h > 8 ? 5 : 0;
       addBuilding(builderFor(rec.s, !!rec.far), rec.fp, rec.h, seed, style, podium);
       let r = 0;

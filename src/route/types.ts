@@ -98,7 +98,15 @@ export interface BuildingRecord {
   far?: boolean;
   /** Outer ring, no repeated closing point, any winding. */
   fp: Vec2[];
+  /** Footprint from Overture Maps (machine-learned rooftop) instead of OSM; absent for OSM and procedural records. */
+  src?: 'overture';
+  /** Function from the OSM building tag, else CMAB's prediction. */
+  use?: BuildingUse;
+  /** Construction decade, e.g. '1990s' (OSM start_date, else CMAB). */
+  age?: string;
 }
+
+export type BuildingUse = 'office' | 'residential' | 'commercial' | 'public' | 'industrial';
 
 /** A processed real-building model (public/models/city/) placed by the data pipeline. */
 export interface CityModelRecord {
@@ -140,7 +148,9 @@ export interface BuildingsData {
     generatedAt: string;
     osmTimestamp: string | null;
     count: number;
-    heightSources: { tag: number; levels: number; estimated: number };
+    /** Where each height comes from: OSM height / levels, CMAB, Overture, zone estimate (procedural blocks included). */
+    heightSources: { tag: number; levels: number; cmab?: number; overture?: number; estimated: number };
+    footprintSources?: { osm: number; overture: number; procedural: number };
   };
   buildings: BuildingRecord[];
 }

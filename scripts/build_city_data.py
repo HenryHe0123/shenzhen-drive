@@ -38,7 +38,7 @@ from shapely.geometry import LineString, Point, Polygon
 
 ROOT = Path(__file__).resolve().parent.parent
 CFG_PATH = ROOT / "scripts" / "city_config.json"
-CACHE_VERSION = 4
+CACHE_VERSION = 5
 
 # ----------------------------------------------------------------------------
 # geo
@@ -122,6 +122,7 @@ def parse_osm(extract: Path, keywords):
     buildings = []  # dict(id, kind, tags, ring(list of (lon, lat)))
     named = []  # dict(kind, id, tags, ll | ring)
     open_space = []  # rings (parks, water, plazas, parking, ...) kept free of filler buildings
+    street = dict(bus_stops=[], subway_entrances=[], footbridges=[])  # roadside furniture (v0.5.0)
     kw_re = re.compile("|".join(re.escape(k) for k in keywords))
     keep_tags = ("name", "highway", "oneway", "lanes", "junction", "layer", "bridge", "tunnel", "ref", "name:en")
     for o in osmium.FileProcessor(str(extract)).with_areas():
@@ -130,8 +131,17 @@ def parse_osm(extract: Path, keywords):
             nm = " ".join(v for k, v in t if k.startswith("name") or k in ("alt_name", "official_name", "brand"))
             if nm and kw_re.search(nm):
                 named.append(dict(kind="n", id=o.id, tags=dict(t), ll=(o.location.lon, o.location.lat)))
+            if t.get("highway") == "bus_stop" or t.get("public_transport") == "platform" and t.get("bus") != "no" and t.get("railway") is None:
+                street["bus_stops"].append(dict(id=o.id, name=t.get("name"), ll=(o.location.lon, o.location.lat)))
+            elif t.get("railway") == "subway_entrance":
+                street["subway_entrances"].append(dict(id=o.id, name=t.get("name"), ref=t.get("ref"), ll=(o.location.lon, o.location.lat)))
         elif o.is_way():
             hw = t.get("highway")
+            if hw in ("footway", "path", "pedestrian", "steps", "cycleway") and t.get("bridge") not in (None, "no"):
+                try:
+                    street["footbridges"].append(dict(id=o.id, name=t.get("name"), layer=t.get("layer"), ll=[(n.lon, n.lat) for n in o.nodes]))
+                except osmium.InvalidLocationError:
+                    pass
             if hw in DRIVABLE:
                 try:
                     ll = [(n.lon, n.lat) for n in o.nodes]
@@ -166,13 +176,14 @@ def parse_osm(extract: Path, keywords):
             if is_open:
                 open_space.extend(rings)
     print(f"[parse] {len(ways)} drivable ways, {len(buildings)} buildings, {len(named)} named hits, "
-          f"{len(open_space)} open-space rings in {time.time() - t0:.0f}s")
-    return dict(ways=ways, buildings=buildings, named=named, open=open_space)
+          f"{len(open_space)} open-space rings, " + ", ".join(f"{len(v)} {k}" for k, v in street.items()) + f" in {time.time() - t0:.0f}s")
+    return dict(ways=ways, buildings=buildings, named=named, open=open_space, street=street)
 
 
 OPEN_TAGS = {
     "leisure": {"park", "garden", "pitch", "stadium", "playground", "golf_course", "track", "nature_reserve", "common", "dog_park"},
-    "landuse": {"grass", "forest", "recreation_ground", "meadow", "cemetery", "village_green", "flowerbed", "orchard", "basin", "reservoir", "railway"},
+    "landuse": {"grass", "forest", "recreation_ground", "meadow", "cemetery", "village_green", "flowerbed", "orchard", "basin", "reservoir", "railway",
+                "construction", "brownfield"},
     "natural": {"water", "wood", "scrub", "grassland", "wetland", "heath", "beach", "bare_rock"},
     "amenity": {"parking", "grave_yard", "fountain"},
     "place": {"square"},
@@ -755,13 +766,20 @@ def hash01(oid: int, salt: int = 0) -> float:
     return (z & 0xFFFFFFFFFFFF) / float(1 << 48)
 
 
-def building_height(tags, zone, area, oid, hc):
+def building_height(tags, zone, area, oid, hc, cmab_h=None, cmab_first=None):
+    """(height, source): OSM height > OSM levels > CMAB > zone estimate. cmab_first(levels_height)
+    True lets CMAB win over the levels height in height bands where calibration found it closer."""
     h = parse_height(tags.get("height"))
     if h:
         return h, "tag"
     lv = parse_levels(tags.get("building:levels"))
     if lv:
-        return lv * hc["levelHeight"] + hc.get("roofAllowance", 0.0), "levels"
+        hl = lv * hc["levelHeight"] + hc.get("roofAllowance", 0.0)
+        if cmab_h and cmab_first and cmab_first(hl):
+            return cmab_h, "cmab"
+        return hl, "levels"
+    if cmab_h:
+        return cmab_h, "cmab"
     btype = tags.get("building", "yes")
     r = hash01(oid)
     if btype in hc["lowTypes"]:
@@ -772,6 +790,119 @@ def building_height(tags, zone, area, oid, hc):
         z = hc["zones"][zone]
         lo, hi = next(rng for amax, rng in z if area < amax)
     return lo + (hi - lo) * r**1.3, "estimated"
+
+
+OSM_USE = {
+    "office": "office",
+    "commercial": "commercial", "retail": "commercial", "supermarket": "commercial", "hotel": "commercial", "kiosk": "commercial",
+    "residential": "residential", "apartments": "residential", "house": "residential", "dormitory": "residential", "detached": "residential",
+    "terrace": "residential", "semidetached_house": "residential",
+    "industrial": "industrial", "warehouse": "industrial", "factory": "industrial", "manufacture": "industrial",
+    "school": "public", "university": "public", "college": "public", "hospital": "public", "public": "public", "civic": "public",
+    "government": "public", "kindergarten": "public", "museum": "public", "library": "public", "train_station": "public",
+    "transportation": "public", "sports_hall": "public", "stadium": "public", "theatre": "public", "church": "public", "temple": "public",
+}
+
+
+CMAB_USE = {"居住": "residential", "办公": "office", "商服": "commercial", "公服": "public", "工业": "industrial"}
+# CMAB age = first year GAIA sees the pixel built up (1986 = in or before 1986, AF2018 = after 2018)
+CMAB_AGE = {**{str(y): f"{y // 10 * 10}s" for y in range(1980, 2019)}, "AF2018": "2020s"}
+
+
+def building_use(tags, cm, mi):
+    """office / residential / commercial / public / industrial from the OSM building tag, else CMAB's predicted function."""
+    u = OSM_USE.get(tags.get("building", ""))
+    if u:
+        return u
+    if cm is not None and mi is not None:
+        return CMAB_USE.get(str(cm["use"][mi]))
+    return None
+
+
+def building_age(tags, cm, mi):
+    """Construction period: OSM start_date / building:year decade, else CMAB's age class."""
+    m = re.search(r"(1[89]\d\d|20\d\d)", tags.get("start_date", "") or tags.get("building:year", "") or "")
+    if m:
+        return f"{int(m.group(1)) // 10 * 10}s"
+    if cm is not None and mi is not None:
+        return CMAB_AGE.get(str(cm["age"][mi]))
+    return None
+
+
+def load_cmab(cfg, proj):
+    """CMAB rooftops clipped to the OSM bbox (data-raw/cmab/*.parquet, written by scripts/clip_cmab.py):
+    local-metre polygons with height, function and age, plus an STRtree. None when the file is missing."""
+    cc = cfg.get("cmab")
+    if not cc:
+        return None
+    path = ROOT / cc["path"]
+    if not path.exists():
+        print(f"[cmab] {path.relative_to(ROOT)} missing; run sh data-raw/download.sh cmab")
+        return None
+    import pyarrow.parquet as pq
+
+    t = pq.read_table(path)
+    geoms = shapely.from_wkb(t.column("wkb").to_numpy(zero_copy_only=False))
+    geoms = shapely.transform(geoms, lambda ll: proj.fwd(ll))
+    geoms = shapely.make_valid(geoms)
+    keep = ~shapely.is_empty(geoms) & (shapely.area(geoms) >= 4)
+    geoms = geoms[keep]
+    col = lambda k: np.asarray(t.column(k).to_numpy(zero_copy_only=False))[keep]  # noqa: E731
+    cm = dict(polys=geoms, h=col("height").astype(float), use=col("function"), age=col("age"),
+              cent=shapely.centroid(geoms), tree=shapely.STRtree(geoms))
+    print(f"[cmab] {len(geoms)} rooftops from {path.relative_to(ROOT)}")
+    return cm
+
+
+def cmab_skip(cc, area):
+    """True for footprint sizes where calibration found CMAB no better than the zone estimate."""
+    lo, hi = cc.get("skipArea", (0, 0))
+    return lo <= area < hi
+
+
+def cmab_match(poly, cm, min_overlap):
+    """Index of the CMAB rooftop matching an OSM footprint: overlap > min_overlap of the footprint or its
+    centroid inside it; the largest overlap wins. None when nothing matches."""
+    if cm is None:
+        return None
+    best = None
+    for i in cm["tree"].query(poly, predicate="intersects"):
+        a = poly.intersection(cm["polys"][i]).area
+        if a > min_overlap * poly.area or poly.contains(cm["cent"][i]):
+            if best is None or a > best[0]:
+                best = (a, int(i))
+    return None if best is None else best[1]
+
+
+def cmab_calibration(rows, hc):
+    """rows: (tags, cmab height). Prints CMAB vs OSM height and CMAB vs levels x levelHeight, per band."""
+    tag = [(parse_height(t.get("height")), h) for t, h in rows if parse_height(t.get("height"))]
+    if tag:
+        e = np.array([c - o for o, c in tag])
+        rel = np.array([abs(c - o) / o for o, c in tag])
+        print(f"[cmab] calibration on {len(tag)} OSM buildings with `height`: median |error| {np.median(np.abs(e)):.1f} m "
+              f"({np.median(rel):.0%}), bias (CMAB - OSM) median {np.median(e):+.1f} m, mean {np.mean(e):+.1f} m")
+        for lo, hi in ((0, 30), (30, 100), (100, 1e9)):
+            sel = [(o, c) for o, c in tag if lo <= o < hi]
+            if sel:
+                ee = np.array([c - o for o, c in sel])
+                print(f"[cmab]   height {lo:.0f}-{hi if hi < 1e9 else '':>3} m: n {len(sel)}, median |error| {np.median(np.abs(ee)):.1f} m, bias {np.median(ee):+.1f} m")
+    lv = [(t, h) for t, h in rows if not parse_height(t.get("height")) and parse_levels(t.get("building:levels"))]
+    both = [(parse_height(t.get("height")), parse_levels(t.get("building:levels")) * hc["levelHeight"] + hc.get("roofAllowance", 0.0), h)
+            for t, h in rows if parse_height(t.get("height")) and parse_levels(t.get("building:levels"))]
+    if both:
+        print(f"[cmab] on {len(both)} buildings with both `height` and levels (truth = `height`):")
+        for lo, hi in ((0, 30), (30, 100), (100, 1e9)):
+            sel = [(o, l, c) for o, l, c in both if lo <= l < hi]
+            if sel:
+                el = np.median([abs(l - o) for o, l, _ in sel])
+                ec = np.median([abs(c - o) for o, _, c in sel])
+                win = sum(abs(c - o) < abs(l - o) for o, l, c in sel)
+                print(f"[cmab]   levels height {lo:.0f}-{hi if hi < 1e9 else '':>3} m: n {len(sel)}, median |error| levels {el:.1f} m, "
+                      f"CMAB {ec:.1f} m; CMAB closer for {win}")
+    if lv:
+        d = np.array([h - (parse_levels(t.get("building:levels")) * hc["levelHeight"] + hc.get("roofAllowance", 0.0)) for t, h in lv])
+        print(f"[cmab] {len(lv)} buildings with levels only: CMAB - levels height median {np.median(d):+.1f} m, median |diff| {np.median(np.abs(d)):.1f} m")
 
 
 # ----------------------------------------------------------------------------
@@ -1011,9 +1142,11 @@ def main():
                        if not (r["cfg"].get("landmark") and not r["cfg"].get("replaceLandmark") and not r["cfg"].get("part"))]
 
     # ---- buildings (view corridors run after the fillers so fillers cannot re-block) ----
-    blds, hs, obstacles = build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms)
-    fill = procedural_fill(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, obstacles + model_obstacles, lms)
-    blds = sorted(blds + fill, key=lambda r: (r["s"], r["id"]))
+    cm = load_cmab(cfg, proj)
+    blds, hs, obstacles = build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms, cm)
+    ov_blds, _, ov_polys = overture_buildings(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, lms, load_overture(cfg, proj), cm)
+    fill = procedural_fill(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, obstacles + ov_polys + model_obstacles, lms)
+    blds = sorted(blds + ov_blds + fill, key=lambda r: (r["s"], r["id"]))
     final_s = lambda v: v if isinstance(v, (int, float)) else (  # noqa: E731
         sf(resolve_anchor({"at": v} if isinstance(v, str) else v, xs_map, lm_s, R)) + (v.get("offset", 0.0) if isinstance(v, dict) else 0.0))
     blds, zones = apply_view_corridors(cfg, route, blds, F, final_s)
@@ -1028,17 +1161,21 @@ def main():
     print(f"[lap] optimal lap estimate {lap['time'] // 60:.0f}:{lap['time'] % 60:05.2f} "
           f"(top {lap['vmax'] * 3.6:.0f} km/h, slowest corner {lap['vmin_corner'] * 3.6:.0f} km/h, "
           f"{lap['full'] / 1000:.1f} km at > 300 km/h)")
-    hs = dict(tag=0, levels=0, estimated=0)
+    hs = dict(tag=0, levels=0, cmab=0, overture=0, estimated=0)
     for b in blds:
         hs[b.pop("_src", "estimated")] += 1
     write_json(out_dir / "route.json", route)
     print(f"[out] route.json {(out_dir / 'route.json').stat().st_size / 1024:.0f} KB")
+    footprints = dict(osm=sum(1 for b in blds if b["id"] > 0 and b.get("src") != "overture"),
+                      overture=sum(1 for b in blds if b.get("src") == "overture"), procedural=sum(1 for b in blds if b["id"] < 0))
     bdata = dict(
-        meta=dict(generatedAt=now, osmTimestamp=osm.get("timestamp"), count=len(blds), heightSources=hs),
+        meta=dict(generatedAt=now, osmTimestamp=osm.get("timestamp"), count=len(blds), heightSources=hs, footprintSources=footprints),
         buildings=blds,
     )
     write_json(out_dir / "buildings.json", bdata, compact=True)
-    print(f"[out] buildings.json {(out_dir / 'buildings.json').stat().st_size / 1024:.0f} KB, {len(blds)} buildings, {hs}")
+    real = len(blds) - footprints["procedural"]
+    print(f"[out] buildings.json {(out_dir / 'buildings.json').stat().st_size / 1024:.0f} KB, {len(blds)} buildings, heights {hs}, "
+          f"footprints {footprints}; real footprints with a data-backed height {1 - (hs['estimated'] - footprints['procedural']) / max(1, real):.1%}")
     if cfg.get("cityModelDefaults"):
         write_city_models(cfg, city_records, now)
 
@@ -1084,8 +1221,11 @@ def lanes_report(osm, R, proj, U):
 # ----------------------------------------------------------------------------
 
 
-def build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms):
+def build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms, cm=None):
     bc, hc = cfg["buildings"], cfg["heights"]
+    cc = cfg.get("cmab", {})
+    bands = cc.get("preferOverLevels", [])
+    cmab_first = (lambda hl: any(lo <= hl < hi for lo, hi in bands)) if bands else None
     exclude = set(bc["excludeIds"])
     near_d, far_d = bc["nearDist"], bc["farDist"]
     lo = U.p.min(0) - far_d - 200
@@ -1118,10 +1258,11 @@ def build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms):
 
     polys = [c[2] for c in cands]
     dist = shapely.distance(np.array(polys, dtype=object), U.line)
-    hs = dict(tag=0, levels=0, estimated=0)
+    hs = dict(tag=0, levels=0, cmab=0, estimated=0)
     out = []
     dropped = defaultdict(int)
     sec_ids = {s["id"] for s in cfg["sections"]}
+    calib = []
     for (b, ref, poly), dd in zip(cands, dist):
         if dd > far_d:
             continue
@@ -1133,7 +1274,13 @@ def build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms):
         s_c, d_c = float(s_c[0]), float(d_c[0])
         zone = zone_of(s_c)
         assert zone in sec_ids
-        h, src = building_height(t, zone, poly.area, oid, hc)
+        mi = cmab_match(poly, cm, cc.get("minOverlap", 0.3))
+        cmab_h = float(cm["h"][mi]) if mi is not None and cm["h"][mi] > 0 else None
+        if cmab_h:
+            calib.append((t, cmab_h))
+            if cmab_skip(cc, poly.area):
+                cmab_h = None
+        h, src = building_height(t, zone, poly.area, oid, hc, cmab_h, cmab_first)
         if far and (src == "estimated" or h < bc["farMinHeight"]):
             continue
         simp = poly.simplify(bc["simplify"] if not far else bc["simplifyFar"], preserve_topology=True)
@@ -1162,13 +1309,158 @@ def build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms):
         if far:
             rec["far"] = True
         rec["fp"] = round_pts(fp2, 1)
+        use, age = building_use(t, cm, mi), building_age(t, cm, mi)
+        if use:
+            rec["use"] = use
+        if age:
+            rec["age"] = age
         rec["_src"] = src
         out.append(rec)
         hs[src] += 1
     out.sort(key=lambda r: (r["s"], r["id"]))
     print(f"[bld] kept {len(out)} ({sum(1 for r in out if r.get('far'))} far); dropped " + ", ".join(f"{k} {v}" for k, v in dropped.items()))
+    if cm is not None:
+        print(f"[cmab] {len(calib)} of the in-range OSM buildings matched a CMAB rooftop")
+        cmab_calibration(calib, hc)
     obstacles = [p for p, dd in zip(polys, dist) if dd <= near_d + 60]
     return out, hs, obstacles
+
+
+def load_overture(cfg, proj):
+    """Overture Maps buildings (data-raw/overture/buildings.parquet) whose sources are not OpenStreetMap
+    (machine-learned rooftops), as local-metre polygons. None when the file is missing."""
+    oc = cfg.get("overture")
+    if not oc or not oc.get("enabled", True):
+        return None
+    path = ROOT / oc["path"]
+    if not path.exists():
+        print(f"[overture] {path.relative_to(ROOT)} missing; run sh data-raw/download.sh overture")
+        return None
+    import pyarrow.parquet as pq
+
+    t = pq.read_table(path, columns=["id", "sources", "height", "num_floors", "geometry"])
+    srcs = t.column("sources").to_pylist()
+    ml = np.array([not any(s["dataset"] == "OpenStreetMap" for s in (ss or [])) for ss in srcs])
+    datasets = defaultdict(int)
+    for ss, m in zip(srcs, ml):
+        if m:
+            datasets[",".join(sorted({s["dataset"] for s in ss or []}))] += 1
+    geoms = shapely.from_wkb(np.asarray(t.column("geometry").to_numpy(zero_copy_only=False))[ml])
+    geoms = shapely.make_valid(shapely.transform(geoms, lambda ll: proj.fwd(ll)))
+    out = []
+    for gid, g, h, nf in zip(np.asarray(t.column("id").to_pylist())[ml], geoms, np.asarray(t.column("height").to_pylist(), dtype=object)[ml],
+                             np.asarray(t.column("num_floors").to_pylist(), dtype=object)[ml]):
+        if g.geom_type != "Polygon":
+            parts = [p for p in getattr(g, "geoms", []) if p.geom_type == "Polygon"]
+            if not parts:
+                continue
+            g = max(parts, key=lambda p: p.area)
+        out.append(dict(id=gid, poly=Polygon(g.exterior), height=h, floors=nf))
+    print(f"[overture] {len(out)} non-OSM footprints of {t.num_rows} ({', '.join(f'{k}: {v}' for k, v in datasets.items())})")
+    return out
+
+
+def overture_id(gid):
+    """Stable positive numeric id for an Overture UUID, above every OSM id and below 2^53."""
+    return 10**15 + int(gid.replace("-", "")[:12], 16) % 10**14
+
+
+def overture_buildings(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, lms, ov, cm):
+    """Overture rooftops that overlap no OSM building (< maxOsmOverlap of their area), off the road corridor,
+    outside parks / water / plazas / construction sites / landmarks; heights Overture > CMAB > zone estimate."""
+    if not ov:
+        return [], dict(overture=0, cmab=0, estimated=0), []
+    oc, bc, hc = cfg["overture"], cfg["buildings"], cfg["heights"]
+    near_d, far_d = bc["nearDist"], bc["farDist"]
+    t0 = time.time()
+    lo = U.p.min(0) - far_d - 200
+    hi = U.p.max(0) + far_d + 200
+    osm_polys = []
+    for b in osm["buildings"]:
+        ring = proj.fwd(b["ring"])
+        if len(ring) < 4 or (ring.max(0) < lo).any() or (ring.min(0) > hi).any():
+            continue
+        p = Polygon(ring)
+        osm_polys.append(p if p.is_valid else p.buffer(0))
+    osm_tree = shapely.STRtree(osm_polys)
+    reach = U.line.buffer(far_d + 50)
+    opens = []
+    for ring in osm["open"]:
+        p = Polygon(proj.fwd(ring))
+        p = p if p.is_valid else p.buffer(0)
+        if not p.is_empty and p.intersects(reach):
+            opens.append(p)
+    open_tree = shapely.STRtree(opens)
+    sites = [Polygon(l["ring"]).buffer(5) for l in lms if l["ring"] is not None and l["cfg"]["id"] != "lianhuashan"]
+    out, kept_polys = [], []
+    hs = dict(overture=0, cmab=0, estimated=0)
+    dropped = defaultdict(int)
+    for rec in ov:
+        poly = rec["poly"]
+        if poly.area < bc["minArea"] or not poly.intersects(reach):
+            continue
+        dd = float(poly.distance(U.line))
+        if dd > far_d:
+            continue
+        far = dd > near_d
+        if any(poly.intersection(osm_polys[i]).area >= oc["maxOsmOverlap"] * poly.area for i in osm_tree.query(poly, predicate="intersects")):
+            dropped["overlaps OSM"] += 1
+            continue
+        c = np.array(poly.centroid.coords[0])
+        cpt = Point(c)
+        if any(opens[i].contains(cpt) or poly.intersection(opens[i]).area > oc["maxOpenOverlap"] * poly.area
+               for i in open_tree.query(poly, predicate="intersects")):
+            dropped["open space"] += 1
+            continue
+        if any(poly.intersects(s) for s in sites):
+            dropped["landmark"] += 1
+            continue
+        s_c, d_c = U.project(c[None])
+        s_c, d_c = float(s_c[0]), float(d_c[0])
+        zone = zone_of(s_c)
+        mi = cmab_match(poly, cm, cfg.get("cmab", {}).get("minOverlap", 0.3))
+        if rec["height"] and rec["height"] > 0:
+            h, src = float(rec["height"]), "overture"
+        elif rec["floors"] and rec["floors"] > 0:
+            h, src = rec["floors"] * hc["levelHeight"] + hc.get("roofAllowance", 0.0), "overture"
+        elif mi is not None and cm["h"][mi] > 0 and not cmab_skip(cfg.get("cmab", {}), poly.area):
+            h, src = float(cm["h"][mi]), "cmab"
+        else:
+            h, src = building_height({}, zone, poly.area, overture_id(rec["id"]), hc)
+        if far and (src == "estimated" or h < bc["farMinHeight"]):
+            continue
+        simp = poly.simplify(bc["simplify"] if not far else bc["simplifyFar"], preserve_topology=True)
+        fp = np.asarray((simp if simp.geom_type == "Polygon" and not simp.is_empty else poly).exterior.coords)[:-1]
+        if len(fp) < 3:
+            continue
+        s_v, d_v = U.project(fp)
+        if (sp.piece(s_v) < 0).any():
+            dropped["in cut"] += 1
+            continue
+        opp_v = np.interp(s_v, grid, opp_o)
+        inside = (d_v >= opp_v - bc["oppositeMargin"]) & (d_v <= bc["rightMargin"]) & (s_v > 0.5) & (s_v < U.length - 0.5)
+        if inside.any():
+            dropped["road corridor"] += 1
+            continue
+        k = int(sp.piece(np.array([np.clip(s_c, 0, U.length)]))[0])
+        r = dict(id=overture_id(rec["id"]), s=round(float(np.clip(s_c - sp.offset[k], 0, L)), 1), d=round(d_c, 1),
+                 h=round(float(np.clip(h, hc["min"], hc["max"])), 1), zone=zone)
+        if far:
+            r["far"] = True
+        r["fp"] = round_pts(sp.apply(fp, k), 1)
+        r["src"] = "overture"
+        use, age = building_use({}, cm, mi), building_age({}, cm, mi)
+        if use:
+            r["use"] = use
+        if age:
+            r["age"] = age
+        r["_src"] = src
+        out.append(r)
+        kept_polys.append(poly)
+        hs[src] += 1
+    print(f"[overture] added {len(out)} buildings ({sum(1 for r in out if r.get('far'))} far), heights {hs}; dropped "
+          + ", ".join(f"{k} {v}" for k, v in dropped.items()) + f" in {time.time() - t0:.1f}s")
+    return out, hs, kept_polys
 
 
 def procedural_fill(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, obstacles, lms):
@@ -1771,6 +2063,7 @@ def finalize_city_models(cfg, regs, reg_polys, route, blds, sp, U, F, L, opp_fin
     rep_ids = {i for r in final for i in r["replacesOsm"]}
     fps = [r["fp_f"].buffer(rc["fillerGap"]) for r in final]
     keep, n_osm, n_fill = [], 0, 0
+    n_ov = 0
     for b in blds:
         if b["id"] > 0 and b["id"] in rep_ids:
             n_osm += 1
@@ -1780,7 +2073,14 @@ def finalize_city_models(cfg, regs, reg_polys, route, blds, sp, U, F, L, opp_fin
             if any(p.intersects(f) for f in fps):
                 n_fill += 1
                 continue
+        if b.get("src") == "overture":
+            p = Polygon(b["fp"]).buffer(0)
+            if any(p.intersection(r["fp_f"]).area > rc["replaceMinOverlap"] * p.area or r["fp_f"].contains(p.centroid) for r in final):
+                n_ov += 1
+                continue
         keep.append(b)
+    if n_ov:
+        print(f"[models] removed {n_ov} Overture footprints under placed models")
     records = []
     for r in sorted(final, key=lambda r: r["s_f"]):
         meta = r["meta"]
