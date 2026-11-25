@@ -329,7 +329,7 @@ export const CONFIG = {
       tone: '#b8b4ac',
       bounce: { day: ['#efe4d2', 0.32], golden: ['#ffc58e', 0.26], dusk: ['#000000', 0] },
     },
-    /** Draw calls per model (spec 7.4): ordinary buildings / landmarks; more materials are atlased at load. */
+    /** Draw-call budget per model: ordinary buildings / landmarks; more materials are atlased at load. */
     drawCallsBuilding: 2,
     drawCallsLandmark: 8,
     /** Runtime atlas size and per-texture cap (px), ordinary buildings / landmarks (pipeline caps: 512 / 1024). */
