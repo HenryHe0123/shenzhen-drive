@@ -208,6 +208,12 @@ export const CONFIG = {
     treeSpacing: 12,
     /** Street banyans: impostor atlas baked by scripts/bake_banyan_impostor.mjs (relative to BASE_URL). */
     treeImpostorUrl: 'textures/trees/banyan.json',
+    /** Near-LOD banyan mesh (scripts/bake_banyan_near.mjs) drawn for the trees nearest the camera. */
+    treeNearUrl: 'models/trees/banyan_near.glb',
+    /** At most this many near meshes; all mesh within treeNearFull (m), dithered into impostors by treeNearFar. */
+    treeNearCount: 24,
+    treeNearFull: 28,
+    treeNearFar: 38,
     /** Banyan height (m) at instance scale 1; placed banyans end up ≈ 10–14.5 m (深南大道: ~10–16 m). */
     treeBanyanHeight: 10.5,
     /** Top fraction of a view-corridor landmark (route clearZones) that banyans on its sight lines leave visible. */

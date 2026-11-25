@@ -5,7 +5,7 @@
   "author": "Valery.Li",
   "url": "https://sketchfab.com/3d-models/chinese-banyan-ficus-microcarpa-2a0dbcdf8f5d48f5ad79987c7a8170ce",
   "license": "CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)",
-  "changes": "Rendered into a 16-azimuth impostor atlas (albedo, normals, ambient occlusion); the original mesh and textures are not shipped."
+  "changes": "Aerial roots pruned, trunk slimmed below the canopy and colours graded, then rendered into a 16-azimuth impostor atlas (albedo, normals, ambient occlusion); the original mesh and textures are not shipped."
  },
  "color": "banyan_color.webp",
  "normal": "banyan_normal.webp",

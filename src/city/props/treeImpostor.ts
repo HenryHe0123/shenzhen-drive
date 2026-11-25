@@ -51,14 +51,27 @@ uniform vec2 uBbQuad;
 flat varying vec2 vBbFrames;
 varying float vBbBlend;
 varying vec2 vBbUv;
+varying float vBbNear;
+`;
+
+/**
+ * Screen-space dither shared by the impostor and the near mesh (treeNear.ts): at nearness t the near
+ * mesh keeps the pixels with dither < t and the impostor the rest, so the two cross-fade without overlap.
+ */
+export const LOD_DITHER = /* glsl */ `
+float lodDither() {
+  return fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+}
 `;
 
 /**
  * Cylindrical billboard around the trunk axis of each instance, facing the camera (or, for the
  * orthographic shadow camera, the light). Picks the two baked frames bracketing the view azimuth in
  * tree-local space; frame k was rendered from azimuth k * 2pi / frames (0 = local +z, pi/2 = local +x).
+ * instanceMatrix[0].w (unused by the billboard) carries the near-LOD weight of the instance.
  */
 const BILLBOARD = /* glsl */ `
+  vBbNear = instanceMatrix[0].w;
   vec3 bbBase = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
   float bbScale = length(instanceMatrix[1].xyz);
   vec3 bbLx = normalize(mat3(modelMatrix) * instanceMatrix[0].xyz);
@@ -85,6 +98,8 @@ uniform vec4 uBbFrames;
 flat varying vec2 vBbFrames;
 varying float vBbBlend;
 varying vec2 vBbUv;
+varying float vBbNear;
+${LOD_DITHER}
 vec2 bbCellUv(float k) {
   vec2 cell = vec2(mod(k, uBbFrames.y), uBbFrames.z - 1.0 - floor(k / uBbFrames.y));
   return (cell + vBbUv) / uBbFrames.yz;
@@ -130,7 +145,20 @@ const SHADOW_RECEIVE = /* glsl */ `
   }
 #endif
 #include <shadowmap_vertex>
+#if defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > 0
+  vBbShadowView = directionalShadowMatrix[ 0 ] * vec4(bbView * (bbScale * uBbCanopyR), 0.0);
+#endif
 `;
+
+/**
+ * The card is flat, so a building's shadow edge would cross it as a straight line. Each fragment's
+ * shadow lookup moves toward the viewer by its depth on the canopy (sphere: radius * normal.z), so
+ * edges follow the canopy's volume.
+ */
+const SHADOW_DEPTH = THREE.ShaderChunk.lights_fragment_begin.replaceAll(
+  'vDirectionalShadowCoord[ i ] )',
+  '( vDirectionalShadowCoord[ i ] + ( UNROLLED_LOOP_INDEX == 0 ? vBbShadowView * bbDepth : vec4( 0.0 ) ) ) )',
+);
 
 const NORMAL = /* glsl */ `
   vec4 bbNa = texture2D(uBbNormal, bbUvA);
@@ -140,13 +168,14 @@ const NORMAL = /* glsl */ `
   vec3 bbB3 = bbNb.xyz * 2.0 - 1.0;
   normal = normalize(mix(bbA3.x * vBbRA + bbA3.y * bbUp + bbA3.z * vBbFA, bbB3.x * vBbRB + bbB3.y * bbUp + bbB3.z * vBbFB, vBbBlend));
   float bbAo = mix(bbNa.a, bbNb.a, vBbBlend);
+  float bbDepth = clamp(mix(bbA3.z, bbB3.z, vBbBlend), -1.0, 1.0);
 `;
 
 /**
  * Foliage lighting on top of the standard BRDF (directLight.color is already shadowed): wrapped
  * diffuse past the terminator of the bent normals, and light transmitted through back-lit leaves.
  */
-const FOLIAGE_DIRECT = /* glsl */ `
+export const FOLIAGE_DIRECT = /* glsl */ `
 #include <lights_physical_pars_fragment>
 uniform vec2 uBbFoliage;
 void RE_Direct_Banyan( const in IncidentLight directLight, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in PhysicalMaterial material, inout ReflectedLight reflectedLight ) {
@@ -171,7 +200,7 @@ const AO = /* glsl */ `
   totalEmissiveRadiance += diffuseColor.rgb * uBbLamp * (uNight * uNight) * (1.0 - smoothstep(0.5, 1.0, vBbUv.y)) * bbOccI;
 `;
 
-function replace(src: string, from: string, to: string): string {
+export function replace(src: string, from: string, to: string): string {
   if (!src.includes(from)) throw new Error(`tree impostor: shader chunk ${from} not found`);
   return src.replace(from, to);
 }
@@ -212,6 +241,7 @@ export function createImpostor(data: ImpostorData, color: THREE.Texture, normal:
     uBbNormal: { value: normal },
     uBbSun: { value: sunDir },
     uBbShadowReach: { value: opt.shadowReach },
+    uBbCanopyR: { value: data.canopyRadius * k },
     uBbAo: { value: new THREE.Vector2(opt.aoIndirect, opt.aoDirect) },
     uBbFoliage: { value: new THREE.Vector2(opt.wrap, opt.translucency) },
     uBbLamp: { value: new THREE.Color(opt.lampColor).multiplyScalar(opt.lampGlow) },
@@ -219,18 +249,20 @@ export function createImpostor(data: ImpostorData, color: THREE.Texture, normal:
   };
   material.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, shared, own);
-    let v = `${PARS_VERTEX}uniform vec3 uBbSun;\nuniform float uBbShadowReach;\nvarying vec3 vBbFA;\nvarying vec3 vBbRA;\nvarying vec3 vBbFB;\nvarying vec3 vBbRB;\n${sh.vertexShader}`;
+    let v = `${PARS_VERTEX}uniform vec3 uBbSun;\nuniform float uBbShadowReach;\nuniform float uBbCanopyR;\nvarying vec4 vBbShadowView;\nvarying vec3 vBbFA;\nvarying vec3 vBbRA;\nvarying vec3 vBbFB;\nvarying vec3 vBbRB;\n${sh.vertexShader}`;
     v = replace(v, 'void main() {', `void main() {\n${BILLBOARD}\n${FRAME_BASES}`);
     v = replace(v, '#include <defaultnormal_vertex>', 'vec3 transformedNormal = (viewMatrix * vec4(bbView, 0.0)).xyz;');
     v = replace(v, '#include <project_vertex>', PROJECT);
     v = replace(v, '#include <worldpos_vertex>', 'vec4 worldPosition = vec4(bbPos, 1.0);');
     v = replace(v, '#include <shadowmap_vertex>', SHADOW_RECEIVE);
     sh.vertexShader = v;
-    let f = `${PARS_FRAGMENT}uniform sampler2D uBbNormal;\nuniform vec2 uBbAo;\nuniform vec3 uBbLamp;\nuniform float uNight;\nvarying vec3 vBbFA;\nvarying vec3 vBbRA;\nvarying vec3 vBbFB;\nvarying vec3 vBbRB;\n${sh.fragmentShader}`;
+    let f = `${PARS_FRAGMENT}uniform sampler2D uBbNormal;\nuniform vec2 uBbAo;\nuniform vec3 uBbLamp;\nuniform float uNight;\nvarying vec4 vBbShadowView;\nvarying vec3 vBbFA;\nvarying vec3 vBbRA;\nvarying vec3 vBbFB;\nvarying vec3 vBbRB;\n${sh.fragmentShader}`;
+    f = replace(f, 'void main() {', 'void main() {\n  if (lodDither() < vBbNear) discard;');
     f = replace(f, '#include <map_fragment>', MAP);
     f = replace(f, '#include <normal_fragment_maps>', NORMAL);
     f = replace(f, '#include <aomap_fragment>', AO);
     f = replace(f, '#include <lights_physical_pars_fragment>', FOLIAGE_DIRECT);
+    f = replace(f, '#include <lights_fragment_begin>', SHADOW_DEPTH);
     sh.fragmentShader = f;
   };
   material.customProgramCacheKey = () => 'banyan-impostor';
@@ -244,7 +276,9 @@ export function createImpostor(data: ImpostorData, color: THREE.Texture, normal:
     v = replace(v, 'void main() {', `void main() {\n${BILLBOARD}`);
     v = replace(v, '#include <project_vertex>', PROJECT);
     sh.vertexShader = v;
-    sh.fragmentShader = replace(`${PARS_FRAGMENT}${sh.fragmentShader}`, '#include <map_fragment>', MAP);
+    // The near mesh casts the shadow once it is the larger half of the cross-fade.
+    const f = replace(`${PARS_FRAGMENT}${sh.fragmentShader}`, 'void main() {', 'void main() {\n  if (vBbNear >= 0.5) discard;');
+    sh.fragmentShader = replace(f, '#include <map_fragment>', MAP);
   };
   depthMaterial.customProgramCacheKey = () => 'banyan-impostor-depth';
 
