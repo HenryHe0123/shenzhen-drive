@@ -72,7 +72,8 @@ test('menu → countdown → drive → pause → reset → finish → download r
   // cannot hot-reload the page mid-race.
   await page.routeWebSocket((url) => url.searchParams.has('token'), () => {});
 
-  await page.goto('/');
+  // Recording is off by default; this test covers it end to end.
+  await page.goto('/?record=1');
   // Vite may reload the page once while it optimizes dependencies on a cold start.
   await expect
     .poll(() => page.evaluate(() => (window as HookWindow).__SZD__?.ready === true).catch(() => false), {

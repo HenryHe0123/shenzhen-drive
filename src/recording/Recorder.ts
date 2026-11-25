@@ -67,9 +67,9 @@ function initialEnabled(): boolean {
   const q = new URLSearchParams(location.search).get('record');
   if (q === '0' || q === '1') return q === '1';
   try {
-    return localStorage.getItem(STORAGE_KEY) !== '0';
+    return localStorage.getItem(STORAGE_KEY) === '1';
   } catch {
-    return true;
+    return false;
   }
 }
 
