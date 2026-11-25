@@ -20,7 +20,7 @@ export interface RecordingState {
 }
 
 /** HUD strings (exactly as shown in the DOM) and the minimap canvas, drawn into the video. */
-export type OverlayKey = 'time' | 'speed' | 'section' | 'cp' | 'turn' | 'turnDist' | 'slow' | 'countdown' | 'result';
+export type OverlayKey = 'time' | 'walls' | 'damage' | 'speed' | 'section' | 'cp' | 'turn' | 'turnDist' | 'slow' | 'countdown' | 'result';
 
 export interface OverlaySource {
   readonly minimapCanvas: HTMLCanvasElement;
@@ -392,12 +392,15 @@ export class GameRecorder {
 
     // timer, top-center, with the turn hint / slow-down warning below
     const cx = x0 + w / 2;
-    this.panel(c, cx - 100 * u, y0 + 18 * u, 200 * u, 52 * u, PANEL, LINE);
+    this.panel(c, cx - 100 * u, y0 + 18 * u, 200 * u, 70 * u, PANEL, LINE);
     c.fillStyle = TEXT;
     c.font = f.time;
     c.textAlign = 'center';
     c.fillText(hud.overlayText('time'), cx, y0 + 56 * u);
-    let ty = y0 + 80 * u;
+    c.fillStyle = DIM;
+    c.font = f.cp;
+    c.fillText(hud.overlayText('walls'), cx, y0 + 78 * u);
+    let ty = y0 + 98 * u;
     const turn = hud.overlayText('turn');
     if (turn) {
       this.panel(c, cx - 150 * u, ty, 300 * u, 44 * u, 'rgba(40, 26, 6, 0.66)', 'rgba(255, 181, 71, 0.6)');
@@ -432,6 +435,13 @@ export class GameRecorder {
     c.fillStyle = DIM;
     c.font = f.unit;
     c.fillText('KM/H', sx - 20 * u, sy - 20 * u);
+    const damage = hud.overlayText('damage');
+    if (damage) {
+      this.panel(c, sx - 250 * u, sy - 150 * u, 250 * u, 38 * u, 'rgba(70, 10, 10, 0.75)', 'rgba(255, 90, 80, 0.8)');
+      c.fillStyle = '#ffb4a8';
+      c.font = f.cp;
+      c.fillText(damage, sx - 14 * u, sy - 125 * u);
+    }
 
     // countdown digits and the finish banner
     const count = hud.overlayText('countdown');

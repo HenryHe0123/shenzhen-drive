@@ -38,6 +38,11 @@ export interface HudFrame {
   progress: number;
   sectionName: string;
   passed: number;
+  /** Wall impacts counted so far in this run, and how many were heavy or severe. */
+  wallHits: number;
+  heavyHits: number;
+  /** Damage after a heavy impact; null hides the panel. */
+  damage: DamageView | null;
   /** Rendered car pose for the minimap, and its arc length. */
   x: number;
   z: number;
@@ -48,12 +53,21 @@ export interface HudFrame {
   hint: string | null;
 }
 
+export interface DamageView {
+  /** Seconds left without drive (severe impact). */
+  stall: number;
+  /** Power / top-speed multiplier, 0..1. */
+  power: number;
+  secondsLeft: number;
+}
+
 export interface ResultInfo {
   time: number;
   best: number | null;
   record: boolean;
   assisted: boolean;
   wallHits: number;
+  heavyHits: number;
 }
 
 export interface PauseInfo {
@@ -122,6 +136,11 @@ export class Hud implements OverlaySource {
   private readonly speedFill: HTMLElement;
   private readonly timeEl: HTMLElement;
   private readonly timerBest: HTMLElement;
+  private readonly wallsEl: HTMLElement;
+  private readonly damageEl: HTMLElement;
+  private readonly damageText: HTMLElement;
+  private readonly damageFill: HTMLElement;
+  private readonly flashEl: HTMLElement;
   private readonly sectionName: HTMLElement;
   private readonly cpText: HTMLElement;
   private readonly minimap: Minimap;
@@ -220,8 +239,12 @@ export class Hud implements OverlaySource {
     this.timeEl = el('div', 'num');
     this.timeEl.id = 'hud-time';
     this.timeEl.textContent = formatTime(0);
-    this.timerBest = el('div', 'timer-best num');
-    timer.append(this.timeEl, this.timerBest);
+    this.timerBest = el('span', 'num');
+    this.wallsEl = el('span', 'timer-walls num', '撞墙 0');
+    this.wallsEl.id = 'hud-walls';
+    const timerSub = el('div', 'timer-best');
+    timerSub.append(this.timerBest, this.wallsEl);
+    timer.append(this.timeEl, timerSub);
     this.turn = el('div', 'turn panel hidden', ARROW);
     this.turn.id = 'hud-turn';
     this.turnArrow = this.turn.querySelector('svg')!;
@@ -241,6 +264,15 @@ export class Hud implements OverlaySource {
     speedBar.append(this.speedFill);
     br.append(this.speed, el('div', 'unit', 'KM/H'), speedBar);
 
+    this.damageEl = el('div', 'damage panel hidden');
+    this.damageEl.id = 'hud-damage';
+    this.damageText = el('div', 'num');
+    this.damageFill = el('div', 'damage-fill');
+    const damageBar = el('div', 'damage-bar');
+    damageBar.append(this.damageFill);
+    this.damageEl.append(this.damageText, damageBar);
+    this.flashEl = el('div', 'impact-flash');
+
     this.toastEl = el('div', 'toast panel hidden');
     this.hintEl = el('div', 'hint panel hidden');
     this.muteEl = el('div', 'mute panel hidden', '已静音 · M');
@@ -250,7 +282,7 @@ export class Hud implements OverlaySource {
     tr.append(this.muteEl, this.recIndicator);
     const hudVersion = el('div', 'version-tag num', BUILD.label);
     hudVersion.id = 'hud-version';
-    this.hud.append(tl, tc, br, tr, this.toastEl, this.hintEl, hudVersion);
+    this.hud.append(this.flashEl, tl, tc, br, this.damageEl, tr, this.toastEl, this.hintEl, hudVersion);
 
     // pause menu
     this.pause = el('div', 'screen hidden');
@@ -489,6 +521,14 @@ export class Hud implements OverlaySource {
     this.set(this.timeEl, 'time', formatTime(f.time));
     this.set(this.sectionName, 'section', f.sectionName);
     this.set(this.cpText, 'cp', `检查点 ${f.passed}/${n} · ${pct}%`);
+    const walls = f.heavyHits > 0 ? `撞墙 ${f.wallHits} · 重 ${f.heavyHits}` : `撞墙 ${f.wallHits}`;
+    this.updateDamage(f.damage);
+    if (this.set(this.wallsEl, 'walls', walls) && f.wallHits > 0) {
+      // restart the flash animation
+      this.wallsEl.classList.remove('hit');
+      void this.wallsEl.offsetWidth;
+      this.wallsEl.classList.add('hit');
+    }
     this.setStyle(this.speedFill, 'speedbar', `${(Math.min(1, f.speedFraction) * 100).toFixed(1)}%`);
     this.minimap.update(f.x, f.z, f.yaw, f.s, f.passed);
     const t = f.turn;
@@ -514,13 +554,38 @@ export class Hud implements OverlaySource {
     this.cache.set('result', this.resultTime.textContent);
     this.recordEl.classList.toggle('hidden', !r.record);
     this.resultBest.innerHTML = r.best !== null ? `最佳成绩 <b>${formatTime(r.best)}</b>` : '';
-    this.resultWalls.innerHTML = r.wallHits > 0 ? `撞墙 <b>${r.wallHits}</b> 次` : '撞墙 <b>0</b> 次 · 零失误';
+    this.resultWalls.innerHTML =
+      r.wallHits === 0
+        ? '撞墙 <b>0</b> 次 · 零失误'
+        : `撞墙 <b>${r.wallHits}</b> 次${r.heavyHits > 0 ? ` · 其中重撞 <b>${r.heavyHits}</b> 次` : ''}`;
+    this.updateDamage(null);
     this.noteEl.classList.toggle('hidden', !r.assisted);
     this.noteEl.textContent = r.assisted ? '本局使用了调试传送，不计入最佳成绩' : '';
     this.result.classList.remove('hidden');
     this.hintEl.classList.add('hidden');
     this.turn.classList.add('hidden');
     this.slowEl.classList.add('hidden');
+  }
+
+  /** Red edge flash on a heavy (longer on a severe) impact. */
+  impact(severe: boolean): void {
+    this.flashEl.classList.remove('on');
+    this.flashEl.classList.toggle('severe', severe);
+    void this.flashEl.offsetWidth;
+    this.flashEl.classList.add('on');
+  }
+
+  private updateDamage(d: DamageView | null): void {
+    this.damageEl.classList.toggle('hidden', !d);
+    this.damageEl.classList.toggle('stall', !!d && d.stall > 0);
+    if (!d) {
+      this.cache.delete('damage');
+      return;
+    }
+    const text =
+      d.stall > 0 ? `撞车 · 无法驾驶 ${d.stall.toFixed(1)} s` : `车辆受损 · 动力 ${Math.round(d.power * 100)}%`;
+    this.set(this.damageText, 'damage', text);
+    this.setStyle(this.damageFill, 'damageBar', `${(d.stall > 0 ? 0 : d.power * 100).toFixed(1)}%`);
   }
 
   setMuted(muted: boolean): void {
@@ -552,10 +617,12 @@ export class Hud implements OverlaySource {
     return radioGroup('视角', VIEW_MODES, VIEW_LABELS, getViewMode, setViewMode, onViewModeChange, blurOnClick);
   }
 
-  private set(e: HTMLElement, key: string, text: string): void {
-    if (this.cache.get(key) === text) return;
+  /** Returns true if the text changed. */
+  private set(e: HTMLElement, key: string, text: string): boolean {
+    if (this.cache.get(key) === text) return false;
     this.cache.set(key, text);
     e.textContent = text;
+    return true;
   }
 
   private setStyle(e: HTMLElement, key: string, width: string): void {

@@ -25,6 +25,7 @@ export class CockpitCamera {
   private leanZ = 0;
   private fov: number = CONFIG.cockpit.fovBase;
   private time = 0;
+  private jolt = 0;
   private readonly offset = new THREE.Vector3();
   private readonly gaze = new THREE.Euler(0, 0, 0, 'YXZ');
   private readonly gazeQuat = new THREE.Quaternion();
@@ -33,8 +34,13 @@ export class CockpitCamera {
 
   /** Drops the smoothed head motion (after resets/teleports and when entering the view). */
   reset(): void {
-    this.look = this.leanX = this.leanZ = 0;
+    this.look = this.leanX = this.leanZ = this.jolt = 0;
     this.fov = CONFIG.cockpit.fovBase;
+  }
+
+  /** Impact shake, strength 0..1. */
+  bump(strength: number): void {
+    this.jolt = Math.max(this.jolt, Math.min(1, strength));
   }
 
   update(dt: number, body: THREE.Object3D, car: CockpitDriveState): void {
@@ -50,15 +56,18 @@ export class CockpitCamera {
     this.fov += (fovTarget - this.fov) * (1 - Math.exp(-CONFIG.camera.fovLerp * dt));
     this.time += dt;
     const t = this.time * Math.PI * 2;
-    this.place(body, K.vibration * sp * (0.6 * Math.sin(t * 11) + 0.4 * Math.sin(t * 17.3)));
+    this.jolt *= Math.exp(-CONFIG.camera.joltDecay * dt);
+    const j = K.jolt * this.jolt;
+    const shake = K.vibration * sp * (0.6 * Math.sin(t * 11) + 0.4 * Math.sin(t * 17.3)) + j * Math.sin(t * 4.3);
+    this.place(body, shake, j * 0.7 * Math.sin(t * 3.1 + 1));
   }
 
-  private place(body: THREE.Object3D, shake: number): void {
+  private place(body: THREE.Object3D, shake: number, sway = 0): void {
     const K = CONFIG.cockpit;
     const cam = this.camera;
     body.updateWorldMatrix(true, false);
     body.matrixWorld.decompose(cam.position, cam.quaternion, cam.scale);
-    this.offset.set(K.eyeX + this.leanX, K.eyeY + shake, K.eyeZ + this.leanZ).applyQuaternion(cam.quaternion);
+    this.offset.set(K.eyeX + this.leanX + sway, K.eyeY + shake, K.eyeZ + this.leanZ).applyQuaternion(cam.quaternion);
     cam.position.add(this.offset);
     this.gaze.set(K.pitch, this.look, 0);
     cam.quaternion.multiply(this.gazeQuat.setFromEuler(this.gaze));

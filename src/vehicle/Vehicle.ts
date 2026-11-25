@@ -68,6 +68,8 @@ export class Vehicle {
   sinceContact = Infinity;
   /** Largest fresh-impact normal speed (m/s) since the owner last cleared it. */
   impact = 0;
+  /** Multiplier on drive power and top speed (damage); above the reduced top speed the car coasts. */
+  powerScale = 1;
   private stopHold = 0;
   private legal = { x: 0, z: 0, yaw: 0, s: 0 };
   /** Straight-line stability state of the current manoeuvre: total press time, seconds since the last release, net driver heading change. */
@@ -163,8 +165,10 @@ export class Vehicle {
       }
     } else if (throttle > 0) {
       const vf = Math.max(0, v);
-      const drive = throttle * Math.min(V.accel, V.power / Math.max(vf, 1));
-      v = Math.min(vmax, Math.max(0, vf + (drive - drag(vf)) * dt));
+      const cap = vmax * this.powerScale;
+      const drive = vf <= cap ? throttle * this.powerScale * Math.min(V.accel, V.power / Math.max(vf, 1)) : 0;
+      v = Math.max(0, vf + (drive - drag(vf)) * dt);
+      if (vf <= cap) v = Math.min(cap, v);
       this.stopHold = 0;
     } else {
       const dec = drag(v) * dt;

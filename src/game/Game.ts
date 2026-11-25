@@ -13,6 +13,7 @@ import { Race, type Phase, type RaceEvent } from '../race/Race';
 import type { GameRecorder, RecordingState } from '../recording/Recorder';
 import type { Route } from '../route/Route';
 import type { CarVisual } from '../vehicle/CarVisual';
+import { Damage, impactTier, type ImpactTier } from '../vehicle/damage';
 import { NO_INPUT, Vehicle, type DriveInput } from '../vehicle/Vehicle';
 import type { FrameInfo, RenderPipeline, SceneryModule } from './contracts';
 
@@ -44,8 +45,11 @@ export interface GameState {
   d: number;
   checkpointsPassed: number;
   checkpointCount: number;
-  /** Wall impacts above the thud threshold during the current run (statistic only, no penalty). */
+  /** Wall impacts of at least the light tier during the current run, and how many of them were heavy or severe. */
   wallHits: number;
+  heavyHits: number;
+  /** Damage from heavy impacts: power / top-speed multiplier and seconds left without drive. */
+  damage: { powerScale: number; stall: number; secondsLeft: number };
   fps: number;
   /** Countdown / race frozen by the pause menu (Esc / P, window blur, hidden tab). */
   paused: boolean;
@@ -90,6 +94,8 @@ export class Game {
   private pinned = 0;
   private wrongWay = 0;
   private wallHits = 0;
+  private heavyHits = 0;
+  private readonly damage = new Damage();
   private muted = false;
   private audioStarted = false;
   private onFirstFrame: (() => void) | null = null;
@@ -149,6 +155,7 @@ export class Game {
     const phase = this.race.phase;
     if (phase !== 'countdown' && phase !== 'racing') return;
     this.deps.recorder.discard();
+    this.damage.reset();
     this.race.toMenu();
     this.placeCar(CONFIG.race.startS, true);
     this.deps.hud.showMenu(this.best);
@@ -218,7 +225,8 @@ export class Game {
   }
 
   private beginRun(snapCamera: boolean): void {
-    this.wallHits = 0;
+    this.wallHits = this.heavyHits = 0;
+    this.damage.reset();
     if (!this.audioStarted) {
       this.audioStarted = true;
       this.deps.audio.start().catch((e) => console.warn('[audio] start failed:', e));
@@ -261,6 +269,8 @@ export class Game {
       checkpointsPassed: this.race.passed,
       checkpointCount: this.race.checkpointCount,
       wallHits: this.wallHits,
+      heavyHits: this.heavyHits,
+      damage: { powerScale: this.damage.powerScale, stall: this.damage.stall, secondsLeft: this.damage.secondsLeft },
       fps: this.fps,
       paused: this.race.paused,
       minimap: this.deps.hud.minimapMode,
@@ -378,6 +388,7 @@ export class Game {
     const { input } = this.deps;
     switch (this.race.phase) {
       case 'racing':
+        if (this.damage.stall > 0) return NO_INPUT;
         return { throttle: input.throttle, brake: input.brake, steer: input.steer };
       case 'finished':
         return { throttle: 0, brake: this.vehicle.speed > 0.3 ? 0.6 : 0, steer: 0 };
@@ -392,13 +403,17 @@ export class Game {
     this.prev.x = v.x;
     this.prev.z = v.z;
     this.prev.yaw = v.yaw;
+    this.damage.update(h);
+    v.powerScale = this.damage.powerScale;
     this.input = this.driveInput();
     const n = CONFIG.physics.substeps;
     for (let i = 0; i < n; i++) v.step(this.input, h / n);
     if (v.impact > 0) {
-      if (v.impact >= CONFIG.collision.thudMinSpeed) {
+      const racing = this.race.phase === 'racing';
+      const tier = racing ? this.damage.hit(v.impact) : impactTier(v.impact);
+      if (tier !== 'scrape') {
         audio.collision(Math.min(1, v.impact / 25));
-        if (this.race.phase === 'racing') this.wallHits++;
+        if (racing) this.onWallHit(tier, v.impact);
       }
       v.impact = 0;
     }
@@ -408,11 +423,24 @@ export class Game {
 
     if (this.race.phase === 'racing') {
       this.stuck = this.input.throttle > 0 && Math.abs(v.speed) < 0.5 ? this.stuck + h : 0;
-      this.pinned = v.inContact && Math.abs(v.speed) < 2 ? this.pinned + h : Math.max(0, this.pinned - h);
+      const pinned = v.inContact && Math.abs(v.speed) < 2 && this.damage.stall === 0;
+      this.pinned = pinned ? this.pinned + h : Math.max(0, this.pinned - h);
       this.wrongWay = headingDot < -0.3 && v.speed > 3 ? this.wrongWay + h : 0;
     } else {
       this.stuck = this.pinned = this.wrongWay = 0;
     }
+  }
+
+  /** A counted impact during the run; heavy and severe ones shake the camera, severe ones stop the car dead. */
+  private onWallHit(tier: ImpactTier, normalSpeed: number): void {
+    this.wallHits++;
+    if (tier === 'light') return;
+    this.heavyHits++;
+    const strength = Math.min(1, normalSpeed / (CONFIG.collision.severeKmh * KMH));
+    this.chase.bump(strength);
+    this.cockpit.bump(strength);
+    this.deps.hud.impact(tier === 'severe');
+    if (tier === 'severe') this.vehicle.speed = 0;
   }
 
   private onRaceEvent(e: RaceEvent): void {
@@ -435,7 +463,7 @@ export class Game {
         const assisted = this.race.assisted;
         const record = !assisted && submitBestTime(e.time);
         this.best = loadBestTime();
-        hud.showResult({ time: e.time, best: this.best, record, assisted, wallHits: this.wallHits });
+        hud.showResult({ time: e.time, best: this.best, record, assisted, wallHits: this.wallHits, heavyHits: this.heavyHits });
         this.deps.recorder.finish(e.time);
         this.syncRecording();
         break;
@@ -516,6 +544,12 @@ export class Game {
         progress: v.s / data.finish.s,
         sectionName: route.sectionAt(v.s).name,
         passed: this.race.passed,
+        wallHits: this.wallHits,
+        heavyHits: this.heavyHits,
+        damage:
+          phase === 'racing' && this.damage.active
+            ? { stall: this.damage.stall, power: this.damage.powerScale, secondsLeft: this.damage.secondsLeft }
+            : null,
         x,
         z,
         yaw,

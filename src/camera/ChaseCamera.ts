@@ -20,8 +20,15 @@ export class ChaseCamera {
   private orbitAngle = 0;
   private time = 0;
   private shake = 0;
+  private sway = 0;
+  private jolt = 0;
 
   constructor(readonly camera: THREE.PerspectiveCamera) {}
+
+  /** Impact shake, strength 0..1. */
+  bump(strength: number): void {
+    this.jolt = Math.max(this.jolt, Math.min(1, strength));
+  }
 
   /** Jumps straight behind the car (after resets/teleports). */
   snap(x: number, z: number, yaw: number): void {
@@ -45,6 +52,10 @@ export class ChaseCamera {
     const level = Math.max(0, (Math.abs(speed) - from) / (vmax - from));
     const t = this.time * Math.PI * 2;
     this.shake = C.vibration * level * (0.6 * Math.sin(t * 13) + 0.4 * Math.sin(t * 21.7));
+    this.jolt *= Math.exp(-C.joltDecay * dt);
+    const j = C.jolt * this.jolt;
+    this.shake += j * Math.sin(t * 4.3);
+    this.sway = j * 0.7 * Math.sin(t * 3.1 + 1);
     this.place(x, z, sp);
   }
 
@@ -53,7 +64,7 @@ export class ChaseCamera {
     this.orbitAngle += dt * 0.12;
     this.yaw = carYaw + Math.PI * 0.8 + this.orbitAngle;
     this.pull = 1.2;
-    this.shake = 0;
+    this.shake = this.sway = this.jolt = 0;
     this.place(x, z, 0);
   }
 
@@ -64,7 +75,7 @@ export class ChaseCamera {
     const fx = -Math.sin(this.yaw);
     const fz = -Math.cos(this.yaw);
     const cam = this.camera;
-    cam.position.set(x - fx * dist, height, z - fz * dist);
+    cam.position.set(x - fx * dist - fz * this.sway, height, z - fz * dist + fx * this.sway);
     cam.lookAt(x + fx * C.lookAhead, C.lookHeight, z + fz * C.lookAhead);
     if (Math.abs(cam.fov - this.fov) > 1e-3) {
       cam.fov = this.fov;

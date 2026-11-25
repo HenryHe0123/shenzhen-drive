@@ -122,7 +122,15 @@ export const HUD_CSS = /* css */ `
 #hud .top-center { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; }
 #hud .timer { padding: 8px 22px 9px; text-align: center; }
 #hud #hud-time { font-size: 34px; font-weight: 800; letter-spacing: 0.02em; line-height: 1.1; }
-#hud .timer-best { font-size: 11px; color: rgba(238, 243, 248, 0.5); margin-top: 1px; }
+#hud .timer-best { font-size: 11px; color: rgba(238, 243, 248, 0.5); margin-top: 1px; display: flex; justify-content: center; gap: 10px; }
+#hud .timer-best span:empty { display: none; }
+#hud .timer-walls { display: inline-block; }
+#hud .timer-walls.hit { animation: szd-wall-hit 1.2s ease-out; }
+@keyframes szd-wall-hit {
+  0% { color: #ff6b5e; transform: scale(1.35); text-shadow: 0 0 8px rgba(255, 80, 70, 0.8); }
+  60% { color: #ff8a7a; transform: scale(1); }
+  100% { color: rgba(238, 243, 248, 0.5); }
+}
 #hud .turn {
   display: flex; align-items: center; gap: 12px; padding: 9px 18px 9px 12px; font-size: 18px; font-weight: 700;
   border-color: rgba(255, 181, 71, 0.55); background: rgba(40, 26, 6, 0.62); animation: szd-fade 0.3s ease-out;
@@ -141,6 +149,21 @@ export const HUD_CSS = /* css */ `
 #hud .unit { font-size: 13px; font-weight: 600; color: rgba(238, 243, 248, 0.6); letter-spacing: 0.1em; }
 #hud .speed-bar { margin-top: 8px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
 #hud .speed-fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--accent-2), var(--accent), #fff); }
+#hud .damage {
+  position: absolute; right: 22px; bottom: 150px; min-width: 150px; padding: 8px 14px 10px; text-align: right;
+  font-size: 13px; font-weight: 700; color: #ffb4a8; border-color: rgba(255, 90, 80, 0.7); background: rgba(70, 10, 10, 0.72);
+  animation: szd-fade 0.2s ease-out;
+}
+#hud .damage.stall { animation: szd-alarm 0.8s ease-in-out infinite; }
+#hud .damage-bar { margin-top: 6px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+#hud .damage-fill { height: 100%; width: 0; background: linear-gradient(90deg, #ff5a4e, #ffb347); }
+#hud .impact-flash {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  background: radial-gradient(ellipse at center, rgba(255, 30, 20, 0) 45%, rgba(255, 30, 20, 0.55) 100%);
+}
+#hud .impact-flash.on { animation: szd-impact 0.9s ease-out; }
+#hud .impact-flash.severe.on { animation-duration: 1.6s; }
+@keyframes szd-impact { from { opacity: 1; } to { opacity: 0; } }
 
 #hud .toast {
   position: absolute; top: 24%; left: 50%; transform: translateX(-50%); padding: 10px 24px; font-size: 20px; font-weight: 700;

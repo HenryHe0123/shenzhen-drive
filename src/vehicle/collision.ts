@@ -98,7 +98,7 @@ function push(v: Vehicle, nx: number, nz: number, pen: number, dt: number, respo
     along *= C.wallFriction * (1 - C.impactSlowdown * sinA);
     v.impact = Math.max(v.impact, vn);
   }
-  along = Math.max(0, along - C.scrapeDecel * dt);
+  along = Math.max(0, along - (C.scrapeDecel + C.scrapeDrag * along) * dt);
   const dir = Math.sign(v.speed) * (vt >= 0 ? 1 : -1);
   v.speed = Math.sign(v.speed) * along;
   if (!align) return;

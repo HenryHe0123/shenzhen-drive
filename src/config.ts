@@ -91,14 +91,33 @@ export const CONFIG = {
     wallFriction: 0.8,
     /** Extra speed scaling applied on impact, scaled by sin(impact angle). */
     impactSlowdown: 0.5,
-    /** Minimum impact speed (m/s) that triggers the thud sound. */
-    thudMinSpeed: 4,
+    /**
+     * Impact tiers by the normal speed into the wall (km/h), not the car speed: a 300 km/h graze
+     * at 3° is ~16 km/h. Below lightKmh a scrape (no sound, not counted); light: counted, no
+     * after-effect; heavy: damage; severe: the car stops dead, then damage.
+     */
+    lightKmh: 15,
+    heavyKmh: 50,
+    severeKmh: 100,
+    /**
+     * Damage: power and top speed drop by damageLoss and recover linearly over damageSeconds, both
+     * interpolated from the heavy to the severe threshold. A weaker hit does not shorten a
+     * recovery in progress.
+     */
+    damageLoss: [0.3, 0.5],
+    damageSeconds: [4, 8],
+    /** Severe impact: seconds the car cannot be driven before the recovery starts. */
+    stallSeconds: 2,
     /** Normal speed (m/s) above which a contact counts as a fresh impact (friction applied). */
     impactMinSpeed: 1.5,
     /** Seconds without contact before the next contact counts as a fresh impact. */
     impactCooldown: 0.3,
-    /** Deceleration (m/s^2) while scraping along a wall. */
+    /**
+     * Deceleration while pressing into a wall: scrapeDecel + scrapeDrag * speed (m/s^2). The speed
+     * term outgrows the drive at speed, so riding a wall settles near 100 km/h instead of gaining.
+     */
     scrapeDecel: 5,
+    scrapeDrag: 0.25,
     /** Max yaw rate (rad/s) turning the car parallel to the wall it slides along. */
     alignRate: 2.5,
     /** Route ends act as walls: s < startMargin or s > length - endMargin. */
@@ -192,6 +211,9 @@ export const CONFIG = {
     /** Tiny vertical vibration (m) reached at max speed, starting at vibrationFromKmh. */
     vibration: 0.012,
     vibrationFromKmh: 250,
+    /** Shake (m) after a heavy impact at full strength (severe), decaying at joltDecay (1/s). */
+    jolt: 0.35,
+    joltDecay: 4,
     near: 0.5,
     /** Large enough to see Ping An Finance Center from the start (skyline guide). */
     far: 15000,
@@ -219,6 +241,8 @@ export const CONFIG = {
     leanPerAccel: 0.004,
     maxLean: 0.04,
     vibration: 0.004,
+    /** Head shake (m) after a heavy impact at full strength; decays at camera.joltDecay. */
+    jolt: 0.05,
     /** Below the headliner / A-pillar distance (~0.2 m) but no closer, to keep distant depth precision. */
     near: 0.1,
   },

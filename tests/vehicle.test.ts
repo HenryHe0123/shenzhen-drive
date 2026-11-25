@@ -290,7 +290,7 @@ describe('road boundary collision', () => {
       });
       expect(allInside).toBe(true);
       expect(contacts).toBeGreaterThan(100);
-      expect(v.impact).toBeGreaterThan(CONFIG.collision.thudMinSpeed);
+      expect(v.impact).toBeGreaterThan(CONFIG.collision.lightKmh * KMH);
       // punishing but recoverable: a clear speed loss on impact, still rolling along the wall
       expect(afterHit).toBeLessThan(0.85 * VMAX);
       expect(afterHit).toBeGreaterThan(0.5 * VMAX);
@@ -299,6 +299,19 @@ describe('road boundary collision', () => {
       expect(Math.abs(v.d)).toBeGreaterThan(5);
     });
   }
+
+  it('cannot gain speed riding a wall: full throttle into it settles near 100 km/h', () => {
+    const v = new Vehicle(route);
+    v.place(100, 1.75);
+    v.speed = 160 * KMH;
+    let contactSteps = 0;
+    run(v, { throttle: 1, brake: 0, steer: 1 }, 8, (c) => {
+      if (c.inContact) contactSteps++;
+    });
+    expect(contactSteps).toBeGreaterThan(500);
+    expect(v.speed).toBeLessThan(130 * KMH);
+    expect(v.speed).toBeGreaterThan(80 * KMH);
+  });
 
   it('does not tunnel when running straight into the 30 m turn at 350 km/h', () => {
     const turn = route.turns[0];
