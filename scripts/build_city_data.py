@@ -1045,6 +1045,7 @@ def main():
     ok = validate(route, bdata, cfg)
     coverage_report(cfg, osm, proj, U, sp, R)
     if not args.no_plot:
+        (ROOT / "evidence").mkdir(exist_ok=True)
         plot(route, bdata, sp, U, F, ROOT / "evidence" / "route_plot.png")
         if model_report:
             plot_city_models(route, bdata, model_report, ROOT / "evidence" / "city_models_registration.png")

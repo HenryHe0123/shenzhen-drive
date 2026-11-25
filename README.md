@@ -85,7 +85,7 @@ src/
 scripts/           Python 城市数据管线、模型 / 贴图离线处理脚本
 public/            data/（管线产物）、models/（SU7、真实建筑）、textures/
 tests/、e2e/       Vitest 单元测试、Playwright 端到端测试
-evidence/          截图等过程证据
+evidence/          截图、录像等过程证据（本地保存，不入库；文档引用的图在 docs/images/）
 docs/              资产归属、关键 prompts、版本记录
 ```
 

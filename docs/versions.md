@@ -35,7 +35,7 @@
 - **过程中的修正**：试玩时页面经常被重置（开发服务器随代码改动自动刷新），于是加了只在手动打包时更新的稳定试玩服务（4173 端口）。
 - **遗留**：平安金融中心、市民中心、埃菲尔铁塔被路边高楼挡住；一路直道，只在最后转一次弯。
 
-![v0.1 起点](../evidence/v01-02-start.png)
+![v0.1 起点](images/v01-02-start.png)
 
 ## v0.2.0 — 福田绕行、350 km/h、白天
 
@@ -46,7 +46,7 @@
 - **时段**：新增白天和日落，白天立面重做。
 - **道路**：转弯路口、指路门架、信号灯、HUD 转弯提示和减速警告。
 
-![v0.2 平安金融中心正对车头](../evidence/v020-day-03-pingan.png)
+![v0.2 平安金融中心正对车头](images/v020-day-03-pingan.png)
 
 ## v0.2.1 — 原厂轮距、去掉红色航空灯
 
@@ -60,7 +60,7 @@
 - **APEC**：路边广告牌换上 AI 生成的“APEC China 2026 · 相约深圳 见证奇迹”画面，沿线 3 栋大楼外墙挂 APEC 竖屏。
 - **时段**：入夜档取消，只留白天和日落。
 
-![v0.2.2 小地图、录像标记和版本号](../evidence/v022-driving.png)
+![v0.2.2 小地图、录像标记和版本号](images/v022-driving.png)
 
 ## v0.3.0 — 真实深圳建筑、国标路牌、小叶榕
 
@@ -71,13 +71,13 @@
 
 | 改动前（v0.2） | 改动后（v0.3.0） |
 |---|---|
-| ![](../evidence/v03-pingan-day-before.png) | ![](../evidence/v03-pingan-day-after.png) |
+| ![](images/v03-pingan-day-before.png) | ![](images/v03-pingan-day-after.png) |
 
 ## v0.3.1 — 撞墙次数统计
 
 相比 v0.3.0：成绩页显示本局撞墙次数（约 14 km/h 以上的撞击才算，贴墙擦过算 1 次），不加罚时。
 
-![成绩页撞墙统计](../evidence/v031-result.png)
+![成绩页撞墙统计](images/v031-result.png)
 
 ## v0.3.2 — 遗留优化
 
@@ -91,9 +91,9 @@
 
 | 改动前（v0.3.1） | 改动后（v0.3.2） |
 |---|---|
-| ![](../evidence/v032-handling-closure-xiangmihu-day-before.png) | ![](../evidence/v032-handling-closure-xiangmihu-day-after.png) |
+| ![](images/v032-handling-closure-xiangmihu-day-before.png) | ![](images/v032-handling-closure-xiangmihu-day-after.png) |
 
-![v0.3.2 白天全程巡检](../evidence/v032-tour-day.jpg)
+![v0.3.2 白天全程巡检](images/v032-tour-day.jpg)
 
 ## 尚未解决（截至 v0.3.2）
 

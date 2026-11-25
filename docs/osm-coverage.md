@@ -41,7 +41,7 @@ So the zone/area height rules carry most of the near field; the skyline is fully
 
 **2. Footprint gaps: yes.** Footprint share of the 600 m wide corridor, per 250 m of real route,
 has a median of only 13% (dense Shenzhen blocks are typically 25–40%). Bins below 6% (real arc
-length from the start; see `data-raw/coverage_bins.json`):
+length from the start; the full bins are written to `data-raw/coverage_bins.json` on each pipeline run, not committed):
 
 | real s (m) | where | cause |
 |---|---|---|

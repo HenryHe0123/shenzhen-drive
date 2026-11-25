@@ -13,6 +13,10 @@ playtest/
 data-raw/dev/
 /shenzhen-drive-*.mp4
 /shenzhen-drive-*.webm
+# Local working artifacts: screenshots/recordings, pipeline coverage output
+evidence/
+data-raw/coverage_bins.json
+data-raw/osm_coverage_output.txt
 # Presentation material (kept locally, not in the repo)
 present/
 *.pptx
