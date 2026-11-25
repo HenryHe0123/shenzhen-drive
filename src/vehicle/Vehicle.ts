@@ -15,6 +15,11 @@ export const NO_INPUT: Readonly<DriveInput> = { throttle: 0, brake: 0, steer: 0 
 
 const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
 
+const smoothstep = (lo: number, hi: number, x: number) => {
+  const t = clamp((x - lo) / (hi - lo), 0, 1);
+  return t * t * (3 - 2 * t);
+};
+
 function moveTowards(v: number, target: number, maxDelta: number): number {
   return Math.abs(target - v) <= maxDelta ? target : v + Math.sign(target - v) * maxDelta;
 }
@@ -48,6 +53,8 @@ export class Vehicle {
   speed = 0;
   /** Normalized steering position, -1 (left) .. +1 (right). */
   steer = 0;
+  /** Front wheel angle of the last step as a fraction of steerLimit, including the stability counter-steer. */
+  wheelSteer = 0;
   /** True while the last step braked (S while rolling forward, W while rolling backward). */
   braking = false;
   s = 0;
@@ -63,6 +70,13 @@ export class Vehicle {
   impact = 0;
   private stopHold = 0;
   private legal = { x: 0, z: 0, yaw: 0, s: 0 };
+  /** Straight-line stability state of the current manoeuvre: total press time, seconds since the last release, net driver heading change. */
+  private pressTime = 0;
+  private sinceRelease = Infinity;
+  private pressGain = 0;
+  /** Heading (rad) still owed by earlier presses, and the smoothed counter-steer (fraction of steerLimit). */
+  private owed = 0;
+  private assist = 0;
 
   constructor(readonly route?: Route) {}
 
@@ -83,6 +97,8 @@ export class Vehicle {
     this.yaw = yaw;
     this.speed = speed;
     this.steer = 0;
+    this.wheelSteer = 0;
+    this.clearRecenter();
     this.braking = false;
     this.stopHold = 0;
     this.longAccel = 0;
@@ -102,6 +118,7 @@ export class Vehicle {
     const route = this.route;
     if (!route) return;
     const touching = resolveRoadContact(this, route, dt);
+    if (touching) this.clearRecenter();
     this.inContact = touching;
     this.sinceContact = touching ? 0 : this.sinceContact + dt;
     const p = route.project(this.x, this.z, this.s, 20);
@@ -163,14 +180,76 @@ export class Vehicle {
     this.steer = moveTowards(this.steer, target, rate * dt);
 
     const vm = 0.5 * (v0 + v);
-    const wheel = this.steer * steerLimit(vm);
-    const yawRate = (-vm * Math.tan(wheel)) / V.wheelbase;
+    const limit = steerLimit(vm);
+    const driver = Math.sign(this.steer) * Math.abs(this.steer) ** V.steerExpo;
+    const assist = this.recenterSteer(target, vm, limit, dt);
+    this.wheelSteer = clamp(driver + assist, -1, 1);
+    const yawRate = (-vm * Math.tan(this.wheelSteer * limit)) / V.wheelbase;
+    const driverRate = (-vm * Math.tan(driver * limit)) / V.wheelbase;
+    this.pressGain += driverRate * dt;
+    this.owed += (yawRate - driverRate) * dt;
     const yawMid = this.yaw + yawRate * dt * 0.5;
     this.x += -Math.sin(yawMid) * vm * dt;
     this.z += -Math.cos(yawMid) * vm * dt;
     this.yaw += yawRate * dt;
     this.longAccel = (v - v0) / dt;
     this.latAccel = vm * yawRate;
+  }
+
+  /**
+   * Straight-line stability counter-steer (fraction of steerLimit) for this step. Presses less
+   * than recenterChainTime apart, in either direction, form one manoeuvre; the car owes back
+   * share(total press time) of the manoeuvre's net driver heading change, so a counter-steer
+   * cancels heading instead of being given back. While no key is held the owed heading is
+   * steered out with a smoothed first-order response.
+   */
+  private recenterSteer(target: number, vm: number, limit: number, dt: number): number {
+    const V = CONFIG.vehicle;
+    const fade = smoothstep(V.recenterFromKmh * KMH, V.recenterFullKmh * KMH, vm);
+    if (V.recenter <= 0 || fade <= 0) {
+      this.clearRecenter();
+      return 0;
+    }
+    const held = target !== 0;
+    if (held) {
+      if (this.sinceRelease >= V.recenterChainTime) {
+        this.owed += this.share() * this.pressGain;
+        this.pressGain = 0;
+        this.pressTime = 0;
+      }
+      this.pressTime += dt;
+      this.sinceRelease = 0;
+    } else this.sinceRelease += dt;
+
+    let err = fade * (this.owed + this.share() * this.pressGain);
+    const max = V.recenterMaxAngle;
+    if (Math.abs(err) > max) {
+      this.owed -= (err - Math.sign(err) * max) / fade;
+      err = Math.sign(err) * max;
+    }
+    let want = 0;
+    if (!held && Math.abs(vm) > 0.5) {
+      // yaw rate -err / recenterTime; yawRate = -v tan(wheel) / wheelbase
+      const wheel = Math.atan((err / V.recenterTime) * (V.wheelbase / vm));
+      want = clamp(wheel / limit, -V.recenterMaxSteer, V.recenterMaxSteer);
+    }
+    this.assist += (want - this.assist) * (1 - Math.exp(-dt / V.recenterSmoothing));
+    return this.assist;
+  }
+
+  /** Share of a press's heading given back, by press length. */
+  private share(): number {
+    const V = CONFIG.vehicle;
+    const k = (V.recenterHoldTime - this.pressTime) / (V.recenterHoldTime - V.recenterTapTime);
+    return V.recenter * clamp(k, 0, 1);
+  }
+
+  private clearRecenter(): void {
+    this.pressTime = 0;
+    this.sinceRelease = Infinity;
+    this.pressGain = 0;
+    this.owed = 0;
+    this.assist = 0;
   }
 
   private saveLegal(): void {

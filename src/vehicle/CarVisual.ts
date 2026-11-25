@@ -9,6 +9,8 @@ export interface CarDriveState {
   readonly speed: number;
   /** Normalized steering, -1 (left) .. +1 (right). */
   readonly steer: number;
+  /** Wheel angle as a fraction of the steering limit, including the stability counter-steer (defaults to steer). */
+  readonly wheelSteer?: number;
   readonly braking: boolean;
 }
 
@@ -162,6 +164,7 @@ export class CarVisual {
   private readonly tailBase: number;
   private pitch = 0;
   private roll = 0;
+  private slip = 0;
   private spin = 0;
   private brakeGlow = 0;
   private lastX = NaN;
@@ -221,9 +224,11 @@ export class CarVisual {
     const k = 1 - Math.exp(-C.bodyLerp * dt);
     const pitchTarget = THREE.MathUtils.clamp(longAccel * C.bodyPitchPerAccel, -0.05, 0.035);
     const rollTarget = THREE.MathUtils.clamp(-latAccel * C.bodyRollPerLatAccel, -0.05, 0.05);
+    const slipTarget = THREE.MathUtils.clamp(latAccel * CONFIG.vehicle.visualSlipPerLatAccel, -0.05, 0.05);
     this.pitch += (pitchTarget - this.pitch) * k;
     this.roll += (rollTarget - this.roll) * k;
-    this.body.rotation.set(this.pitch, 0, this.roll);
+    this.slip += (slipTarget - this.slip) * k;
+    this.body.rotation.set(this.pitch, this.slip, this.roll);
 
     const travel = (x - this.lastX) * -Math.sin(yaw) + (z - this.lastZ) * -Math.cos(yaw);
     this.lastX = x;
@@ -231,7 +236,7 @@ export class CarVisual {
     if (Math.abs(travel) < MAX_FRAME_TRAVEL) this.spin = (this.spin - travel / C.tireRadius) % TAU;
     if (this.wheels.length) {
       const lock = THREE.MathUtils.clamp(steerLimit(drive?.speed ?? 0), C.wheelSteerMin, C.wheelSteerMax);
-      const angle = -(drive?.steer ?? 0) * lock;
+      const angle = -(drive?.wheelSteer ?? drive?.steer ?? 0) * lock;
       for (let i = 0; i < this.wheels.length; i++) {
         this.wheels[i].rotation.x = this.spin;
         this.wheels[i].rotation.y = i < 2 ? angle : 0;

@@ -5,6 +5,13 @@ function wrapAngle(a: number): number {
   return a - 2 * Math.PI * Math.floor((a + Math.PI) / (2 * Math.PI));
 }
 
+/** Yaw smoothing rate (1/s) of the chase camera at speed v (m/s). */
+export function chaseYawLerp(speed: number): number {
+  const C = CONFIG.camera;
+  const sp = Math.min(1, Math.abs(speed) / (CONFIG.vehicle.maxSpeedKmh * KMH));
+  return C.yawLerp + (C.yawLerpHigh - C.yawLerp) * sp * sp;
+}
+
 /** Low third-person follow camera with smoothed yaw, speed-dependent distance and FOV. */
 export class ChaseCamera {
   private yaw = 0;
@@ -26,10 +33,10 @@ export class ChaseCamera {
   update(dt: number, x: number, z: number, yaw: number, speed: number, longAccel: number): void {
     const C = CONFIG.camera;
     const vmax = CONFIG.vehicle.maxSpeedKmh * KMH;
-    this.yaw += wrapAngle(yaw - this.yaw) * (1 - Math.exp(-C.yawLerp * dt));
+    const sp = Math.min(1, Math.abs(speed) / vmax);
+    this.yaw += wrapAngle(yaw - this.yaw) * (1 - Math.exp(-chaseYawLerp(speed) * dt));
     const pullTarget = THREE.MathUtils.clamp(longAccel * C.accelPull, -0.6, 0.6);
     this.pull += (pullTarget - this.pull) * (1 - Math.exp(-3 * dt));
-    const sp = Math.min(1, Math.abs(speed) / vmax);
     const fovTarget = C.fovBase + (C.fovMax - C.fovBase) * sp ** 1.5;
     this.fov += (fovTarget - this.fov) * (1 - Math.exp(-C.fovLerp * dt));
     // Two incommensurate sines: a faint road buzz rather than a visible wobble.
