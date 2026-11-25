@@ -86,7 +86,7 @@ scripts/           Python 城市数据管线、模型 / 贴图离线处理脚本
 public/            data/（管线产物）、models/（SU7、真实建筑）、textures/
 tests/、e2e/       Vitest 单元测试、Playwright 端到端测试
 evidence/          截图、录像等过程证据（本地保存，不入库；文档引用的图在 docs/images/）
-docs/              资产归属、关键 prompts、版本记录
+docs/              资产归属、版本记录与版本对比、OSM 数据覆盖率分析
 ```
 
 ## 艺术化简化
@@ -108,4 +108,4 @@ docs/              资产归属、关键 prompts、版本记录
 - 小叶榕（Valery.Li）与国标路牌（notbadworks）：Sketchfab，CC BY 4.0，均为离线烘焙 / 减面 / 裁切后的版本。
 - 日落预设的车漆反射 HDRI：Poly Haven Shanghai Riverside（Alex Radosnov），CC0。
 - Three.js（MIT）、postprocessing（Zlib）。天空和全部音效由代码程序生成，无音频文件。
-- AI 生成素材及完整清单见 [docs/asset-credits.md](docs/asset-credits.md)；关键 prompts 见 [docs/prompts.md](docs/prompts.md)；版本记录见 [docs/CHANGELOG.md](docs/CHANGELOG.md)（逐项细节）和 [docs/versions.md](docs/versions.md)（各版本之间的区别与起因一览）。
+- AI 生成素材及完整清单见 [docs/asset-credits.md](docs/asset-credits.md)；版本记录见 [docs/CHANGELOG.md](docs/CHANGELOG.md)（逐项细节）和 [docs/versions.md](docs/versions.md)（各版本之间的区别与起因一览）。

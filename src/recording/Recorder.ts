@@ -32,7 +32,7 @@ interface AudioSource {
 }
 
 const STORAGE_KEY = 'shenzhen-drive.record.v1';
-/** Preference order; MP4 first (the course deliverable is an MP4 with sound). */
+/** Preference order; MP4 first (plays everywhere, with AAC sound). */
 const MIME_AV = [
   'video/mp4;codecs=avc1.640028,mp4a.40.2',
   'video/mp4;codecs=avc1,mp4a',

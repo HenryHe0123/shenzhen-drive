@@ -17,6 +17,8 @@ data-raw/dev/
 evidence/
 data-raw/coverage_bins.json
 data-raw/osm_coverage_output.txt
+# Course records (prompts, AI asset provenance, agent task briefs), kept locally
+course/
 # Presentation material (kept locally, not in the repo)
 present/
 *.pptx

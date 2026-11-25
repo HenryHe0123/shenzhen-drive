@@ -32,7 +32,7 @@
 
 Poly Haven 的 [Shanghai Bund](https://polyhaven.com/a/shanghai_bund)（Greg Zaal，CC0）原计划用于入夜预设，该预设已取消，未分发。
 
-**免责声明**：本项目为课程作业，与小米集团（Xiaomi）无任何关联，亦未获其认可或赞助。“Xiaomi”“SU7” 为其各自所有者的商标。
+**免责声明**：本项目为非商业的个人项目，与小米集团（Xiaomi）无任何关联，亦未获其认可或赞助。“Xiaomi”“SU7” 为其各自所有者的商标。
 
 ### 3D Warehouse 真实建筑模型
 
@@ -124,14 +124,12 @@ Poly Haven 的 [Shanghai Bund](https://polyhaven.com/a/shanghai_bund)（Greg Zaa
 
 ## AI 生成素材
 
-原始生成文件、工具及版本、prompt 和使用位置必须可追溯（规范第 05、10 节）。完整 prompt 记入 [prompts.md](prompts.md)。
+以下图像由 AI 图像生成工具生成，裁切 / 转码后使用，均为虚构广告或原创画面，不含真实品牌、商标或 APEC 官方徽标。
 
-| 文件 | 工具（版本） | Prompt（摘要，全文见 prompts.md） | 使用位置 |
-|---|---|---|---|
-| `public/textures/ai/billboard_01.jpg` | Cursor Agent 内置图像生成工具 `GenerateImage`（2026-11-24） | 深圳城市宣传海报：黄昏天际线、带竖向肋条的超高层、文字“深圳 创新之城” | 深南大道右侧路边 / 楼顶灯箱广告牌（`src/city/props/`） |
-| `public/textures/ai/billboard_02.jpg`（原始 `billboard_apec_a.jpg`） | 同上 | APEC 欢迎海报（浅色山水版）：青绿海浪与山脊、红橙祥云飘带、文字“APEC CHINA 2026 · 相约深圳 见证奇迹” | 同上 |
-| `public/textures/ai/billboard_03.jpg`（原始 `billboard_apec_b.jpg`） | 同上 | APEC LED 广告（深蓝夜景版）：深圳湾大桥与发光楼群、彩色飘带、同上文字 | 同上 |
-| `public/textures/ai/billboard_04.jpg`（原始 `billboard_02.jpg`） | 同上 | 虚构鲜果茶广告：荔枝芒果果茶、洋红到橙色渐变、文字“鲜果茶” | 同上 |
-| `public/textures/ai/facade_apec_01.jpg`（原始 `facade_apec_portrait.jpg`） | 同上 | APEC 竖版 LED 屏画面（9:16）：上方文字“APEC CHINA 2026 · 相约深圳 见证奇迹”，下方山水与祥云飘带 | APEC LED 屏幕（`src/city/screens/`） |
-
-原始生成文件（未修改）保存在 `docs/ai-assets/original/`，完整 prompt、裁切等后处理与已停用的早期素材（“科技周”“深圳湾夜跑”）见 [ai-assets/README.md](ai-assets/README.md)。全部为虚构广告或原创画面，不含真实品牌、商标或 APEC 官方徽标。
+| 文件 | 内容 | 使用位置 |
+|---|---|---|
+| `public/textures/ai/billboard_01.jpg` | 深圳城市宣传海报：黄昏天际线、文字“深圳 创新之城” | 路边 / 楼顶灯箱广告牌（`src/city/props/`） |
+| `public/textures/ai/billboard_02.jpg` | APEC 欢迎海报（浅色山水版），文字“APEC CHINA 2026 · 相约深圳 见证奇迹” | 同上 |
+| `public/textures/ai/billboard_03.jpg` | APEC LED 广告（深蓝夜景版），同上文字 | 同上 |
+| `public/textures/ai/billboard_04.jpg` | 虚构鲜果茶广告 | 同上 |
+| `public/textures/ai/facade_apec_01.jpg` | APEC 竖版画面：山水与祥云飘带 | APEC 路边 LED 大屏左侧画面，右侧标语由运行时 Canvas 绘制（`src/city/screens/`） |
