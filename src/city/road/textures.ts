@@ -110,9 +110,9 @@ export function asphaltTextures(aniso: number) {
       const g = rand() - 0.5;
       const v = 0.3 + (low[i] - 0.5) * 0.12 + g * 0.08 + track * 0.035 - oil * 0.07;
       const o = i * 4;
-      col.data[o] = clamp255(v * 247);
-      col.data[o + 1] = clamp255(v * 252);
-      col.data[o + 2] = clamp255(v * 268);
+      col.data[o] = clamp255(v * 249);
+      col.data[o + 1] = clamp255(v * 251);
+      col.data[o + 2] = clamp255(v * 259);
       col.data[o + 3] = 255;
       const r = clamp255((0.92 + g * 0.1 - track * 0.14 - oil * 0.3) * 255);
       rough.data[o] = r;

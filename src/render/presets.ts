@@ -62,6 +62,11 @@ export interface LightingPreset {
   envCity: HdrColor;
   /** Photographed HDRI (CONFIG.render.hdriUrl) on the car's paint, glass and rims (src/render/reflectionEnv.ts); absent = procedural environment. */
   hdri?: { intensity: number };
+  /**
+   * 0..1: how far the asphalt's sky light (reflection, and 75 % of it for the ambient) is pulled to
+   * neutral grey, so a blue sky does not tint the road (src/city/road).
+   */
+  roadSkyNeutral: number;
 }
 
 /**
@@ -112,6 +117,7 @@ export const LIGHTING: Record<TimeOfDay, LightingPreset> = {
     shadowRadius: 2,
     vignette: 0.24,
     envCity: ['#5f6a76', 0.34],
+    roadSkyNeutral: 0.8,
   },
   golden: {
     sky: {
@@ -156,6 +162,7 @@ export const LIGHTING: Record<TimeOfDay, LightingPreset> = {
     vignette: 0.32,
     envCity: ['#5c4c44', 0.24],
     hdri: { intensity: 0.6 },
+    roadSkyNeutral: 0.15,
   },
   dusk: {
     sky: {
@@ -199,5 +206,6 @@ export const LIGHTING: Record<TimeOfDay, LightingPreset> = {
     shadowRadius: 3,
     vignette: 0.4,
     envCity: ['#000000', 0],
+    roadSkyNeutral: 0,
   },
 };
