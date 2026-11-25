@@ -24,9 +24,13 @@
 
 署名（CC BY 4.0）：“[Chinese Road Signs (32 road signs and more)](https://sketchfab.com/3d-models/chinese-road-signs-32-road-signs-and-more-241ed4fd2fc145259ff9b51bd6f04877)” by notbadworks (bobymonsuta), licensed under CC BY 4.0. Changes: sign-face textures extracted, flipped upright, cropped and downscaled to 248 px, placed on procedural posts; the model meshes are not used.
 
-### HDRI（评估后未采用）
+### HDRI
 
-Poly Haven 的 [Shanghai Riverside](https://polyhaven.com/a/shanghai_riverside)（Alex Radosnov）和 [Shanghai Bund](https://polyhaven.com/a/shanghai_bund)（Greg Zaal），均为 [CC0](https://polyhaven.com/license)。`scripts/process_env_and_signs.mjs` 可把 2k 原图降采样到 1k，但游戏不分发也不加载：日落预设下车漆反射 Riverside 偏冷、偏平，不如程序生成的暖色天空与天际线环境；Bund 对应的入夜预设已取消。
+| 文件 | 来源 | 作者 | 授权 | 使用方式 |
+|---|---|---|---|---|
+| `public/textures/env/shanghai_riverside_1k.hdr`（2k 原图在 `data-raw/assets/hdri/`，不入库） | Poly Haven：[Shanghai Riverside](https://polyhaven.com/a/shanghai_riverside) | Alex Radosnov | [CC0](https://polyhaven.com/license) | v0.3.2 起：由 `scripts/process_env_and_signs.mjs` 降采样到 1k，太阳亮度截断到 24；运行时压暗地面（×0.3）并加暖色，只用于日落预设下车漆、车窗和轮毂的反射（`src/render/reflectionEnv.ts`），不作为背景 |
+
+Poly Haven 的 [Shanghai Bund](https://polyhaven.com/a/shanghai_bund)（Greg Zaal，CC0）原计划用于入夜预设，该预设已取消，未分发。
 
 **免责声明**：本项目为课程作业，与小米集团（Xiaomi）无任何关联，亦未获其认可或赞助。“Xiaomi”“SU7” 为其各自所有者的商标。
 
@@ -113,7 +117,7 @@ Poly Haven 的 [Shanghai Riverside](https://polyhaven.com/a/shanghai_riverside)�
 
 ## 程序生成内容（无外部素材）
 
-- 天空与环境贴图：代码生成，经 PMREM 预过滤，供车漆和玻璃反射。
+- 天空与环境贴图：代码生成，经 PMREM 预过滤，供车漆和玻璃反射（日落预设下车辆反射改用上表 HDRI）。
 - 建筑立面窗格、道路标线、路牌文字等：着色器与 Canvas 程序生成。
 - 全部音效：Web Audio 实时合成（`src/audio/AudioEngine.ts`），包括电机啸叫、风噪、胎噪、碰撞闷响、倒计时提示音和检查点 / 终点音，无音频文件。
 - 字体：使用系统字体（PingFang SC / Microsoft YaHei 等），不随项目分发。
