@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-11-24T09:05:55Z",
+ "generatedAt": "2026-11-25T12:49:40Z",
  "note": "Per-model metadata written by scripts/process_city_models.mjs. Local frame: origin on the ground at the footprint-hull centroid, native axes (north = -Z), metres. GLB: one mesh; primitive 0 = material atlas (opaque), optional primitive 1 = material cutout (alphaMode MASK); both sample one sRGB WebP atlas (sampler wrapS REPEAT, wrapT CLAMP_TO_EDGE); double-sided, faces oriented outward.",
  "models": {
   "anlian_building_db0413ea": {
@@ -574,6 +574,956 @@
     "ground: 2 patch tris [Google Earth Snapshot1], y0 -0.00 (base (above patch), patch -0.0..0.0), 0 underground, 34 ground-level horizontal",
     "faces: 0 coincident duplicates removed, 21 flipped outward, 0 vertex normals re-derived",
     "atlas 512px (k 1.64 px/m): 9 cells, 4 bands, 3 swatches; textured 87% of area"
+   ]
+  },
+  "benyuan_building_3590d0a3": {
+   "id": "benyuan_building_3590d0a3",
+   "file": "models/city/benyuan_building_3590d0a3.glb",
+   "source": "benyuan_building_3590d0a3.glb",
+   "role": "frontage",
+   "bytes": 27852,
+   "texBytes": 20202,
+   "tris": 104,
+   "drawCalls": 1,
+   "height": 100,
+   "atlas": 512,
+   "photoTextured": true,
+   "texturedShare": 0.99,
+   "nativeOrigin": [
+    2.9,
+    -40.4
+   ],
+   "groundOffset": 0,
+   "groundHow": "base",
+   "footprint": [
+    [
+     -17.9,
+     -19.2
+    ],
+    [
+     12.8,
+     -23
+    ],
+    [
+     13.1,
+     -20
+    ],
+    [
+     13.3,
+     -18.3
+    ],
+    [
+     13.8,
+     -14.3
+    ],
+    [
+     17.9,
+     19.2
+    ],
+    [
+     17.9,
+     19.2
+    ],
+    [
+     -12.8,
+     23
+    ],
+    [
+     -15.7,
+     -1.1
+    ],
+    [
+     -17.9,
+     -18.7
+    ],
+    [
+     -17.9,
+     -19.2
+    ]
+   ],
+   "footprintArea": 1314,
+   "silhouette": [
+    [
+     [
+      13.1,
+      -24
+     ],
+     [
+      12.1,
+      -23
+     ],
+     [
+      4.1,
+      -23
+     ],
+     [
+      4.1,
+      -22
+     ],
+     [
+      -17.9,
+      -20
+     ],
+     [
+      -17.9,
+      -11
+     ],
+     [
+      -16.9,
+      -11
+     ],
+     [
+      -15.9,
+      6
+     ],
+     [
+      -14.9,
+      6
+     ],
+     [
+      -14.9,
+      14
+     ],
+     [
+      -13.9,
+      14
+     ],
+     [
+      -13.9,
+      22
+     ],
+     [
+      -12.9,
+      22
+     ],
+     [
+      -12.9,
+      24
+     ],
+     [
+      -11.9,
+      23
+     ],
+     [
+      -3.9,
+      23
+     ],
+     [
+      -3.9,
+      22
+     ],
+     [
+      18.1,
+      20
+     ],
+     [
+      17.1,
+      3
+     ],
+     [
+      16.1,
+      3
+     ],
+     [
+      16.1,
+      -4
+     ],
+     [
+      15.1,
+      -4
+     ],
+     [
+      15.1,
+      -13
+     ],
+     [
+      14.1,
+      -13
+     ]
+    ]
+   ],
+   "silhouetteArea": 1388,
+   "towerSilhouette": [
+    [
+     [
+      4.1,
+      -23
+     ],
+     [
+      4.1,
+      -22
+     ],
+     [
+      -17.9,
+      -20
+     ],
+     [
+      -17.9,
+      -11
+     ],
+     [
+      -16.9,
+      -11
+     ],
+     [
+      -15.9,
+      6
+     ],
+     [
+      -14.9,
+      6
+     ],
+     [
+      -14.9,
+      14
+     ],
+     [
+      -13.9,
+      14
+     ],
+     [
+      -13.9,
+      22
+     ],
+     [
+      -12.9,
+      22
+     ],
+     [
+      -12.9,
+      24
+     ],
+     [
+      -11.9,
+      23
+     ],
+     [
+      -3.9,
+      23
+     ],
+     [
+      -3.9,
+      22
+     ],
+     [
+      18.1,
+      20
+     ],
+     [
+      18.1,
+      12
+     ],
+     [
+      17.1,
+      12
+     ],
+     [
+      17.1,
+      3
+     ],
+     [
+      16.1,
+      3
+     ],
+     [
+      16.1,
+      -4
+     ],
+     [
+      15.1,
+      -4
+     ],
+     [
+      14.1,
+      -21
+     ],
+     [
+      13.1,
+      -21
+     ],
+     [
+      13.1,
+      -23
+     ]
+    ]
+   ],
+   "flipped": 18,
+   "lat": 22.53843035060446,
+   "lon": 114.02105973234296,
+   "credit": {
+    "title": "深圳本元大厦 Shenzhen Benyuan Building(China)",
+    "author": "xz H.",
+    "url": "https://3dwarehouse.sketchup.com/model/3590d0a332fffc6dbf3cbee0dae92bb2",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 0 patch tris [], y0 -0.00 (base), 0 underground, 2 ground-level horizontal",
+    "faces: 0 coincident duplicates removed, 18 flipped outward, 0 vertex normals re-derived",
+    "atlas 512px (k 3.49 px/m): 4 cells, 2 bands, 1 swatches; textured 99% of area"
+   ]
+  },
+  "bookcity_center_city_a2202a74": {
+   "id": "bookcity_center_city_a2202a74",
+   "file": "models/city/bookcity_center_city_a2202a74.glb",
+   "source": "bookcity_center_city_a2202a74.glb",
+   "role": "frontage",
+   "bytes": 156440,
+   "texBytes": 20614,
+   "tris": 2411,
+   "drawCalls": 1,
+   "height": 26.5,
+   "atlas": 512,
+   "photoTextured": false,
+   "texturedShare": 0.39,
+   "nativeOrigin": [
+    117.2,
+    -23.9
+   ],
+   "groundOffset": -1.67,
+   "groundHow": "base (terrain patch)",
+   "footprint": [
+    [
+     -60.9,
+     76.9
+    ],
+    [
+     -54.9,
+     -194.8
+    ],
+    [
+     -47.5,
+     -206.1
+    ],
+    [
+     -13.1,
+     -206.1
+    ],
+    [
+     37.9,
+     -206.1
+    ],
+    [
+     46.1,
+     -206.1
+    ],
+    [
+     53.7,
+     -194.8
+    ],
+    [
+     53.7,
+     -194.7
+    ],
+    [
+     61.4,
+     73.2
+    ],
+    [
+     61.5,
+     100.4
+    ],
+    [
+     61.5,
+     113.4
+    ],
+    [
+     61.4,
+     138
+    ],
+    [
+     57.6,
+     153.7
+    ],
+    [
+     36.7,
+     208.7
+    ],
+    [
+     35.5,
+     208.7
+    ],
+    [
+     -35.7,
+     208.7
+    ],
+    [
+     -35.7,
+     208.7
+    ],
+    [
+     -60.9,
+     141.7
+    ],
+    [
+     -60.9,
+     141.6
+    ]
+   ],
+   "footprintArea": 46989,
+   "silhouette": [
+    [
+     [
+      -47.9,
+      -206.1
+     ],
+     [
+      -47.9,
+      -195.1
+     ],
+     [
+      -54.9,
+      -195.1
+     ],
+     [
+      -54.9,
+      -138.1
+     ],
+     [
+      -47.9,
+      -138.1
+     ],
+     [
+      -47.9,
+      -127.1
+     ],
+     [
+      -54.9,
+      -127.1
+     ],
+     [
+      -54.9,
+      -69.1
+     ],
+     [
+      -47.9,
+      -69.1
+     ],
+     [
+      -47.9,
+      -54.1
+     ],
+     [
+      -30.9,
+      -54.1
+     ],
+     [
+      -30.9,
+      -14.1
+     ],
+     [
+      -47.9,
+      -14.1
+     ],
+     [
+      -47.9,
+      1.9
+     ],
+     [
+      -57.9,
+      1.9
+     ],
+     [
+      -57.9,
+      73.9
+     ],
+     [
+      -47.9,
+      73.9
+     ],
+     [
+      -47.9,
+      75.9
+     ],
+     [
+      -60.9,
+      75.9
+     ],
+     [
+      -60.9,
+      141.9
+     ],
+     [
+      -47.9,
+      141.9
+     ],
+     [
+      -47.9,
+      153.9
+     ],
+     [
+      -35.9,
+      153.9
+     ],
+     [
+      -35.9,
+      208.9
+     ],
+     [
+      37.1,
+      208.9
+     ],
+     [
+      37.1,
+      153.9
+     ],
+     [
+      58.1,
+      153.9
+     ],
+     [
+      58.1,
+      138.9
+     ],
+     [
+      62.1,
+      138.9
+     ],
+     [
+      62.1,
+      72.9
+     ],
+     [
+      49.1,
+      72.9
+     ],
+     [
+      49.1,
+      66.9
+     ],
+     [
+      58.1,
+      66.9
+     ],
+     [
+      58.1,
+      -4.1
+     ],
+     [
+      49.1,
+      -4.1
+     ],
+     [
+      49.1,
+      -14.1
+     ],
+     [
+      30.1,
+      -14.1
+     ],
+     [
+      30.1,
+      -54.1
+     ],
+     [
+      47.1,
+      -54.1
+     ],
+     [
+      47.1,
+      -69.1
+     ],
+     [
+      54.1,
+      -69.1
+     ],
+     [
+      54.1,
+      -127.1
+     ],
+     [
+      47.1,
+      -127.1
+     ],
+     [
+      47.1,
+      -138.1
+     ],
+     [
+      54.1,
+      -138.1
+     ],
+     [
+      54.1,
+      -195.1
+     ],
+     [
+      47.1,
+      -195.1
+     ],
+     [
+      47.1,
+      -206.1
+     ]
+    ]
+   ],
+   "silhouetteArea": 42011,
+   "towerSilhouette": [
+    [
+     [
+      -47.9,
+      -206.1
+     ],
+     [
+      -47.9,
+      -195.1
+     ],
+     [
+      -54.9,
+      -195.1
+     ],
+     [
+      -54.9,
+      -138.1
+     ],
+     [
+      -47.9,
+      -138.1
+     ],
+     [
+      -47.9,
+      -127.1
+     ],
+     [
+      -54.9,
+      -127.1
+     ],
+     [
+      -54.9,
+      -69.1
+     ],
+     [
+      -47.9,
+      -69.1
+     ],
+     [
+      -47.9,
+      -54.1
+     ],
+     [
+      -30.9,
+      -54.1
+     ],
+     [
+      -30.9,
+      -14.1
+     ],
+     [
+      -47.9,
+      -14.1
+     ],
+     [
+      -47.9,
+      2.9
+     ],
+     [
+      -34.9,
+      2.9
+     ],
+     [
+      -34.9,
+      -9.1
+     ],
+     [
+      -45.9,
+      -9.1
+     ],
+     [
+      -45.9,
+      -11.1
+     ],
+     [
+      46.1,
+      -11.1
+     ],
+     [
+      46.1,
+      -9.1
+     ],
+     [
+      36.1,
+      -9.1
+     ],
+     [
+      36.1,
+      2.9
+     ],
+     [
+      49.1,
+      2.9
+     ],
+     [
+      49.1,
+      -14.1
+     ],
+     [
+      30.1,
+      -14.1
+     ],
+     [
+      30.1,
+      -54.1
+     ],
+     [
+      47.1,
+      -54.1
+     ],
+     [
+      47.1,
+      -138.1
+     ],
+     [
+      54.1,
+      -138.1
+     ],
+     [
+      54.1,
+      -195.1
+     ],
+     [
+      47.1,
+      -195.1
+     ],
+     [
+      47.1,
+      -206.1
+     ]
+    ],
+    [
+     [
+      -37.9,
+      61.9
+     ],
+     [
+      -37.9,
+      62.9
+     ],
+     [
+      -47.9,
+      62.9
+     ],
+     [
+      -47.9,
+      73.9
+     ],
+     [
+      -34.9,
+      73.9
+     ],
+     [
+      -34.9,
+      61.9
+     ]
+    ],
+    [
+     [
+      36.1,
+      61.9
+     ],
+     [
+      36.1,
+      73.9
+     ],
+     [
+      49.1,
+      73.9
+     ],
+     [
+      49.1,
+      62.9
+     ]
+    ],
+    [
+     [
+      -47.9,
+      140.9
+     ],
+     [
+      -47.9,
+      153.9
+     ],
+     [
+      -34.9,
+      153.9
+     ],
+     [
+      -34.9,
+      140.9
+     ]
+    ],
+    [
+     [
+      36.1,
+      140.9
+     ],
+     [
+      36.1,
+      153.9
+     ],
+     [
+      49.1,
+      153.9
+     ],
+     [
+      49.1,
+      140.9
+     ]
+    ]
+   ],
+   "flipped": 88,
+   "lat": 22.549388274838364,
+   "lon": 114.0554706693421,
+   "credit": {
+    "title": "Shenzhen BookCity Center City 深圳中心书城",
+    "author": "David Z.",
+    "url": "https://3dwarehouse.sketchup.com/model/a2202a7469efaec65f1e8ef1297e5aa",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 200 patch tris [Google Earth Snapshot1], y0 -1.67 (base (terrain patch), patch -2.7..9.8), 0 underground, 2 ground-level horizontal",
+    "faces: 0 coincident duplicates removed, 88 flipped outward, 165 vertex normals re-derived",
+    "atlas 512px (k 1.37 px/m): 9 cells, 4 bands, 3 swatches; textured 39% of area"
+   ]
+  },
+  "central_business_building_99eb7f85": {
+   "id": "central_business_building_99eb7f85",
+   "file": "models/city/central_business_building_99eb7f85.glb",
+   "source": "central_business_building_99eb7f85.glb",
+   "role": "frontage",
+   "bytes": 31280,
+   "texBytes": 20274,
+   "tris": 157,
+   "drawCalls": 1,
+   "height": 108.2,
+   "atlas": 512,
+   "photoTextured": true,
+   "texturedShare": 0.9,
+   "nativeOrigin": [
+    11.9,
+    -5.1
+   ],
+   "groundOffset": 0,
+   "groundHow": "base (above patch)",
+   "footprint": [
+    [
+     -27.9,
+     -31.6
+    ],
+    [
+     28.5,
+     -31.6
+    ],
+    [
+     28.5,
+     18
+    ],
+    [
+     18.8,
+     33.2
+    ],
+    [
+     -23.6,
+     33.2
+    ],
+    [
+     -27.9,
+     20.3
+    ]
+   ],
+   "footprintArea": 3553,
+   "silhouette": [
+    [
+     [
+      -27.9,
+      -31.6
+     ],
+     [
+      -27.9,
+      20.4
+     ],
+     [
+      -24.9,
+      20.4
+     ],
+     [
+      -23.9,
+      33.4
+     ],
+     [
+      19.1,
+      33.4
+     ],
+     [
+      19.1,
+      25.4
+     ],
+     [
+      23.1,
+      25.4
+     ],
+     [
+      28.1,
+      20.4
+     ],
+     [
+      28.1,
+      18.4
+     ],
+     [
+      29.1,
+      18.4
+     ],
+     [
+      29.1,
+      -31.6
+     ]
+    ]
+   ],
+   "silhouetteArea": 3560,
+   "towerSilhouette": [
+    [
+     [
+      12.7,
+      -9.9
+     ],
+     [
+      11.7,
+      -8.9
+     ],
+     [
+      -26.3,
+      -8.9
+     ],
+     [
+      -26.3,
+      21.1
+     ],
+     [
+      -25.3,
+      21.1
+     ],
+     [
+      -25.3,
+      28.1
+     ],
+     [
+      12.7,
+      28.1
+     ]
+    ]
+   ],
+   "flipped": 0,
+   "lat": 22.539953363177958,
+   "lon": 114.04739493778861,
+   "credit": {
+    "title": "Shenzhen Central Business Building 深圳中心商务大厦",
+    "author": "David Z.",
+    "url": "https://3dwarehouse.sketchup.com/model/99eb7f854d0b0dafb7d30984861683cc",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 2 patch tris [Google Earth Snapshot1], y0 -0.00 (base (above patch), patch -0.0..0.0), 0 underground, 10 ground-level horizontal",
+    "faces: 0 coincident duplicates removed, 0 flipped outward, 0 vertex normals re-derived",
+    "atlas 512px (k 2.04 px/m): 7 cells, 1 bands, 2 swatches; textured 90% of area"
    ]
   },
   "citizen_center_columns_1b723d6e": {
@@ -4011,6 +4961,144 @@
     "atlas 512px (k 2.44 px/m): 13 cells, 0 bands, 10 swatches; textured 91% of area"
    ]
   },
+  "customs_d29ae84d": {
+   "id": "customs_d29ae84d",
+   "file": "models/city/customs_d29ae84d.glb",
+   "source": "customs_d29ae84d.glb",
+   "role": "frontage",
+   "bytes": 65764,
+   "texBytes": 53256,
+   "tris": 166,
+   "drawCalls": 1,
+   "height": 104.2,
+   "atlas": 512,
+   "photoTextured": true,
+   "texturedShare": 0.84,
+   "nativeOrigin": [
+    14.4,
+    30
+   ],
+   "groundOffset": 0,
+   "groundHow": "base (above patch)",
+   "footprint": [
+    [
+     -52.2,
+     -0.9
+    ],
+    [
+     -41.5,
+     -45.2
+    ],
+    [
+     41.4,
+     -45.2
+    ],
+    [
+     52.2,
+     -0.9
+    ],
+    [
+     52.2,
+     42
+    ],
+    [
+     -52.2,
+     42
+    ]
+   ],
+   "footprintArea": 8627,
+   "silhouette": [
+    [
+     [
+      -42.2,
+      -45.2
+     ],
+     [
+      -42.2,
+      -1.2
+     ],
+     [
+      -52.2,
+      -1.2
+     ],
+     [
+      -52.2,
+      42.8
+     ],
+     [
+      -28.2,
+      42.8
+     ],
+     [
+      -28.2,
+      34.8
+     ],
+     [
+      29.8,
+      34.8
+     ],
+     [
+      29.8,
+      42.8
+     ],
+     [
+      52.8,
+      42.8
+     ],
+     [
+      52.8,
+      -1.2
+     ],
+     [
+      41.8,
+      -1.2
+     ],
+     [
+      41.8,
+      -45.2
+     ]
+    ]
+   ],
+   "silhouetteArea": 7852,
+   "towerSilhouette": [
+    [
+     [
+      45.7,
+      -1.9
+     ],
+     [
+      44.7,
+      -0.9
+     ],
+     [
+      -44.3,
+      -0.9
+     ],
+     [
+      -44.3,
+      35.1
+     ],
+     [
+      45.7,
+      35.1
+     ]
+    ]
+   ],
+   "flipped": 6,
+   "lat": 22.54384990072347,
+   "lon": 114.06122657353185,
+   "credit": {
+    "title": "深圳海关 Shenzhen Customs",
+    "author": "David Z.",
+    "url": "https://3dwarehouse.sketchup.com/model/d29ae84d48e4f971a11382752cc4a90",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 2 patch tris [Google Earth Snapshot1], y0 -0.00 (base (above patch), patch -0.0..0.0), 0 underground, 22 ground-level horizontal",
+    "faces: 0 coincident duplicates removed, 6 flipped outward, 0 vertex normals re-derived",
+    "atlas 512px (k 1.67 px/m): 34 cells, 0 bands, 1 swatches; textured 84% of area"
+   ]
+  },
   "dabaihui_plaza_7a7ad91b": {
    "id": "dabaihui_plaza_7a7ad91b",
    "file": "models/city/dabaihui_plaza_7a7ad91b.glb",
@@ -6657,6 +7745,340 @@
     "atlas 512px (k 1.51 px/m): 6 cells, 1 bands, 2 swatches; textured 89% of area"
    ]
   },
+  "fuchun_eastern_building_vanke_5a3511e4": {
+   "id": "fuchun_eastern_building_vanke_5a3511e4",
+   "file": "models/city/fuchun_eastern_building_vanke_5a3511e4.glb",
+   "source": "fuchun_eastern_building_vanke_5a3511e4.glb",
+   "role": "frontage",
+   "bytes": 23268,
+   "texBytes": 18262,
+   "tris": 59,
+   "drawCalls": 1,
+   "height": 120,
+   "atlas": 512,
+   "photoTextured": true,
+   "texturedShare": 1,
+   "nativeOrigin": [
+    23,
+    -30.8
+   ],
+   "groundOffset": 0,
+   "groundHow": "base (above patch)",
+   "footprint": [
+    [
+     -23.2,
+     -21.1
+    ],
+    [
+     -13.6,
+     -22.6
+    ],
+    [
+     15.3,
+     -27.3
+    ],
+    [
+     17.3,
+     -15.2
+    ],
+    [
+     23.2,
+     21.1
+    ],
+    [
+     23.2,
+     21.1
+    ],
+    [
+     -15.3,
+     27.3
+    ],
+    [
+     -17.3,
+     15.2
+    ],
+    [
+     -21.2,
+     -9
+    ],
+    [
+     -23.2,
+     -21.1
+    ]
+   ],
+   "footprintArea": 1912,
+   "silhouette": [
+    [
+     [
+      8.8,
+      -27.3
+     ],
+     [
+      8.8,
+      -26.3
+     ],
+     [
+      -10.2,
+      -24.3
+     ],
+     [
+      -10.2,
+      -23.3
+     ],
+     [
+      -16.2,
+      -23.3
+     ],
+     [
+      -16.2,
+      -22.3
+     ],
+     [
+      -22.2,
+      -22.3
+     ],
+     [
+      -23.2,
+      -21.3
+     ],
+     [
+      -23.2,
+      -14.3
+     ],
+     [
+      -22.2,
+      -14.3
+     ],
+     [
+      -22.2,
+      -8.3
+     ],
+     [
+      -21.2,
+      -8.3
+     ],
+     [
+      -21.2,
+      -2.3
+     ],
+     [
+      -20.2,
+      -2.3
+     ],
+     [
+      -20.2,
+      3.7
+     ],
+     [
+      -19.2,
+      3.7
+     ],
+     [
+      -16.2,
+      27.7
+     ],
+     [
+      23.8,
+      21.7
+     ],
+     [
+      22.8,
+      12.7
+     ],
+     [
+      21.8,
+      12.7
+     ],
+     [
+      21.8,
+      6.7
+     ],
+     [
+      20.8,
+      6.7
+     ],
+     [
+      20.8,
+      0.7
+     ],
+     [
+      19.8,
+      0.7
+     ],
+     [
+      18.8,
+      -12.3
+     ],
+     [
+      17.8,
+      -12.3
+     ],
+     [
+      17.8,
+      -18.3
+     ],
+     [
+      16.8,
+      -18.3
+     ],
+     [
+      16.8,
+      -24.3
+     ],
+     [
+      15.8,
+      -24.3
+     ],
+     [
+      15.8,
+      -27.3
+     ]
+    ]
+   ],
+   "silhouetteArea": 2005,
+   "towerSilhouette": [
+    [
+     [
+      8.8,
+      -27.3
+     ],
+     [
+      8.8,
+      -26.3
+     ],
+     [
+      -10.2,
+      -24.3
+     ],
+     [
+      -10.2,
+      -23.3
+     ],
+     [
+      -16.2,
+      -23.3
+     ],
+     [
+      -16.2,
+      -22.3
+     ],
+     [
+      -22.2,
+      -22.3
+     ],
+     [
+      -23.2,
+      -21.3
+     ],
+     [
+      -23.2,
+      -14.3
+     ],
+     [
+      -22.2,
+      -14.3
+     ],
+     [
+      -22.2,
+      -8.3
+     ],
+     [
+      -21.2,
+      -8.3
+     ],
+     [
+      -21.2,
+      -2.3
+     ],
+     [
+      -20.2,
+      -2.3
+     ],
+     [
+      -20.2,
+      3.7
+     ],
+     [
+      -19.2,
+      3.7
+     ],
+     [
+      -16.2,
+      27.7
+     ],
+     [
+      23.8,
+      21.7
+     ],
+     [
+      22.8,
+      12.7
+     ],
+     [
+      21.8,
+      12.7
+     ],
+     [
+      21.8,
+      6.7
+     ],
+     [
+      20.8,
+      6.7
+     ],
+     [
+      20.8,
+      0.7
+     ],
+     [
+      19.8,
+      0.7
+     ],
+     [
+      18.8,
+      -12.3
+     ],
+     [
+      17.8,
+      -12.3
+     ],
+     [
+      17.8,
+      -18.3
+     ],
+     [
+      16.8,
+      -18.3
+     ],
+     [
+      16.8,
+      -24.3
+     ],
+     [
+      15.8,
+      -24.3
+     ],
+     [
+      15.8,
+      -27.3
+     ]
+    ]
+   ],
+   "flipped": 0,
+   "lat": 22.540403705335372,
+   "lon": 114.02083723539498,
+   "credit": {
+    "title": "深圳万科富春东方大厦 Fuchun Eastern Building, Shenzhen Vanke(China)",
+    "author": "xz H.",
+    "url": "https://3dwarehouse.sketchup.com/model/5a3511e4561ea1baa33fee85809a46f3",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 2 patch tris [Google Earth Snapshot1], y0 -0.00 (base (above patch), patch -0.0..0.0), 0 underground, 8 ground-level horizontal",
+    "faces: 0 coincident duplicates removed, 0 flipped outward, 0 vertex normals re-derived",
+    "atlas 512px (k 4.22 px/m): 2 cells, 0 bands, 0 swatches; textured 100% of area"
+   ]
+  },
   "futian_shangri_la_hotel_3481c83f": {
    "id": "futian_shangri_la_hotel_3481c83f",
    "file": "models/city/futian_shangri_la_hotel_3481c83f.glb",
@@ -7037,6 +8459,830 @@
     "ground: 2 patch tris [Google Earth Snapshot1], y0 -0.00 (base (above patch), patch -0.0..0.0), 0 underground, 0 ground-level horizontal",
     "faces: 0 coincident duplicates removed, 0 flipped outward, 0 vertex normals re-derived",
     "atlas 512px (k 1.37 px/m): 6 cells, 1 bands, 2 swatches; textured 97% of area"
+   ]
+  },
+  "galaxy_century_building_26468923": {
+   "id": "galaxy_century_building_26468923",
+   "file": "models/city/galaxy_century_building_26468923.glb",
+   "source": "galaxy_century_building_26468923.glb",
+   "role": "frontage",
+   "bytes": 56312,
+   "texBytes": 35188,
+   "tris": 324,
+   "drawCalls": 1,
+   "height": 173.2,
+   "atlas": 512,
+   "photoTextured": true,
+   "texturedShare": 0.96,
+   "nativeOrigin": [
+    -14.1,
+    13.2
+   ],
+   "groundOffset": -0.09,
+   "groundHow": "base",
+   "footprint": [
+    [
+     -23.1,
+     -113.1
+    ],
+    [
+     12.6,
+     -113.1
+    ],
+    [
+     13.2,
+     -113.1
+    ],
+    [
+     31.4,
+     93.6
+    ],
+    [
+     31.4,
+     93.6
+    ],
+    [
+     28,
+     98.8
+    ],
+    [
+     26.9,
+     98.8
+    ],
+    [
+     -23.1,
+     98.8
+    ]
+   ],
+   "footprintArea": 9659,
+   "silhouette": [
+    [
+     [
+      -23.1,
+      -113.1
+     ],
+     [
+      -23.1,
+      -14.1
+     ],
+     [
+      -24.1,
+      -14.1
+     ],
+     [
+      -23.1,
+      -13.1
+     ],
+     [
+      -24.1,
+      -12.1
+     ],
+     [
+      -23.1,
+      -11.1
+     ],
+     [
+      -23.1,
+      7.9
+     ],
+     [
+      -24.1,
+      7.9
+     ],
+     [
+      -23.1,
+      8.9
+     ],
+     [
+      -23.1,
+      34.9
+     ],
+     [
+      -24.1,
+      34.9
+     ],
+     [
+      -23.1,
+      35.9
+     ],
+     [
+      -23.1,
+      53.9
+     ],
+     [
+      -24.1,
+      53.9
+     ],
+     [
+      -23.1,
+      54.9
+     ],
+     [
+      -23.1,
+      98.9
+     ],
+     [
+      28.9,
+      98.9
+     ],
+     [
+      28.9,
+      93.9
+     ],
+     [
+      31.9,
+      93.9
+     ],
+     [
+      31.9,
+      87.9
+     ],
+     [
+      30.9,
+      87.9
+     ],
+     [
+      28.9,
+      54.9
+     ],
+     [
+      27.9,
+      54.9
+     ],
+     [
+      25.9,
+      22.9
+     ],
+     [
+      24.9,
+      22.9
+     ],
+     [
+      24.9,
+      11.9
+     ],
+     [
+      23.9,
+      11.9
+     ],
+     [
+      21.9,
+      -20.1
+     ],
+     [
+      20.9,
+      -20.1
+     ],
+     [
+      20.9,
+      -31.1
+     ],
+     [
+      19.9,
+      -31.1
+     ],
+     [
+      19.9,
+      -41.1
+     ],
+     [
+      18.9,
+      -41.1
+     ],
+     [
+      17.9,
+      -63.1
+     ],
+     [
+      12.9,
+      -63.1
+     ],
+     [
+      12.9,
+      -67.1
+     ],
+     [
+      13.9,
+      -67.1
+     ],
+     [
+      13.9,
+      -113.1
+     ]
+    ]
+   ],
+   "silhouetteArea": 9615,
+   "towerSilhouette": [
+    [
+     [
+      -23.1,
+      -113.1
+     ],
+     [
+      -23.1,
+      -67.1
+     ],
+     [
+      13.9,
+      -67.1
+     ],
+     [
+      13.9,
+      -113.1
+     ]
+    ],
+    [
+     [
+      -24.1,
+      -12.1
+     ],
+     [
+      -23.1,
+      -11.1
+     ],
+     [
+      -23.1,
+      -2.1
+     ],
+     [
+      -21.1,
+      -2.1
+     ],
+     [
+      -21.1,
+      -1.1
+     ],
+     [
+      -23.1,
+      -1.1
+     ],
+     [
+      -23.1,
+      7.9
+     ],
+     [
+      -24.1,
+      8.9
+     ],
+     [
+      -9.1,
+      8.9
+     ],
+     [
+      -9.1,
+      34.9
+     ],
+     [
+      -24.1,
+      34.9
+     ],
+     [
+      -23.1,
+      35.9
+     ],
+     [
+      -23.1,
+      43.9
+     ],
+     [
+      -21.1,
+      43.9
+     ],
+     [
+      -21.1,
+      45.9
+     ],
+     [
+      -23.1,
+      45.9
+     ],
+     [
+      -23.1,
+      53.9
+     ],
+     [
+      -24.1,
+      54.9
+     ],
+     [
+      0.9,
+      54.9
+     ],
+     [
+      0.9,
+      52.9
+     ],
+     [
+      2.9,
+      52.9
+     ],
+     [
+      2.9,
+      54.9
+     ],
+     [
+      12.9,
+      54.9
+     ],
+     [
+      12.9,
+      -12.1
+     ],
+     [
+      2.9,
+      -12.1
+     ],
+     [
+      2.9,
+      -9.1
+     ],
+     [
+      0.9,
+      -9.1
+     ],
+     [
+      0.9,
+      -12.1
+     ]
+    ],
+    [
+     [
+      -22.1,
+      76.9
+     ],
+     [
+      -23.1,
+      98.9
+     ],
+     [
+      26.9,
+      98.9
+     ],
+     [
+      25.9,
+      76.9
+     ]
+    ]
+   ],
+   "flipped": 53,
+   "lat": 22.540631822177453,
+   "lon": 114.06216071728724,
+   "credit": {
+    "title": "深圳星河世纪大厦 Shenzhen Galaxy Century Building(China)",
+    "author": "xz H.",
+    "url": "https://3dwarehouse.sketchup.com/model/2646892347497b72a05782541ebe9181",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 0 patch tris [], y0 -0.09 (base), 0 underground, 0 ground-level horizontal",
+    "faces: 0 coincident duplicates removed, 53 flipped outward, 0 vertex normals re-derived",
+    "atlas 512px (k 1.12 px/m): 11 cells, 3 bands, 3 swatches; textured 96% of area"
+   ]
+  },
+  "garden_city_12bfb869": {
+   "id": "garden_city_12bfb869",
+   "file": "models/city/garden_city_12bfb869.glb",
+   "source": "garden_city_12bfb869.glb",
+   "role": "frontage",
+   "bytes": 317384,
+   "texBytes": 154,
+   "tris": 6279,
+   "drawCalls": 1,
+   "height": 600,
+   "atlas": 64,
+   "photoTextured": false,
+   "texturedShare": 0,
+   "nativeOrigin": [
+    0,
+    0
+   ],
+   "groundOffset": 0,
+   "groundHow": "base (above patch)",
+   "footprint": [
+    [
+     -43.5,
+     -22.7
+    ],
+    [
+     -22.7,
+     -43.5
+    ],
+    [
+     22.7,
+     -43.5
+    ],
+    [
+     43.5,
+     -22.7
+    ],
+    [
+     43.5,
+     -16.9
+    ],
+    [
+     43.5,
+     22.7
+    ],
+    [
+     22.7,
+     43.5
+    ],
+    [
+     -22.7,
+     43.5
+    ],
+    [
+     -43.5,
+     22.7
+    ]
+   ],
+   "footprintArea": 6704,
+   "silhouette": [
+    [
+     [
+      -23.5,
+      -43.5
+     ],
+     [
+      -23.5,
+      -36.5
+     ],
+     [
+      -30.5,
+      -35.5
+     ],
+     [
+      -35.5,
+      -30.5
+     ],
+     [
+      -36.5,
+      -23.5
+     ],
+     [
+      -43.5,
+      -23.5
+     ],
+     [
+      -43.5,
+      -16.5
+     ],
+     [
+      -36.5,
+      -16.5
+     ],
+     [
+      -36.5,
+      16.5
+     ],
+     [
+      -43.5,
+      16.5
+     ],
+     [
+      -43.5,
+      23.5
+     ],
+     [
+      -36.5,
+      23.5
+     ],
+     [
+      -35.5,
+      30.5
+     ],
+     [
+      -30.5,
+      35.5
+     ],
+     [
+      -23.5,
+      36.5
+     ],
+     [
+      -23.5,
+      43.5
+     ],
+     [
+      -16.5,
+      43.5
+     ],
+     [
+      -16.5,
+      36.5
+     ],
+     [
+      16.5,
+      36.5
+     ],
+     [
+      16.5,
+      43.5
+     ],
+     [
+      23.5,
+      43.5
+     ],
+     [
+      23.5,
+      36.5
+     ],
+     [
+      30.5,
+      35.5
+     ],
+     [
+      35.5,
+      30.5
+     ],
+     [
+      36.5,
+      23.5
+     ],
+     [
+      43.5,
+      23.5
+     ],
+     [
+      43.5,
+      16.5
+     ],
+     [
+      36.5,
+      16.5
+     ],
+     [
+      36.5,
+      -16.5
+     ],
+     [
+      43.5,
+      -16.5
+     ],
+     [
+      43.5,
+      -23.5
+     ],
+     [
+      36.5,
+      -23.5
+     ],
+     [
+      35.5,
+      -30.5
+     ],
+     [
+      30.5,
+      -35.5
+     ],
+     [
+      23.5,
+      -36.5
+     ],
+     [
+      23.5,
+      -43.5
+     ],
+     [
+      16.5,
+      -43.5
+     ],
+     [
+      16.5,
+      -36.5
+     ],
+     [
+      -16.5,
+      -36.5
+     ],
+     [
+      -16.5,
+      -43.5
+     ]
+    ]
+   ],
+   "silhouetteArea": 5599,
+   "towerSilhouette": [
+    [
+     [
+      -23.7,
+      -38.7
+     ],
+     [
+      -23.7,
+      -36.7
+     ],
+     [
+      -26.7,
+      -36.7
+     ],
+     [
+      -26.7,
+      -35.7
+     ],
+     [
+      -29.7,
+      -35.7
+     ],
+     [
+      -30.7,
+      -33.7
+     ],
+     [
+      -32.7,
+      -33.7
+     ],
+     [
+      -33.7,
+      -30.7
+     ],
+     [
+      -35.7,
+      -29.7
+     ],
+     [
+      -36.7,
+      -23.7
+     ],
+     [
+      -38.7,
+      -23.7
+     ],
+     [
+      -38.7,
+      -16.7
+     ],
+     [
+      -36.7,
+      -16.7
+     ],
+     [
+      -36.7,
+      16.3
+     ],
+     [
+      -38.7,
+      16.3
+     ],
+     [
+      -38.7,
+      23.3
+     ],
+     [
+      -36.7,
+      23.3
+     ],
+     [
+      -36.7,
+      27.3
+     ],
+     [
+      -35.7,
+      27.3
+     ],
+     [
+      -34.7,
+      31.3
+     ],
+     [
+      -30.7,
+      35.3
+     ],
+     [
+      -24.7,
+      36.3
+     ],
+     [
+      -23.7,
+      39.3
+     ],
+     [
+      -16.7,
+      39.3
+     ],
+     [
+      -16.7,
+      37.3
+     ],
+     [
+      16.3,
+      37.3
+     ],
+     [
+      16.3,
+      39.3
+     ],
+     [
+      23.3,
+      39.3
+     ],
+     [
+      23.3,
+      37.3
+     ],
+     [
+      32.3,
+      34.3
+     ],
+     [
+      34.3,
+      32.3
+     ],
+     [
+      35.3,
+      28.3
+     ],
+     [
+      36.3,
+      28.3
+     ],
+     [
+      37.3,
+      23.3
+     ],
+     [
+      39.3,
+      23.3
+     ],
+     [
+      39.3,
+      16.3
+     ],
+     [
+      37.3,
+      16.3
+     ],
+     [
+      37.3,
+      -16.7
+     ],
+     [
+      39.3,
+      -16.7
+     ],
+     [
+      39.3,
+      -23.7
+     ],
+     [
+      36.3,
+      -24.7
+     ],
+     [
+      35.3,
+      -30.7
+     ],
+     [
+      31.3,
+      -34.7
+     ],
+     [
+      29.3,
+      -34.7
+     ],
+     [
+      27.3,
+      -36.7
+     ],
+     [
+      23.3,
+      -36.7
+     ],
+     [
+      23.3,
+      -38.7
+     ],
+     [
+      16.3,
+      -38.7
+     ],
+     [
+      16.3,
+      -36.7
+     ],
+     [
+      -16.7,
+      -36.7
+     ],
+     [
+      -16.7,
+      -38.7
+     ]
+    ]
+   ],
+   "flipped": 1923,
+   "lat": 22.53680518220811,
+   "lon": 114.0596079826355,
+   "credit": {
+    "title": "Shenzhen Garden City 深園城",
+    "author": "Alpha Virtual World",
+    "url": "https://3dwarehouse.sketchup.com/model/12bfb869-ea67-4c7d-9f30-a3e74a2a1759",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 2 patch tris [Location Snapshot], y0 -0.00 (base (above patch), patch -0.0..0.0), 0 underground, 66 ground-level horizontal",
+    "faces: 2645 coincident duplicates removed, 1923 flipped outward, 0 vertex normals re-derived",
+    "atlas 64px (k 10.00 px/m): 0 cells, 0 bands, 5 swatches; textured 0% of area"
    ]
   },
   "gold_central_hotel_d8d82029": {
@@ -8259,6 +10505,140 @@
     "ground: 2 patch tris [Google Earth Snapshot1], y0 -0.00 (base (above patch), patch -0.0..0.0), 0 underground, 0 ground-level horizontal",
     "faces: 0 coincident duplicates removed, 34 flipped outward, 14 vertex normals re-derived",
     "atlas 128px (k 10.00 px/m): 1 cells, 0 bands, 1 swatches; textured 100% of area"
+   ]
+  },
+  "guosen_securities_tower_10e48303": {
+   "id": "guosen_securities_tower_10e48303",
+   "file": "models/city/guosen_securities_tower_10e48303.glb",
+   "source": "guosen_securities_tower_10e48303.glb",
+   "role": "frontage",
+   "bytes": 123868,
+   "texBytes": 184,
+   "tris": 2926,
+   "drawCalls": 1,
+   "height": 213.2,
+   "atlas": 64,
+   "photoTextured": false,
+   "texturedShare": 0,
+   "nativeOrigin": [
+    29,
+    0.2
+   ],
+   "groundOffset": 0,
+   "groundHow": "base (above patch)",
+   "footprint": [
+    [
+     -45,
+     -22.1
+    ],
+    [
+     45,
+     -22.1
+    ],
+    [
+     45,
+     22.1
+    ],
+    [
+     33.3,
+     22.1
+    ],
+    [
+     7.6,
+     22.1
+    ],
+    [
+     -45,
+     22.1
+    ]
+   ],
+   "footprintArea": 3978,
+   "silhouette": [
+    [
+     [
+      24,
+      -23.1
+     ],
+     [
+      23,
+      -22.1
+     ],
+     [
+      -45,
+      -22.1
+     ],
+     [
+      -45,
+      22.9
+     ],
+     [
+      46,
+      22.9
+     ],
+     [
+      46,
+      -22.1
+     ],
+     [
+      28,
+      -22.1
+     ],
+     [
+      28,
+      -23.1
+     ],
+     [
+      24,
+      -22.1
+     ]
+    ]
+   ],
+   "silhouetteArea": 4098,
+   "towerSilhouette": [
+    [
+     [
+      45.6,
+      -23.1
+     ],
+     [
+      44.6,
+      -22.1
+     ],
+     [
+      6.6,
+      -22.1
+     ],
+     [
+      7.6,
+      -21.1
+     ],
+     [
+      7.6,
+      21.9
+     ],
+     [
+      6.6,
+      22.9
+     ],
+     [
+      45.6,
+      22.9
+     ]
+    ]
+   ],
+   "flipped": 467,
+   "lat": 22.537863145501174,
+   "lon": 114.0474897623062,
+   "credit": {
+    "title": "Shenzhen-Guosen Securities Tower",
+    "author": "Beer M.",
+    "url": "https://3dwarehouse.sketchup.com/model/10e48303-39e7-4f00-957e-2942a1a30ab0",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 4 patch tris [Location Snapshot, Location Snapshot#1], y0 -0.00 (base (above patch), patch -0.0..0.0), 0 underground, 4 ground-level horizontal",
+    "faces: 838 coincident duplicates removed, 467 flipped outward, 18 vertex normals re-derived",
+    "atlas 64px (k 10.00 px/m): 0 cells, 0 bands, 7 swatches; textured 0% of area"
    ]
   },
   "hanking_center_7d0712d1": {
@@ -9563,6 +11943,1644 @@
     "ground: 2 patch tris [Google Earth Snapshot1], y0 -0.00 (base (above patch), patch -0.0..0.0), 0 underground, 2 ground-level horizontal",
     "faces: 0 coincident duplicates removed, 0 flipped outward, 0 vertex normals re-derived",
     "atlas 512px (k 1.92 px/m): 9 cells, 0 bands, 0 swatches; textured 100% of area"
+   ]
+  },
+  "international_commerce_building_5a5ed5b1": {
+   "id": "international_commerce_building_5a5ed5b1",
+   "file": "models/city/international_commerce_building_5a5ed5b1.glb",
+   "source": "international_commerce_building_5a5ed5b1.glb",
+   "role": "frontage",
+   "bytes": 51916,
+   "texBytes": 18956,
+   "tris": 543,
+   "drawCalls": 1,
+   "height": 102.6,
+   "atlas": 512,
+   "photoTextured": true,
+   "texturedShare": 0.83,
+   "nativeOrigin": [
+    13.6,
+    -1.8
+   ],
+   "groundOffset": 0,
+   "groundHow": "base (above patch)",
+   "footprint": [
+    [
+     -33,
+     -34.3
+    ],
+    [
+     33,
+     -34.3
+    ],
+    [
+     33,
+     34.3
+    ],
+    [
+     28.1,
+     34.3
+    ],
+    [
+     23,
+     34.3
+    ],
+    [
+     5.2,
+     34.3
+    ],
+    [
+     0.1,
+     34.3
+    ],
+    [
+     -33,
+     34.3
+    ]
+   ],
+   "footprintArea": 4528,
+   "silhouette": [
+    [
+     [
+      -33,
+      -34.3
+     ],
+     [
+      -33,
+      34.7
+     ],
+     [
+      34,
+      34.7
+     ],
+     [
+      34,
+      -34.3
+     ]
+    ]
+   ],
+   "silhouetteArea": 4623,
+   "towerSilhouette": [
+    [
+     [
+      -3.8,
+      -4.5
+     ],
+     [
+      -4.8,
+      -4.5
+     ],
+     [
+      -4.8,
+      29.5
+     ],
+     [
+      -0.8,
+      29.5
+     ],
+     [
+      -0.8,
+      34.5
+     ],
+     [
+      28.2,
+      34.5
+     ],
+     [
+      28.2,
+      29.5
+     ],
+     [
+      33.2,
+      29.5
+     ],
+     [
+      33.2,
+      -4.5
+     ],
+     [
+      32.2,
+      -4.5
+     ],
+     [
+      32.2,
+      0.5
+     ],
+     [
+      28.2,
+      0.5
+     ],
+     [
+      28.2,
+      -3.5
+     ],
+     [
+      -0.8,
+      -3.5
+     ],
+     [
+      -0.8,
+      0.5
+     ],
+     [
+      -3.8,
+      0.5
+     ]
+    ]
+   ],
+   "flipped": 22,
+   "lat": 22.539896654806718,
+   "lon": 114.04603367197171,
+   "credit": {
+    "title": "Shenzhen International Commerce Building 深圳国际商会大厦",
+    "author": "David Z.",
+    "url": "https://3dwarehouse.sketchup.com/model/5a5ed5b108f758b6b7d30984861683cc",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 2 patch tris [Google Earth Snapshot1], y0 -0.00 (base (above patch), patch -0.0..0.0), 0 underground, 3 ground-level horizontal",
+    "faces: 0 coincident duplicates removed, 22 flipped outward, 0 vertex normals re-derived",
+    "atlas 512px (k 3.10 px/m): 2 cells, 1 bands, 2 swatches; textured 83% of area"
+   ]
+  },
+  "international_commerce_building_building_dd7a83ff": {
+   "id": "international_commerce_building_building_dd7a83ff",
+   "file": "models/city/international_commerce_building_building_dd7a83ff.glb",
+   "source": "international_commerce_building_building_dd7a83ff.glb",
+   "role": "frontage",
+   "bytes": 65480,
+   "texBytes": 27622,
+   "tris": 677,
+   "drawCalls": 1,
+   "height": 100.2,
+   "atlas": 512,
+   "photoTextured": true,
+   "texturedShare": 0.96,
+   "nativeOrigin": [
+    1.5,
+    -28.5
+   ],
+   "groundOffset": 0,
+   "groundHow": "base (above patch)",
+   "footprint": [
+    [
+     -28.5,
+     1.6
+    ],
+    [
+     -25.3,
+     -7.3
+    ],
+    [
+     -16.9,
+     -22.9
+    ],
+    [
+     -8.2,
+     -38.5
+    ],
+    [
+     -3.5,
+     -45.2
+    ],
+    [
+     23.4,
+     -45.2
+    ],
+    [
+     23.4,
+     37.7
+    ],
+    [
+     -28.5,
+     37.7
+    ]
+   ],
+   "footprintArea": 3772,
+   "silhouette": [
+    [
+     [
+      -3.5,
+      -45.2
+     ],
+     [
+      -3.5,
+      -39.2
+     ],
+     [
+      -8.5,
+      -39.2
+     ],
+     [
+      -8.5,
+      -23.2
+     ],
+     [
+      -17.5,
+      -23.2
+     ],
+     [
+      -17.5,
+      -15.2
+     ],
+     [
+      -21.5,
+      -15.2
+     ],
+     [
+      -21.5,
+      -8.2
+     ],
+     [
+      -25.5,
+      -8.2
+     ],
+     [
+      -25.5,
+      0.8
+     ],
+     [
+      -28.5,
+      0.8
+     ],
+     [
+      -28.5,
+      37.8
+     ],
+     [
+      23.5,
+      37.8
+     ],
+     [
+      23.5,
+      -45.2
+     ]
+    ]
+   ],
+   "silhouetteArea": 3682,
+   "towerSilhouette": [
+    [
+     [
+      -13.5,
+      6.3
+     ],
+     [
+      -13.5,
+      7.3
+     ],
+     [
+      -24.5,
+      7.3
+     ],
+     [
+      -24.5,
+      15.3
+     ],
+     [
+      -25.5,
+      15.3
+     ],
+     [
+      -24.5,
+      34.3
+     ],
+     [
+      -13.5,
+      34.3
+     ],
+     [
+      -13.5,
+      35.3
+     ],
+     [
+      15.5,
+      34.3
+     ],
+     [
+      15.5,
+      26.3
+     ],
+     [
+      16.5,
+      26.3
+     ],
+     [
+      15.5,
+      7.3
+     ]
+    ]
+   ],
+   "flipped": 6,
+   "lat": 22.540144417757585,
+   "lon": 114.04508669797724,
+   "credit": {
+    "title": "Shenzhen International Commerce Building Building B 深圳国际商会大厦B栋",
+    "author": "David Z.",
+    "url": "https://3dwarehouse.sketchup.com/model/dd7a83fff3461a6ae9ce2b0747fa10c9",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 2 patch tris [Google Earth Snapshot1], y0 -0.00 (base (above patch), patch -0.0..0.0), 0 underground, 24 ground-level horizontal",
+    "faces: 0 coincident duplicates removed, 6 flipped outward, 0 vertex normals re-derived",
+    "atlas 512px (k 2.27 px/m): 20 cells, 2 bands, 3 swatches; textured 96% of area"
+   ]
+  },
+  "international_energy_headquarters_51b371ce": {
+   "id": "international_energy_headquarters_51b371ce",
+   "file": "models/city/international_energy_headquarters_51b371ce.glb",
+   "source": "international_energy_headquarters_51b371ce.glb",
+   "role": "frontage",
+   "bytes": 83420,
+   "texBytes": 128,
+   "tris": 2947,
+   "drawCalls": 1,
+   "height": 218,
+   "atlas": 64,
+   "photoTextured": false,
+   "texturedShare": 0,
+   "nativeOrigin": [
+    2.4,
+    31
+   ],
+   "groundOffset": 0,
+   "groundHow": "base (above patch)",
+   "footprint": [
+    [
+     -24.7,
+     34.8
+    ],
+    [
+     -24.7,
+     -50.7
+    ],
+    [
+     -15.7,
+     -82.2
+    ],
+    [
+     -15.7,
+     -82.2
+    ],
+    [
+     2.3,
+     -91.2
+    ],
+    [
+     20.3,
+     -82.2
+    ],
+    [
+     24.8,
+     -28.2
+    ],
+    [
+     20.3,
+     84.3
+    ],
+    [
+     20.2,
+     84.3
+    ],
+    [
+     19.7,
+     84.6
+    ],
+    [
+     2.3,
+     93.3
+    ],
+    [
+     2.3,
+     93.3
+    ],
+    [
+     -15.7,
+     84.3
+    ]
+   ],
+   "footprintArea": 7827,
+   "silhouette": [
+    [
+     [
+      0.3,
+      -91.2
+     ],
+     [
+      0.3,
+      -90.2
+     ],
+     [
+      -1.7,
+      -90.2
+     ],
+     [
+      -1.7,
+      -89.2
+     ],
+     [
+      -3.7,
+      -89.2
+     ],
+     [
+      -3.7,
+      -88.2
+     ],
+     [
+      -5.7,
+      -88.2
+     ],
+     [
+      -5.7,
+      -87.2
+     ],
+     [
+      -15.7,
+      -83.2
+     ],
+     [
+      -15.7,
+      -60.2
+     ],
+     [
+      -24.7,
+      -52.2
+     ],
+     [
+      -24.7,
+      -49.2
+     ],
+     [
+      -15.7,
+      -41.2
+     ],
+     [
+      -15.7,
+      25.8
+     ],
+     [
+      -24.7,
+      33.8
+     ],
+     [
+      -24.7,
+      35.8
+     ],
+     [
+      -15.7,
+      43.8
+     ],
+     [
+      -15.7,
+      84.8
+     ],
+     [
+      -4.7,
+      84.8
+     ],
+     [
+      -3.7,
+      87.8
+     ],
+     [
+      0.3,
+      90.8
+     ],
+     [
+      0.3,
+      92.8
+     ],
+     [
+      3.3,
+      93.8
+     ],
+     [
+      3.3,
+      92.8
+     ],
+     [
+      5.3,
+      92.8
+     ],
+     [
+      5.3,
+      91.8
+     ],
+     [
+      7.3,
+      91.8
+     ],
+     [
+      9.3,
+      89.8
+     ],
+     [
+      12.3,
+      89.8
+     ],
+     [
+      13.3,
+      87.8
+     ],
+     [
+      21.3,
+      84.8
+     ],
+     [
+      21.3,
+      -24.2
+     ],
+     [
+      25.3,
+      -27.2
+     ],
+     [
+      25.3,
+      -29.2
+     ],
+     [
+      21.3,
+      -32.2
+     ],
+     [
+      21.3,
+      -82.2
+     ],
+     [
+      8.3,
+      -82.2
+     ],
+     [
+      8.3,
+      -84.2
+     ],
+     [
+      6.3,
+      -85.2
+     ],
+     [
+      5.3,
+      -89.2
+     ],
+     [
+      3.3,
+      -91.2
+     ]
+    ]
+   ],
+   "silhouetteArea": 6631,
+   "towerSilhouette": [
+    [
+     [
+      -15.7,
+      -82.2
+     ],
+     [
+      -15.7,
+      -60.2
+     ],
+     [
+      -24.7,
+      -52.2
+     ],
+     [
+      -24.7,
+      -49.2
+     ],
+     [
+      -15.7,
+      -41.2
+     ],
+     [
+      -15.7,
+      -23.2
+     ],
+     [
+      11.3,
+      -23.2
+     ],
+     [
+      16.3,
+      -18.2
+     ],
+     [
+      25.3,
+      -27.2
+     ],
+     [
+      25.3,
+      -29.2
+     ],
+     [
+      21.3,
+      -32.2
+     ],
+     [
+      21.3,
+      -82.2
+     ]
+    ],
+    [
+     [
+      -15.7,
+      25.8
+     ],
+     [
+      -15.7,
+      84.8
+     ],
+     [
+      21.3,
+      84.8
+     ],
+     [
+      21.3,
+      25.8
+     ]
+    ]
+   ],
+   "flipped": 397,
+   "lat": 22.532556262027544,
+   "lon": 114.05874967575072,
+   "credit": {
+    "title": "Shenzhen International Energy Headquarters",
+    "author": "Beer M.",
+    "url": "https://3dwarehouse.sketchup.com/model/51b371ce-a224-464d-8629-4ff18bf5b68e",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 2 patch tris [Location Snapshot], y0 -0.00 (base (above patch), patch -0.0..0.0), 0 underground, 28 ground-level horizontal",
+    "faces: 106 coincident duplicates removed, 397 flipped outward, 3 vertex normals re-derived",
+    "atlas 64px (k 10.00 px/m): 0 cells, 0 bands, 5 swatches; textured 0% of area"
+   ]
+  },
+  "jialinhaoting_garden_6004d8a8": {
+   "id": "jialinhaoting_garden_6004d8a8",
+   "file": "models/city/jialinhaoting_garden_6004d8a8.glb",
+   "source": "jialinhaoting_garden_6004d8a8.glb",
+   "role": "frontage",
+   "bytes": 174996,
+   "texBytes": 29560,
+   "tris": 2792,
+   "drawCalls": 1,
+   "height": 96.8,
+   "atlas": 512,
+   "photoTextured": true,
+   "texturedShare": 0.74,
+   "nativeOrigin": [
+    3.3,
+    9.1
+   ],
+   "groundOffset": 0,
+   "groundHow": "base",
+   "footprint": [
+    [
+     -41.5,
+     -22.7
+    ],
+    [
+     -10.4,
+     -22.7
+    ],
+    [
+     41.5,
+     -22.7
+    ],
+    [
+     41.5,
+     22.7
+    ],
+    [
+     -41.5,
+     22.7
+    ]
+   ],
+   "footprintArea": 3768,
+   "silhouette": [
+    [
+     [
+      -42.5,
+      -22.7
+     ],
+     [
+      -41.5,
+      -21.7
+     ],
+     [
+      -41.5,
+      22.3
+     ],
+     [
+      -42.5,
+      23.3
+     ],
+     [
+      41.5,
+      23.3
+     ],
+     [
+      41.5,
+      -22.7
+     ]
+    ]
+   ],
+   "silhouetteArea": 3819,
+   "towerSilhouette": [
+    [
+     [
+      -31.5,
+      -6.5
+     ],
+     [
+      -31.5,
+      -3.5
+     ],
+     [
+      -41.5,
+      -3.5
+     ],
+     [
+      -41.5,
+      23.5
+     ],
+     [
+      -16.5,
+      23.5
+     ],
+     [
+      -16.5,
+      20.5
+     ],
+     [
+      -15.5,
+      21.5
+     ],
+     [
+      -5.5,
+      21.5
+     ],
+     [
+      -5.5,
+      20.5
+     ],
+     [
+      -4.5,
+      21.5
+     ],
+     [
+      15.5,
+      21.5
+     ],
+     [
+      16.5,
+      20.5
+     ],
+     [
+      16.5,
+      23.5
+     ],
+     [
+      41.5,
+      23.5
+     ],
+     [
+      41.5,
+      -3.5
+     ],
+     [
+      31.5,
+      -3.5
+     ],
+     [
+      31.5,
+      -6.5
+     ],
+     [
+      25.5,
+      -6.5
+     ],
+     [
+      25.5,
+      -3.5
+     ],
+     [
+      20.5,
+      -3.5
+     ],
+     [
+      20.5,
+      -1.5
+     ],
+     [
+      10.5,
+      -1.5
+     ],
+     [
+      10.5,
+      -3.5
+     ],
+     [
+      5.5,
+      -3.5
+     ],
+     [
+      5.5,
+      -6.5
+     ],
+     [
+      -5.5,
+      -6.5
+     ],
+     [
+      -5.5,
+      -3.5
+     ],
+     [
+      -10.5,
+      -3.5
+     ],
+     [
+      -10.5,
+      -1.5
+     ],
+     [
+      -20.5,
+      -1.5
+     ],
+     [
+      -20.5,
+      -3.5
+     ],
+     [
+      -25.5,
+      -3.5
+     ],
+     [
+      -25.5,
+      -6.5
+     ]
+    ]
+   ],
+   "flipped": 541,
+   "lat": 22.541549479433794,
+   "lon": 114.06158532350993,
+   "credit": {
+    "title": "深圳嘉麟豪庭 Shenzhen Jialinhaoting Garden(China)",
+    "author": "xz H.",
+    "url": "https://3dwarehouse.sketchup.com/model/6004d8a8f4644c2a346cbdfc8d38d7d1",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 0 patch tris [], y0 -0.00 (base), 0 underground, 2 ground-level horizontal",
+    "faces: 1 coincident duplicates removed, 541 flipped outward, 3 vertex normals re-derived",
+    "atlas 512px (k 2.74 px/m): 1 cells, 9 bands, 3 swatches; textured 74% of area"
+   ]
+  },
+  "jiang_su_building_39aa4f9b": {
+   "id": "jiang_su_building_39aa4f9b",
+   "file": "models/city/jiang_su_building_39aa4f9b.glb",
+   "source": "jiang_su_building_39aa4f9b.glb",
+   "role": "frontage",
+   "bytes": 64992,
+   "texBytes": 23802,
+   "tris": 706,
+   "drawCalls": 1,
+   "height": 239.6,
+   "atlas": 512,
+   "photoTextured": true,
+   "texturedShare": 0.83,
+   "nativeOrigin": [
+    34,
+    -9.8
+   ],
+   "groundOffset": 0,
+   "groundHow": "base (terrain patch)",
+   "footprint": [
+    [
+     -36.5,
+     -28.8
+    ],
+    [
+     -34.9,
+     -30.4
+    ],
+    [
+     -31.7,
+     -33.6
+    ],
+    [
+     -29.2,
+     -36.1
+    ],
+    [
+     24.2,
+     -36.1
+    ],
+    [
+     35.6,
+     -4.6
+    ],
+    [
+     35.6,
+     37.4
+    ],
+    [
+     -2,
+     37.4
+    ],
+    [
+     -28.2,
+     25.7
+    ],
+    [
+     -36.5,
+     17.5
+    ]
+   ],
+   "footprintArea": 4809,
+   "silhouette": [
+    [
+     [
+      -30.5,
+      -36.1
+     ],
+     [
+      -36.5,
+      -30.1
+     ],
+     [
+      -36.5,
+      18.9
+     ],
+     [
+      -29.5,
+      25.9
+     ],
+     [
+      -2.5,
+      25.9
+     ],
+     [
+      -2.5,
+      37.9
+     ],
+     [
+      36.5,
+      37.9
+     ],
+     [
+      36.5,
+      -5.1
+     ],
+     [
+      24.5,
+      -5.1
+     ],
+     [
+      24.5,
+      -36.1
+     ]
+    ]
+   ],
+   "silhouetteArea": 4580,
+   "towerSilhouette": [
+    [
+     [
+      3.4,
+      -6
+     ],
+     [
+      -0.6,
+      -5
+     ],
+     [
+      -0.6,
+      36
+     ],
+     [
+      34.4,
+      36
+     ],
+     [
+      34.4,
+      17
+     ],
+     [
+      35.4,
+      17
+     ],
+     [
+      35.4,
+      14
+     ],
+     [
+      34.4,
+      14
+     ],
+     [
+      34.4,
+      -5
+     ],
+     [
+      30.4,
+      -5
+     ],
+     [
+      30.4,
+      -6
+     ],
+     [
+      29.4,
+      -5
+     ],
+     [
+      3.4,
+      -5
+     ]
+    ]
+   ],
+   "flipped": 18,
+   "lat": 22.54907447335152,
+   "lon": 114.05056319923189,
+   "credit": {
+    "title": "Jiang Su Building 江苏大厦",
+    "author": "David Z.",
+    "url": "https://3dwarehouse.sketchup.com/model/39aa4f9be89b763e3afab28da07f9112",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 200 patch tris [Google Earth Snapshot1], y0 -0.00 (base (terrain patch), patch -3.0..4.4), 0 underground, 76 ground-level horizontal",
+    "faces: 0 coincident duplicates removed, 18 flipped outward, 0 vertex normals re-derived",
+    "atlas 512px (k 1.76 px/m): 16 cells, 5 bands, 2 swatches; textured 83% of area"
+   ]
+  },
+  "jw_jw_marriott_hotel_863002a0": {
+   "id": "jw_jw_marriott_hotel_863002a0",
+   "file": "models/city/jw_jw_marriott_hotel_863002a0.glb",
+   "source": "jw_jw_marriott_hotel_863002a0.glb",
+   "role": "frontage",
+   "bytes": 65120,
+   "texBytes": 24358,
+   "tris": 884,
+   "drawCalls": 1,
+   "height": 102.3,
+   "atlas": 512,
+   "photoTextured": false,
+   "texturedShare": 0.46,
+   "nativeOrigin": [
+    -3.2,
+    -1.5
+   ],
+   "groundOffset": -0.03,
+   "groundHow": "base (above patch)",
+   "footprint": [
+    [
+     -34.8,
+     -15.7
+    ],
+    [
+     -19.3,
+     -28
+    ],
+    [
+     19.9,
+     -36
+    ],
+    [
+     25.1,
+     -27.8
+    ],
+    [
+     35.5,
+     23.2
+    ],
+    [
+     35.5,
+     23.2
+    ],
+    [
+     -21.5,
+     34.8
+    ],
+    [
+     -24.4,
+     35.4
+    ]
+   ],
+   "footprintArea": 3640,
+   "silhouette": [
+    [
+     [
+      14.2,
+      -36
+     ],
+     [
+      14.2,
+      -35
+     ],
+     [
+      4.2,
+      -34
+     ],
+     [
+      4.2,
+      -33
+     ],
+     [
+      0.2,
+      -33
+     ],
+     [
+      0.2,
+      -32
+     ],
+     [
+      -19.8,
+      -29
+     ],
+     [
+      -18.8,
+      -19
+     ],
+     [
+      -23.8,
+      -19
+     ],
+     [
+      -23.8,
+      -18
+     ],
+     [
+      -28.8,
+      -18
+     ],
+     [
+      -28.8,
+      -17
+     ],
+     [
+      -33.8,
+      -17
+     ],
+     [
+      -34.8,
+      -16
+     ],
+     [
+      -34.8,
+      -10
+     ],
+     [
+      -33.8,
+      -10
+     ],
+     [
+      -33.8,
+      -5
+     ],
+     [
+      -32.8,
+      -5
+     ],
+     [
+      -32.8,
+      -1
+     ],
+     [
+      -31.8,
+      -1
+     ],
+     [
+      -31.8,
+      4
+     ],
+     [
+      -30.8,
+      4
+     ],
+     [
+      -30.8,
+      9
+     ],
+     [
+      -29.8,
+      9
+     ],
+     [
+      -29.8,
+      14
+     ],
+     [
+      -28.8,
+      14
+     ],
+     [
+      -28.8,
+      19
+     ],
+     [
+      -27.8,
+      19
+     ],
+     [
+      -27.8,
+      24
+     ],
+     [
+      -26.8,
+      24
+     ],
+     [
+      -26.8,
+      29
+     ],
+     [
+      -25.8,
+      29
+     ],
+     [
+      -24.8,
+      36
+     ],
+     [
+      -17.8,
+      35
+     ],
+     [
+      -17.8,
+      34
+     ],
+     [
+      -12.8,
+      34
+     ],
+     [
+      -12.8,
+      33
+     ],
+     [
+      -7.8,
+      33
+     ],
+     [
+      -7.8,
+      32
+     ],
+     [
+      -2.8,
+      32
+     ],
+     [
+      -2.8,
+      31
+     ],
+     [
+      2.2,
+      31
+     ],
+     [
+      2.2,
+      30
+     ],
+     [
+      7.2,
+      30
+     ],
+     [
+      7.2,
+      29
+     ],
+     [
+      12.2,
+      29
+     ],
+     [
+      12.2,
+      28
+     ],
+     [
+      17.2,
+      28
+     ],
+     [
+      17.2,
+      27
+     ],
+     [
+      22.2,
+      27
+     ],
+     [
+      22.2,
+      26
+     ],
+     [
+      27.2,
+      26
+     ],
+     [
+      27.2,
+      25
+     ],
+     [
+      32.2,
+      25
+     ],
+     [
+      32.2,
+      24
+     ],
+     [
+      36.2,
+      24
+     ],
+     [
+      35.2,
+      17
+     ],
+     [
+      34.2,
+      17
+     ],
+     [
+      34.2,
+      12
+     ],
+     [
+      33.2,
+      12
+     ],
+     [
+      33.2,
+      7
+     ],
+     [
+      32.2,
+      7
+     ],
+     [
+      32.2,
+      2
+     ],
+     [
+      31.2,
+      2
+     ],
+     [
+      31.2,
+      -3
+     ],
+     [
+      30.2,
+      -3
+     ],
+     [
+      30.2,
+      -8
+     ],
+     [
+      29.2,
+      -8
+     ],
+     [
+      29.2,
+      -13
+     ],
+     [
+      28.2,
+      -13
+     ],
+     [
+      28.2,
+      -18
+     ],
+     [
+      27.2,
+      -18
+     ],
+     [
+      27.2,
+      -23
+     ],
+     [
+      26.2,
+      -23
+     ],
+     [
+      26.2,
+      -27
+     ],
+     [
+      22.2,
+      -28
+     ],
+     [
+      20.2,
+      -36
+     ]
+    ]
+   ],
+   "silhouetteArea": 3681,
+   "towerSilhouette": [
+    [
+     [
+      -15.2,
+      -12.3
+     ],
+     [
+      -16.2,
+      -11.3
+     ],
+     [
+      -30.2,
+      -9.3
+     ],
+     [
+      -30.2,
+      -3.3
+     ],
+     [
+      -29.2,
+      -3.3
+     ],
+     [
+      -26.2,
+      16.7
+     ],
+     [
+      -25.2,
+      16.7
+     ],
+     [
+      -25.2,
+      20.7
+     ],
+     [
+      -24.2,
+      20.7
+     ],
+     [
+      -22.2,
+      35.7
+     ],
+     [
+      -21.2,
+      34.7
+     ],
+     [
+      -16.2,
+      34.7
+     ],
+     [
+      -16.2,
+      33.7
+     ],
+     [
+      -11.2,
+      33.7
+     ],
+     [
+      -11.2,
+      32.7
+     ],
+     [
+      -6.2,
+      32.7
+     ],
+     [
+      -6.2,
+      31.7
+     ],
+     [
+      -1.2,
+      31.7
+     ],
+     [
+      -1.2,
+      30.7
+     ],
+     [
+      3.8,
+      30.7
+     ],
+     [
+      3.8,
+      29.7
+     ],
+     [
+      8.8,
+      29.7
+     ],
+     [
+      8.8,
+      28.7
+     ],
+     [
+      13.8,
+      28.7
+     ],
+     [
+      13.8,
+      27.7
+     ],
+     [
+      27.8,
+      25.7
+     ],
+     [
+      27.8,
+      19.7
+     ],
+     [
+      26.8,
+      19.7
+     ],
+     [
+      26.8,
+      14.7
+     ],
+     [
+      25.8,
+      14.7
+     ],
+     [
+      25.8,
+      9.7
+     ],
+     [
+      24.8,
+      9.7
+     ],
+     [
+      23.8,
+      2.7
+     ],
+     [
+      16.8,
+      3.7
+     ],
+     [
+      16.8,
+      4.7
+     ],
+     [
+      11.8,
+      4.7
+     ],
+     [
+      11.8,
+      5.7
+     ],
+     [
+      6.8,
+      5.7
+     ],
+     [
+      6.8,
+      6.7
+     ],
+     [
+      1.8,
+      6.7
+     ],
+     [
+      1.8,
+      7.7
+     ],
+     [
+      -2.2,
+      7.7
+     ],
+     [
+      -5.2,
+      -12.3
+     ],
+     [
+      -11.2,
+      -12.3
+     ],
+     [
+      -11.2,
+      -11.3
+     ],
+     [
+      -15.2,
+      -11.3
+     ]
+    ]
+   ],
+   "flipped": 84,
+   "lat": 22.539235,
+   "lon": 114.027108,
+   "credit": {
+    "title": "深圳JW万豪酒店 Shenzhen JW Marriott Hotel(China)",
+    "author": "xz H.",
+    "url": "https://3dwarehouse.sketchup.com/model/863002a0190a3e1faeae74f54f27504f",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 2 patch tris [Google Earth Snapshot], y0 -0.03 (base (above patch), patch -0.0..0.0), 0 underground, 0 ground-level horizontal",
+    "faces: 12 coincident duplicates removed, 84 flipped outward, 3 vertex normals re-derived",
+    "atlas 512px (k 2.47 px/m): 6 cells, 6 bands, 9 swatches; textured 46% of area"
    ]
   },
   "kerry_construction_plaza_2_3dbc324e": {
@@ -11734,6 +15752,1038 @@
     "atlas 512px (k 2.17 px/m): 8 cells, 1 bands, 1 swatches; textured 95% of area"
    ]
   },
+  "new_world_center_d5de7168": {
+   "id": "new_world_center_d5de7168",
+   "file": "models/city/new_world_center_d5de7168.glb",
+   "source": "new_world_center_d5de7168.glb",
+   "role": "frontage",
+   "bytes": 47920,
+   "texBytes": 21294,
+   "tris": 476,
+   "drawCalls": 1,
+   "height": 238,
+   "atlas": 512,
+   "photoTextured": true,
+   "texturedShare": 1,
+   "nativeOrigin": [
+    32,
+    -25.3
+   ],
+   "groundOffset": 0,
+   "groundHow": "base",
+   "footprint": [
+    [
+     -27.3,
+     14.4
+    ],
+    [
+     -27.3,
+     6.2
+    ],
+    [
+     -22.3,
+     -20.4
+    ],
+    [
+     20,
+     -20.4
+    ],
+    [
+     21.7,
+     -13.7
+    ],
+    [
+     26.7,
+     6.2
+    ],
+    [
+     26.7,
+     16
+    ],
+    [
+     25.3,
+     18.6
+    ],
+    [
+     23,
+     20.4
+    ],
+    [
+     20.1,
+     21.1
+    ],
+    [
+     -27.3,
+     16
+    ]
+   ],
+   "footprintArea": 1955,
+   "silhouette": [
+    [
+     [
+      -23.3,
+      -20.4
+     ],
+     [
+      -23.3,
+      -15.4
+     ],
+     [
+      -24.3,
+      -15.4
+     ],
+     [
+      -24.3,
+      -10.4
+     ],
+     [
+      -25.3,
+      -10.4
+     ],
+     [
+      -25.3,
+      -5.4
+     ],
+     [
+      -26.3,
+      -5.4
+     ],
+     [
+      -26.3,
+      0.6
+     ],
+     [
+      -27.3,
+      0.6
+     ],
+     [
+      -27.3,
+      16.6
+     ],
+     [
+      0.7,
+      16.6
+     ],
+     [
+      0.7,
+      18.6
+     ],
+     [
+      6.7,
+      18.6
+     ],
+     [
+      6.7,
+      17.6
+     ],
+     [
+      12.7,
+      17.6
+     ],
+     [
+      13.7,
+      16.6
+     ],
+     [
+      13.7,
+      18.6
+     ],
+     [
+      15.7,
+      20.6
+     ],
+     [
+      17.7,
+      20.6
+     ],
+     [
+      17.7,
+      21.6
+     ],
+     [
+      22.7,
+      21.6
+     ],
+     [
+      22.7,
+      20.6
+     ],
+     [
+      24.7,
+      20.6
+     ],
+     [
+      26.7,
+      18.6
+     ],
+     [
+      26.7,
+      2.6
+     ],
+     [
+      25.7,
+      2.6
+     ],
+     [
+      25.7,
+      -2.4
+     ],
+     [
+      24.7,
+      -2.4
+     ],
+     [
+      24.7,
+      -6.4
+     ],
+     [
+      23.7,
+      -6.4
+     ],
+     [
+      23.7,
+      -9.4
+     ],
+     [
+      22.7,
+      -9.4
+     ],
+     [
+      20.7,
+      -20.4
+     ]
+    ]
+   ],
+   "silhouetteArea": 1942,
+   "towerSilhouette": [
+    [
+     [
+      -23.3,
+      -20.4
+     ],
+     [
+      -23.3,
+      -15.4
+     ],
+     [
+      -24.3,
+      -15.4
+     ],
+     [
+      -24.3,
+      -10.4
+     ],
+     [
+      -25.3,
+      -10.4
+     ],
+     [
+      -25.3,
+      -5.4
+     ],
+     [
+      -26.3,
+      -5.4
+     ],
+     [
+      -26.3,
+      0.6
+     ],
+     [
+      -27.3,
+      0.6
+     ],
+     [
+      -27.3,
+      16.6
+     ],
+     [
+      0.7,
+      16.6
+     ],
+     [
+      0.7,
+      18.6
+     ],
+     [
+      6.7,
+      18.6
+     ],
+     [
+      6.7,
+      17.6
+     ],
+     [
+      12.7,
+      17.6
+     ],
+     [
+      12.7,
+      16.6
+     ],
+     [
+      26.7,
+      16.6
+     ],
+     [
+      26.7,
+      2.6
+     ],
+     [
+      25.7,
+      2.6
+     ],
+     [
+      25.7,
+      -2.4
+     ],
+     [
+      24.7,
+      -2.4
+     ],
+     [
+      24.7,
+      -6.4
+     ],
+     [
+      23.7,
+      -6.4
+     ],
+     [
+      23.7,
+      -9.4
+     ],
+     [
+      22.7,
+      -9.4
+     ],
+     [
+      20.7,
+      -20.4
+     ]
+    ]
+   ],
+   "flipped": 77,
+   "lat": 22.54812793008844,
+   "lon": 114.05058673997101,
+   "credit": {
+    "title": "New  World Center ShenZhen",
+    "author": "Daniel G.",
+    "url": "https://3dwarehouse.sketchup.com/model/d5de71688da390ed782119775fa7d6d8",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 0 patch tris [], y0 -0.00 (base), 0 underground, 49 ground-level horizontal",
+    "faces: 0 coincident duplicates removed, 77 flipped outward, 0 vertex normals re-derived",
+    "atlas 512px (k 0.81 px/m): 6 cells, 2 bands, 1 swatches; textured 100% of area"
+   ]
+  },
+  "novotel_bauhinia_554fbce1": {
+   "id": "novotel_bauhinia_554fbce1",
+   "file": "models/city/novotel_bauhinia_554fbce1.glb",
+   "source": "novotel_bauhinia_554fbce1.glb",
+   "role": "frontage",
+   "bytes": 164548,
+   "texBytes": 18870,
+   "tris": 2810,
+   "drawCalls": 1,
+   "height": 23.2,
+   "atlas": 512,
+   "photoTextured": true,
+   "texturedShare": 0.7,
+   "nativeOrigin": [
+    -3.1,
+    -3.5
+   ],
+   "groundOffset": 0,
+   "groundHow": "patch",
+   "footprint": [
+    [
+     -58.2,
+     -38.5
+    ],
+    [
+     -40.4,
+     -41.6
+    ],
+    [
+     71.9,
+     -2.6
+    ],
+    [
+     72.9,
+     22.9
+    ],
+    [
+     72.9,
+     22.9
+    ],
+    [
+     1,
+     29.8
+    ],
+    [
+     -14.9,
+     30.4
+    ],
+    [
+     -46.7,
+     29.5
+    ],
+    [
+     -48.2,
+     20.6
+    ],
+    [
+     -55.7,
+     -23.3
+    ],
+    [
+     -56.9,
+     -30.7
+    ],
+    [
+     -58.2,
+     -38.1
+    ],
+    [
+     -58.2,
+     -38.5
+    ]
+   ],
+   "footprintArea": 6460,
+   "silhouette": [
+    [
+     [
+      -46.2,
+      -41.6
+     ],
+     [
+      -46.2,
+      -40.6
+     ],
+     [
+      -58.2,
+      -39.6
+     ],
+     [
+      -58.2,
+      -32.6
+     ],
+     [
+      -57.2,
+      -32.6
+     ],
+     [
+      -57.2,
+      -26.6
+     ],
+     [
+      -56.2,
+      -26.6
+     ],
+     [
+      -56.2,
+      -20.6
+     ],
+     [
+      -55.2,
+      -20.6
+     ],
+     [
+      -55.2,
+      -14.6
+     ],
+     [
+      -54.2,
+      -14.6
+     ],
+     [
+      -54.2,
+      -8.6
+     ],
+     [
+      -53.2,
+      -8.6
+     ],
+     [
+      -53.2,
+      -2.6
+     ],
+     [
+      -52.2,
+      -2.6
+     ],
+     [
+      -52.2,
+      3.4
+     ],
+     [
+      -51.2,
+      3.4
+     ],
+     [
+      -51.2,
+      9.4
+     ],
+     [
+      -50.2,
+      9.4
+     ],
+     [
+      -50.2,
+      15.4
+     ],
+     [
+      -49.2,
+      15.4
+     ],
+     [
+      -47.2,
+      30.4
+     ],
+     [
+      -46.2,
+      29.4
+     ],
+     [
+      -40.2,
+      29.4
+     ],
+     [
+      -40.2,
+      28.4
+     ],
+     [
+      -34.2,
+      28.4
+     ],
+     [
+      -34.2,
+      27.4
+     ],
+     [
+      -31.2,
+      27.4
+     ],
+     [
+      -31.2,
+      26.4
+     ],
+     [
+      -28.2,
+      27.4
+     ],
+     [
+      -29.2,
+      18.4
+     ],
+     [
+      -30.2,
+      18.4
+     ],
+     [
+      -30.2,
+      12.4
+     ],
+     [
+      -31.2,
+      12.4
+     ],
+     [
+      -31.2,
+      6.4
+     ],
+     [
+      -32.2,
+      6.4
+     ],
+     [
+      -32.2,
+      4.4
+     ],
+     [
+      -28.2,
+      4.4
+     ],
+     [
+      -28.2,
+      3.4
+     ],
+     [
+      -26.2,
+      3.4
+     ],
+     [
+      -26.2,
+      21.4
+     ],
+     [
+      -25.2,
+      21.4
+     ],
+     [
+      -25.2,
+      25.4
+     ],
+     [
+      -15.2,
+      25.4
+     ],
+     [
+      -15.2,
+      30.4
+     ],
+     [
+      1.8,
+      30.4
+     ],
+     [
+      1.8,
+      24.4
+     ],
+     [
+      11.8,
+      24.4
+     ],
+     [
+      11.8,
+      23.4
+     ],
+     [
+      25.8,
+      23.4
+     ],
+     [
+      25.8,
+      25.4
+     ],
+     [
+      73.8,
+      23.4
+     ],
+     [
+      73.8,
+      18.4
+     ],
+     [
+      72.8,
+      18.4
+     ],
+     [
+      72.8,
+      -3.6
+     ],
+     [
+      71.8,
+      -2.6
+     ],
+     [
+      45.8,
+      -2.6
+     ],
+     [
+      45.8,
+      -1.6
+     ],
+     [
+      20.8,
+      -1.6
+     ],
+     [
+      20.8,
+      -0.6
+     ],
+     [
+      -4.2,
+      -0.6
+     ],
+     [
+      -4.2,
+      0.4
+     ],
+     [
+      -27.2,
+      0.4
+     ],
+     [
+      -27.2,
+      1.4
+     ],
+     [
+      -32.2,
+      1.4
+     ],
+     [
+      -33.2,
+      0.4
+     ],
+     [
+      -33.2,
+      -5.6
+     ],
+     [
+      -34.2,
+      -5.6
+     ],
+     [
+      -34.2,
+      -11.6
+     ],
+     [
+      -35.2,
+      -11.6
+     ],
+     [
+      -35.2,
+      -17.6
+     ],
+     [
+      -36.2,
+      -17.6
+     ],
+     [
+      -36.2,
+      -23.6
+     ],
+     [
+      -37.2,
+      -23.6
+     ],
+     [
+      -37.2,
+      -29.6
+     ],
+     [
+      -38.2,
+      -29.6
+     ],
+     [
+      -38.2,
+      -35.6
+     ],
+     [
+      -39.2,
+      -35.6
+     ],
+     [
+      -39.2,
+      -41.6
+     ]
+    ]
+   ],
+   "silhouetteArea": 3994,
+   "towerSilhouette": [
+    [
+     [
+      -46.2,
+      -41.6
+     ],
+     [
+      -46.2,
+      -40.6
+     ],
+     [
+      -58.2,
+      -39.6
+     ],
+     [
+      -58.2,
+      -32.6
+     ],
+     [
+      -57.2,
+      -32.6
+     ],
+     [
+      -57.2,
+      -26.6
+     ],
+     [
+      -56.2,
+      -26.6
+     ],
+     [
+      -56.2,
+      -20.6
+     ],
+     [
+      -55.2,
+      -20.6
+     ],
+     [
+      -55.2,
+      -14.6
+     ],
+     [
+      -54.2,
+      -14.6
+     ],
+     [
+      -54.2,
+      -8.6
+     ],
+     [
+      -53.2,
+      -8.6
+     ],
+     [
+      -53.2,
+      -2.6
+     ],
+     [
+      -52.2,
+      -2.6
+     ],
+     [
+      -52.2,
+      3.4
+     ],
+     [
+      -51.2,
+      3.4
+     ],
+     [
+      -51.2,
+      9.4
+     ],
+     [
+      -50.2,
+      9.4
+     ],
+     [
+      -50.2,
+      15.4
+     ],
+     [
+      -49.2,
+      15.4
+     ],
+     [
+      -47.2,
+      30.4
+     ],
+     [
+      -46.2,
+      29.4
+     ],
+     [
+      -40.2,
+      29.4
+     ],
+     [
+      -40.2,
+      28.4
+     ],
+     [
+      -34.2,
+      28.4
+     ],
+     [
+      -35.2,
+      24.4
+     ],
+     [
+      -29.2,
+      23.4
+     ],
+     [
+      -29.2,
+      18.4
+     ],
+     [
+      -30.2,
+      18.4
+     ],
+     [
+      -30.2,
+      12.4
+     ],
+     [
+      -31.2,
+      12.4
+     ],
+     [
+      -32.2,
+      4.4
+     ],
+     [
+      -28.2,
+      4.4
+     ],
+     [
+      -28.2,
+      3.4
+     ],
+     [
+      -26.2,
+      3.4
+     ],
+     [
+      -26.2,
+      21.4
+     ],
+     [
+      -25.2,
+      21.4
+     ],
+     [
+      -25.2,
+      24.4
+     ],
+     [
+      -19.2,
+      24.4
+     ],
+     [
+      -19.2,
+      23.4
+     ],
+     [
+      15.8,
+      23.4
+     ],
+     [
+      15.8,
+      22.4
+     ],
+     [
+      39.8,
+      22.4
+     ],
+     [
+      39.8,
+      24.4
+     ],
+     [
+      73.8,
+      23.4
+     ],
+     [
+      73.8,
+      18.4
+     ],
+     [
+      72.8,
+      18.4
+     ],
+     [
+      72.8,
+      -3.6
+     ],
+     [
+      71.8,
+      -2.6
+     ],
+     [
+      45.8,
+      -2.6
+     ],
+     [
+      45.8,
+      -1.6
+     ],
+     [
+      20.8,
+      -1.6
+     ],
+     [
+      20.8,
+      -0.6
+     ],
+     [
+      -4.2,
+      -0.6
+     ],
+     [
+      -4.2,
+      0.4
+     ],
+     [
+      -27.2,
+      0.4
+     ],
+     [
+      -27.2,
+      1.4
+     ],
+     [
+      -32.2,
+      1.4
+     ],
+     [
+      -33.2,
+      0.4
+     ],
+     [
+      -33.2,
+      -5.6
+     ],
+     [
+      -34.2,
+      -5.6
+     ],
+     [
+      -34.2,
+      -11.6
+     ],
+     [
+      -35.2,
+      -11.6
+     ],
+     [
+      -35.2,
+      -17.6
+     ],
+     [
+      -36.2,
+      -17.6
+     ],
+     [
+      -36.2,
+      -23.6
+     ],
+     [
+      -37.2,
+      -23.6
+     ],
+     [
+      -37.2,
+      -29.6
+     ],
+     [
+      -38.2,
+      -29.6
+     ],
+     [
+      -38.2,
+      -35.6
+     ],
+     [
+      -39.2,
+      -35.6
+     ],
+     [
+      -39.2,
+      -41.6
+     ]
+    ]
+   ],
+   "flipped": 197,
+   "lat": 22.539022,
+   "lon": 113.993081,
+   "credit": {
+    "title": "深圳博林诺富特酒店 Novotel Bauhinia ShenZhen(China)",
+    "author": "xz H.",
+    "url": "https://3dwarehouse.sketchup.com/model/554fbce12403cf05aeae74f54f27504f",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 2 patch tris [Google Earth Snapshot], y0 0.00 (patch, patch -0.0..0.0), 629 underground, 0 ground-level horizontal",
+    "faces: 0 coincident duplicates removed, 197 flipped outward, 48 vertex normals re-derived",
+    "atlas 512px (k 2.33 px/m): 9 cells, 5 bands, 6 swatches; textured 70% of area"
+   ]
+  },
   "oct_tower_dc36d710": {
    "id": "oct_tower_dc36d710",
    "file": "models/city/oct_tower_dc36d710.glb",
@@ -12692,6 +17742,204 @@
     "ground: 2 patch tris [Location Snapshot], y0 -0.00 (base (above patch), patch -0.0..0.0), 0 underground, 30 ground-level horizontal",
     "faces: 0 coincident duplicates removed, 2 flipped outward, 6 vertex normals re-derived",
     "atlas 512px (k 2.12 px/m): 0 cells, 1 bands, 4 swatches; textured 22% of area"
+   ]
+  },
+  "ping_an_auto_finance_building_2a4d36d0": {
+   "id": "ping_an_auto_finance_building_2a4d36d0",
+   "file": "models/city/ping_an_auto_finance_building_2a4d36d0.glb",
+   "source": "ping_an_auto_finance_building_2a4d36d0.glb",
+   "role": "frontage",
+   "bytes": 63424,
+   "texBytes": 2646,
+   "tris": 1067,
+   "drawCalls": 1,
+   "height": 213,
+   "atlas": 512,
+   "photoTextured": false,
+   "texturedShare": 0.83,
+   "nativeOrigin": [
+    0.6,
+    -0.1
+   ],
+   "groundOffset": 0,
+   "groundHow": "base (above patch)",
+   "footprint": [
+    [
+     -22.5,
+     -18.5
+    ],
+    [
+     -22.5,
+     -18.5
+    ],
+    [
+     -21.5,
+     -19.4
+    ],
+    [
+     -18.5,
+     -22.5
+    ],
+    [
+     18.5,
+     -22.5
+    ],
+    [
+     22.5,
+     -18.5
+    ],
+    [
+     22.5,
+     18.5
+    ],
+    [
+     19.4,
+     21.5
+    ],
+    [
+     18.5,
+     22.5
+    ],
+    [
+     -18.5,
+     22.5
+    ],
+    [
+     -19.4,
+     21.5
+    ],
+    [
+     -21.5,
+     19.4
+    ],
+    [
+     -22.5,
+     18.5
+    ],
+    [
+     -22.5,
+     -18.5
+    ]
+   ],
+   "footprintArea": 1992,
+   "silhouette": [
+    [
+     [
+      -19.5,
+      -22.5
+     ],
+     [
+      -19.5,
+      -20.5
+     ],
+     [
+      -22.5,
+      -19.5
+     ],
+     [
+      -22.5,
+      19.5
+     ],
+     [
+      -20.5,
+      19.5
+     ],
+     [
+      -18.5,
+      23.5
+     ],
+     [
+      18.5,
+      23.5
+     ],
+     [
+      19.5,
+      20.5
+     ],
+     [
+      23.5,
+      18.5
+     ],
+     [
+      23.5,
+      -18.5
+     ],
+     [
+      20.5,
+      -19.5
+     ],
+     [
+      19.5,
+      -22.5
+     ]
+    ]
+   ],
+   "silhouetteArea": 2067,
+   "towerSilhouette": [
+    [
+     [
+      -19.5,
+      -22.5
+     ],
+     [
+      -19.5,
+      -20.5
+     ],
+     [
+      -22.5,
+      -19.5
+     ],
+     [
+      -22.5,
+      19.5
+     ],
+     [
+      -20.5,
+      19.5
+     ],
+     [
+      -18.5,
+      23.5
+     ],
+     [
+      18.5,
+      23.5
+     ],
+     [
+      19.5,
+      20.5
+     ],
+     [
+      23.5,
+      18.5
+     ],
+     [
+      23.5,
+      -18.5
+     ],
+     [
+      20.5,
+      -19.5
+     ],
+     [
+      19.5,
+      -22.5
+     ]
+    ]
+   ],
+   "flipped": 12,
+   "lat": 22.532950173146507,
+   "lon": 114.05052065849304,
+   "credit": {
+    "title": "Shenzhen-Ping An Auto Finance Building",
+    "author": "Beer M.",
+    "url": "https://3dwarehouse.sketchup.com/model/2a4d36d0-923b-428c-a71d-62e9f30a039d",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 2 patch tris [Location Snapshot], y0 -0.00 (base (above patch), patch -0.0..0.0), 0 underground, 38 ground-level horizontal",
+    "faces: 0 coincident duplicates removed, 12 flipped outward, 45 vertex normals re-derived",
+    "atlas 512px (k 1.86 px/m): 0 cells, 2 bands, 3 swatches; textured 83% of area"
    ]
   },
   "ping_an_finance_center_503ec42e": {
@@ -14166,6 +19414,284 @@
     "atlas 64px (k 10.00 px/m): 0 cells, 1 bands, 7 swatches; textured 11% of area"
    ]
   },
+  "r_d_center_via_technologies_co_ltd_3ab111d1": {
+   "id": "r_d_center_via_technologies_co_ltd_3ab111d1",
+   "file": "models/city/r_d_center_via_technologies_co_ltd_3ab111d1.glb",
+   "source": "r_d_center_via_technologies_co_ltd_3ab111d1.glb",
+   "role": "frontage",
+   "bytes": 21828,
+   "texBytes": 16986,
+   "tris": 48,
+   "drawCalls": 1,
+   "height": 159,
+   "atlas": 512,
+   "photoTextured": true,
+   "texturedShare": 1,
+   "nativeOrigin": [
+    7.2,
+    -22.6
+   ],
+   "groundOffset": -3.99,
+   "groundHow": "base",
+   "footprint": [
+    [
+     -42,
+     -12.3
+    ],
+    [
+     -37.6,
+     -22.7
+    ],
+    [
+     26.8,
+     -27.7
+    ],
+    [
+     36.2,
+     -27.7
+    ],
+    [
+     40,
+     21.1
+    ],
+    [
+     40,
+     21.1
+    ],
+    [
+     23,
+     24.6
+    ],
+    [
+     -32.5,
+     28.7
+    ],
+    [
+     -42,
+     -12.3
+    ]
+   ],
+   "footprintArea": 3918,
+   "silhouette": [
+    [
+     [
+      27,
+      -28.7
+     ],
+     [
+      26,
+      -27.7
+     ],
+     [
+      14,
+      -27.7
+     ],
+     [
+      14,
+      -26.7
+     ],
+     [
+      -11,
+      -25.7
+     ],
+     [
+      -11,
+      -24.7
+     ],
+     [
+      -37,
+      -23.7
+     ],
+     [
+      -38,
+      -22.7
+     ],
+     [
+      -38,
+      -14.7
+     ],
+     [
+      -37,
+      -14.7
+     ],
+     [
+      -37,
+      -12.7
+     ],
+     [
+      -42,
+      -12.7
+     ],
+     [
+      -42,
+      -7.7
+     ],
+     [
+      -41,
+      -7.7
+     ],
+     [
+      -40,
+      1.3
+     ],
+     [
+      -39,
+      1.3
+     ],
+     [
+      -39,
+      4.3
+     ],
+     [
+      -38,
+      4.3
+     ],
+     [
+      -38,
+      9.3
+     ],
+     [
+      -37,
+      9.3
+     ],
+     [
+      -37,
+      13.3
+     ],
+     [
+      -36,
+      13.3
+     ],
+     [
+      -33,
+      29.3
+     ],
+     [
+      -13,
+      28.3
+     ],
+     [
+      -13,
+      27.3
+     ],
+     [
+      1,
+      27.3
+     ],
+     [
+      1,
+      26.3
+     ],
+     [
+      14,
+      26.3
+     ],
+     [
+      14,
+      25.3
+     ],
+     [
+      23,
+      25.3
+     ],
+     [
+      23,
+      23.3
+     ],
+     [
+      25,
+      23.3
+     ],
+     [
+      25,
+      22.3
+     ],
+     [
+      38,
+      22.3
+     ],
+     [
+      38,
+      21.3
+     ],
+     [
+      40,
+      21.3
+     ],
+     [
+      40,
+      8.3
+     ],
+     [
+      39,
+      8.3
+     ],
+     [
+      37,
+      -27.7
+     ],
+     [
+      27,
+      -27.7
+     ]
+    ]
+   ],
+   "silhouetteArea": 3993,
+   "towerSilhouette": [
+    [
+     [
+      27.4,
+      -28.7
+     ],
+     [
+      26.4,
+      -27.7
+     ],
+     [
+      1.4,
+      -26.7
+     ],
+     [
+      1.4,
+      -25.7
+     ],
+     [
+      -37.6,
+      -23.7
+     ],
+     [
+      -37.6,
+      -11.7
+     ],
+     [
+      -29.6,
+      -11.7
+     ],
+     [
+      -27.6,
+      20.3
+     ],
+     [
+      30.4,
+      15.3
+     ]
+    ]
+   ],
+   "flipped": 0,
+   "lat": 22.54350798206,
+   "lon": 113.9351255445,
+   "credit": {
+    "title": "威盛深圳創新設計中心,Shenzhen R&D Center, VIA Technologies(Shenzhen) Co., Ltd",
+    "author": "JJ P.",
+    "url": "https://3dwarehouse.sketchup.com/model/3ab111d18ac40c84fd3ecd39650e2ce3",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 0 patch tris [], y0 -3.99 (base), 0 underground, 0 ground-level horizontal",
+    "faces: 0 coincident duplicates removed, 0 flipped outward, 0 vertex normals re-derived",
+    "atlas 512px (k 1.76 px/m): 1 cells, 0 bands, 0 swatches, alpha cutouts; textured 100% of area"
+   ]
+  },
   "resources_tower_abfd8c29": {
    "id": "resources_tower_abfd8c29",
    "file": "models/city/resources_tower_abfd8c29.glb",
@@ -14984,6 +20510,270 @@
     "atlas 512px (k 1.39 px/m): 20 cells, 1 bands, 4 swatches; textured 86% of area"
    ]
   },
+  "rongchao_center_14bd6560": {
+   "id": "rongchao_center_14bd6560",
+   "file": "models/city/rongchao_center_14bd6560.glb",
+   "source": "rongchao_center_14bd6560.glb",
+   "role": "frontage",
+   "bytes": 92272,
+   "texBytes": 36336,
+   "tris": 983,
+   "drawCalls": 1,
+   "height": 193.3,
+   "atlas": 512,
+   "photoTextured": false,
+   "texturedShare": 0.35,
+   "nativeOrigin": [
+    37.8,
+    -3
+   ],
+   "groundOffset": 0,
+   "groundHow": "base (above patch)",
+   "footprint": [
+    [
+     -28.1,
+     -49.5
+    ],
+    [
+     -20,
+     -66.8
+    ],
+    [
+     -19.2,
+     -67.3
+    ],
+    [
+     -18.8,
+     -67.6
+    ],
+    [
+     -18.3,
+     -67.9
+    ],
+    [
+     -17.8,
+     -68
+    ],
+    [
+     -17.3,
+     -68.1
+    ],
+    [
+     -16.8,
+     -68.2
+    ],
+    [
+     -5.4,
+     -68.8
+    ],
+    [
+     30.7,
+     -68.8
+    ],
+    [
+     36,
+     -68.2
+    ],
+    [
+     36,
+     -50.8
+    ],
+    [
+     36,
+     -50.1
+    ],
+    [
+     13.9,
+     78.8
+    ],
+    [
+     -26.9,
+     78.8
+    ],
+    [
+     -28.1,
+     11.7
+    ]
+   ],
+   "footprintArea": 7902,
+   "silhouette": [
+    [
+     [
+      -19.1,
+      -68.8
+     ],
+     [
+      -21.1,
+      -66.8
+     ],
+     [
+      -21.1,
+      -51.8
+     ],
+     [
+      -27.1,
+      -51.8
+     ],
+     [
+      -28.1,
+      -50.8
+     ],
+     [
+      -28.1,
+      13.2
+     ],
+     [
+      4.9,
+      13.2
+     ],
+     [
+      4.9,
+      37.2
+     ],
+     [
+      -27.1,
+      37.2
+     ],
+     [
+      -27.1,
+      79.2
+     ],
+     [
+      13.9,
+      79.2
+     ],
+     [
+      13.9,
+      37.2
+     ],
+     [
+      10.9,
+      37.2
+     ],
+     [
+      10.9,
+      13.2
+     ],
+     [
+      20.9,
+      13.2
+     ],
+     [
+      22.9,
+      11.2
+     ],
+     [
+      22.9,
+      -43.8
+     ],
+     [
+      30.9,
+      -43.8
+     ],
+     [
+      30.9,
+      -44.8
+     ],
+     [
+      34.9,
+      -45.8
+     ],
+     [
+      34.9,
+      -47.8
+     ],
+     [
+      36.9,
+      -49.8
+     ],
+     [
+      36.9,
+      -68.8
+     ]
+    ]
+   ],
+   "silhouetteArea": 6259,
+   "towerSilhouette": [
+    [
+     [
+      -18.9,
+      -68.8
+     ],
+     [
+      -20.9,
+      -66.8
+     ],
+     [
+      -20.9,
+      -44.8
+     ],
+     [
+      -8.9,
+      -44.8
+     ],
+     [
+      -8.9,
+      -43.8
+     ],
+     [
+      31.1,
+      -43.8
+     ],
+     [
+      31.1,
+      -44.8
+     ],
+     [
+      35.1,
+      -45.8
+     ],
+     [
+      35.1,
+      -47.8
+     ],
+     [
+      36.1,
+      -47.8
+     ],
+     [
+      36.1,
+      -68.8
+     ]
+    ],
+    [
+     [
+      -26.9,
+      37.2
+     ],
+     [
+      -26.9,
+      79.2
+     ],
+     [
+      14.1,
+      79.2
+     ],
+     [
+      14.1,
+      37.2
+     ]
+    ]
+   ],
+   "flipped": 27,
+   "lat": 22.546395997616855,
+   "lon": 114.05062664794141,
+   "credit": {
+    "title": "RongChao  Center 荣超中心",
+    "author": "David Z.",
+    "url": "https://3dwarehouse.sketchup.com/model/14bd656069c57ac6cca165dd51caaddd",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 2 patch tris [Google Earth Snapshot1], y0 -0.00 (base (above patch), patch -0.0..0.0), 0 underground, 71 ground-level horizontal",
+    "faces: 0 coincident duplicates removed, 27 flipped outward, 0 vertex normals re-derived",
+    "atlas 512px (k 1.86 px/m): 7 cells, 6 bands, 6 swatches; textured 35% of area"
+   ]
+  },
   "special_zone_daily_tower_2f0fbb8d": {
    "id": "special_zone_daily_tower_2f0fbb8d",
    "file": "models/city/special_zone_daily_tower_2f0fbb8d.glb",
@@ -15478,6 +21268,172 @@
     "ground: 0 patch tris [], y0 0.00 (base), 0 underground, 0 ground-level horizontal",
     "faces: 0 coincident duplicates removed, 2 flipped outward, 0 vertex normals re-derived",
     "atlas 1024px (k 2.42 px/m): 6 cells, 2 bands, 0 swatches; textured 100% of area"
+   ]
+  },
+  "temeisi_building_1a923979": {
+   "id": "temeisi_building_1a923979",
+   "file": "models/city/temeisi_building_1a923979.glb",
+   "source": "temeisi_building_1a923979.glb",
+   "role": "frontage",
+   "bytes": 60700,
+   "texBytes": 40248,
+   "tris": 338,
+   "drawCalls": 1,
+   "height": 159.3,
+   "atlas": 512,
+   "photoTextured": true,
+   "texturedShare": 0.96,
+   "nativeOrigin": [
+    11.9,
+    -10.5
+   ],
+   "groundOffset": 0,
+   "groundHow": "base",
+   "footprint": [
+    [
+     -47.7,
+     -32.7
+    ],
+    [
+     43.8,
+     -32.7
+    ],
+    [
+     43.8,
+     34.3
+    ],
+    [
+     36.7,
+     34.3
+    ],
+    [
+     16,
+     34.3
+    ],
+    [
+     -36.4,
+     34.3
+    ],
+    [
+     -47.7,
+     -13.7
+    ]
+   ],
+   "footprintArea": 5859,
+   "silhouette": [
+    [
+     [
+      -48.7,
+      -32.7
+     ],
+     [
+      -47.7,
+      -31.7
+     ],
+     [
+      -47.7,
+      -13.7
+     ],
+     [
+      -20.7,
+      -13.7
+     ],
+     [
+      -20.7,
+      12.3
+     ],
+     [
+      -36.7,
+      12.3
+     ],
+     [
+      -36.7,
+      35.3
+     ],
+     [
+      44.3,
+      35.3
+     ],
+     [
+      44.3,
+      -0.7
+     ],
+     [
+      18.3,
+      -0.7
+     ],
+     [
+      18.3,
+      -5.7
+     ],
+     [
+      44.3,
+      -5.7
+     ],
+     [
+      44.3,
+      -32.7
+     ]
+    ]
+   ],
+   "silhouetteArea": 5172,
+   "towerSilhouette": [
+    [
+     [
+      9,
+      -0.5
+     ],
+     [
+      9,
+      33.5
+     ],
+     [
+      16,
+      33.5
+     ],
+     [
+      16,
+      34.5
+     ],
+     [
+      37,
+      34.5
+     ],
+     [
+      37,
+      33.5
+     ],
+     [
+      43,
+      33.5
+     ],
+     [
+      43,
+      27.5
+     ],
+     [
+      44,
+      27.5
+     ],
+     [
+      43,
+      -0.5
+     ]
+    ]
+   ],
+   "flipped": 140,
+   "lat": 22.539992512957046,
+   "lon": 114.04847929293437,
+   "credit": {
+    "title": "深圳特美思大厦 Shenzhen Temeisi Building(China)",
+    "author": "xz H.",
+    "url": "https://3dwarehouse.sketchup.com/model/1a923979c53a4f7f3af078df17b76f13",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 0 patch tris [], y0 -0.00 (base), 0 underground, 0 ground-level horizontal",
+    "faces: 0 coincident duplicates removed, 140 flipped outward, 0 vertex normals re-derived",
+    "atlas 512px (k 3.01 px/m): 4 cells, 0 bands, 2 swatches; textured 96% of area"
    ]
   },
   "tencent_1c412809": {
@@ -16842,6 +22798,1348 @@
     "ground: 200 patch tris [Google Earth Snapshot1], y0 0.06 (base (terrain patch), patch -3.2..10.3), 0 underground, 0 ground-level horizontal",
     "faces: 0 coincident duplicates removed, 46 flipped outward, 0 vertex normals re-derived",
     "atlas 512px (k 2.79 px/m): 9 cells, 1 bands, 2 swatches, alpha cutouts; textured 90% of area"
+   ]
+  },
+  "university_science_and_technology_buildi_2cfdf5a0": {
+   "id": "university_science_and_technology_buildi_2cfdf5a0",
+   "file": "models/city/university_science_and_technology_buildi_2cfdf5a0.glb",
+   "source": "university_science_and_technology_buildi_2cfdf5a0.glb",
+   "role": "frontage",
+   "bytes": 57684,
+   "texBytes": 38588,
+   "tris": 309,
+   "drawCalls": 1,
+   "height": 94.8,
+   "atlas": 512,
+   "photoTextured": false,
+   "texturedShare": 0.42,
+   "nativeOrigin": [
+    4,
+    -5.3
+   ],
+   "groundOffset": 0,
+   "groundHow": "base (above patch)",
+   "footprint": [
+    [
+     -54.5,
+     -27.8
+    ],
+    [
+     51,
+     -33.9
+    ],
+    [
+     54.5,
+     27.8
+    ],
+    [
+     54.5,
+     27.8
+    ],
+    [
+     18.5,
+     29.9
+    ],
+    [
+     -24.6,
+     32.4
+    ],
+    [
+     -51,
+     33.9
+    ],
+    [
+     -54.5,
+     -27.8
+    ]
+   ],
+   "footprintArea": 6532,
+   "silhouette": [
+    [
+     [
+      51.5,
+      -34.9
+     ],
+     [
+      50.5,
+      -33.9
+     ],
+     [
+      33.5,
+      -33.9
+     ],
+     [
+      33.5,
+      -32.9
+     ],
+     [
+      -1.5,
+      -31.9
+     ],
+     [
+      -1.5,
+      -30.9
+     ],
+     [
+      -18.5,
+      -30.9
+     ],
+     [
+      -18.5,
+      -29.9
+     ],
+     [
+      -36.5,
+      -29.9
+     ],
+     [
+      -36.5,
+      -28.9
+     ],
+     [
+      -53.5,
+      -28.9
+     ],
+     [
+      -53.5,
+      -27.9
+     ],
+     [
+      -55.5,
+      -27.9
+     ],
+     [
+      -54.5,
+      -26.9
+     ],
+     [
+      -54.5,
+      -10.9
+     ],
+     [
+      -53.5,
+      -10.9
+     ],
+     [
+      -53.5,
+      7.1
+     ],
+     [
+      -52.5,
+      7.1
+     ],
+     [
+      -51.5,
+      34.1
+     ],
+     [
+      -37.5,
+      34.1
+     ],
+     [
+      -37.5,
+      33.1
+     ],
+     [
+      -20.5,
+      33.1
+     ],
+     [
+      -20.5,
+      32.1
+     ],
+     [
+      -2.5,
+      32.1
+     ],
+     [
+      -2.5,
+      31.1
+     ],
+     [
+      14.5,
+      31.1
+     ],
+     [
+      14.5,
+      30.1
+     ],
+     [
+      31.5,
+      30.1
+     ],
+     [
+      31.5,
+      29.1
+     ],
+     [
+      55.5,
+      28.1
+     ],
+     [
+      55.5,
+      26.1
+     ],
+     [
+      54.5,
+      26.1
+     ],
+     [
+      54.5,
+      9.1
+     ],
+     [
+      53.5,
+      9.1
+     ],
+     [
+      53.5,
+      -8.9
+     ],
+     [
+      52.5,
+      -8.9
+     ]
+    ]
+   ],
+   "silhouetteArea": 6685,
+   "towerSilhouette": [
+    [
+     [
+      7.4,
+      -23.4
+     ],
+     [
+      7.4,
+      -22.4
+     ],
+     [
+      -9.6,
+      -22.4
+     ],
+     [
+      -9.6,
+      -21.4
+     ],
+     [
+      -27.6,
+      -21.4
+     ],
+     [
+      -27.6,
+      -3.4
+     ],
+     [
+      -26.6,
+      -3.4
+     ],
+     [
+      -26.6,
+      14.6
+     ],
+     [
+      -25.6,
+      14.6
+     ],
+     [
+      -25.6,
+      31.6
+     ],
+     [
+      -24.6,
+      32.6
+     ],
+     [
+      7.4,
+      31.6
+     ],
+     [
+      7.4,
+      30.6
+     ],
+     [
+      24.4,
+      30.6
+     ],
+     [
+      24.4,
+      29.6
+     ],
+     [
+      28.4,
+      29.6
+     ],
+     [
+      28.4,
+      14.6
+     ],
+     [
+      27.4,
+      14.6
+     ],
+     [
+      27.4,
+      -2.4
+     ],
+     [
+      26.4,
+      -2.4
+     ],
+     [
+      26.4,
+      -19.4
+     ],
+     [
+      25.4,
+      -19.4
+     ],
+     [
+      25.4,
+      -23.4
+     ]
+    ]
+   ],
+   "flipped": 86,
+   "lat": 22.538241288402702,
+   "lon": 113.93161141816333,
+   "credit": {
+    "title": "深圳大学科技楼 Shenzhen University Science and Technology Building(China)",
+    "author": "xz H.",
+    "url": "https://3dwarehouse.sketchup.com/model/2cfdf5a09dd5409810e5a1783aea6854",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 2 patch tris [Google Earth Snapshot1], y0 -0.00 (base (above patch), patch -0.0..0.0), 0 underground, 0 ground-level horizontal",
+    "faces: 0 coincident duplicates removed, 86 flipped outward, 3 vertex normals re-derived",
+    "atlas 512px (k 2.86 px/m): 4 cells, 4 bands, 4 swatches; textured 42% of area"
+   ]
+  },
+  "world_trade_centre_c9ca184e": {
+   "id": "world_trade_centre_c9ca184e",
+   "file": "models/city/world_trade_centre_c9ca184e.glb",
+   "source": "world_trade_centre_c9ca184e.glb",
+   "role": "frontage",
+   "bytes": 48416,
+   "texBytes": 33400,
+   "tris": 213,
+   "drawCalls": 1,
+   "height": 225,
+   "atlas": 512,
+   "photoTextured": true,
+   "texturedShare": 0.84,
+   "nativeOrigin": [
+    24.3,
+    -28
+   ],
+   "groundOffset": 7.28,
+   "groundHow": "base (terrain patch)",
+   "footprint": [
+    [
+     -30,
+     -37.9
+    ],
+    [
+     14.2,
+     -46.2
+    ],
+    [
+     28.3,
+     26.5
+    ],
+    [
+     30.3,
+     37.6
+    ],
+    [
+     -14.6,
+     46
+    ],
+    [
+     -16.7,
+     35
+    ],
+    [
+     -30,
+     -37.9
+    ],
+    [
+     -30,
+     -37.9
+    ]
+   ],
+   "footprintArea": 3876,
+   "silhouette": [
+    [
+     [
+      9,
+      -46.2
+     ],
+     [
+      9,
+      -45.2
+     ],
+     [
+      3,
+      -45.2
+     ],
+     [
+      3,
+      -44.2
+     ],
+     [
+      -2,
+      -44.2
+     ],
+     [
+      -2,
+      -43.2
+     ],
+     [
+      -13,
+      -42.2
+     ],
+     [
+      -13,
+      -41.2
+     ],
+     [
+      -18,
+      -41.2
+     ],
+     [
+      -18,
+      -40.2
+     ],
+     [
+      -23,
+      -40.2
+     ],
+     [
+      -23,
+      -39.2
+     ],
+     [
+      -31,
+      -38.2
+     ],
+     [
+      -30,
+      -37.2
+     ],
+     [
+      -30,
+      -32.2
+     ],
+     [
+      -29,
+      -32.2
+     ],
+     [
+      -29,
+      -27.2
+     ],
+     [
+      -28,
+      -27.2
+     ],
+     [
+      -28,
+      -22.2
+     ],
+     [
+      -27,
+      -22.2
+     ],
+     [
+      -27,
+      -16.2
+     ],
+     [
+      -26,
+      -16.2
+     ],
+     [
+      -26,
+      -11.2
+     ],
+     [
+      -25,
+      -11.2
+     ],
+     [
+      -25,
+      -6.2
+     ],
+     [
+      -24,
+      -6.2
+     ],
+     [
+      -24,
+      -0.2
+     ],
+     [
+      -23,
+      -0.2
+     ],
+     [
+      -23,
+      4.8
+     ],
+     [
+      -22,
+      4.8
+     ],
+     [
+      -22,
+      9.8
+     ],
+     [
+      -21,
+      9.8
+     ],
+     [
+      -21,
+      15.8
+     ],
+     [
+      -20,
+      15.8
+     ],
+     [
+      -20,
+      20.8
+     ],
+     [
+      -19,
+      20.8
+     ],
+     [
+      -19,
+      25.8
+     ],
+     [
+      -18,
+      25.8
+     ],
+     [
+      -18,
+      31.8
+     ],
+     [
+      -17,
+      31.8
+     ],
+     [
+      -17,
+      38.8
+     ],
+     [
+      -16,
+      38.8
+     ],
+     [
+      -15,
+      46.8
+     ],
+     [
+      -7,
+      45.8
+     ],
+     [
+      -7,
+      44.8
+     ],
+     [
+      -3,
+      44.8
+     ],
+     [
+      -3,
+      43.8
+     ],
+     [
+      1,
+      43.8
+     ],
+     [
+      1,
+      42.8
+     ],
+     [
+      6,
+      42.8
+     ],
+     [
+      6,
+      41.8
+     ],
+     [
+      12,
+      41.8
+     ],
+     [
+      12,
+      40.8
+     ],
+     [
+      17,
+      40.8
+     ],
+     [
+      17,
+      39.8
+     ],
+     [
+      25,
+      39.8
+     ],
+     [
+      25,
+      38.8
+     ],
+     [
+      30,
+      38.8
+     ],
+     [
+      31,
+      37.8
+     ],
+     [
+      30,
+      30.8
+     ],
+     [
+      29,
+      30.8
+     ],
+     [
+      29,
+      25.8
+     ],
+     [
+      28,
+      25.8
+     ],
+     [
+      28,
+      21.8
+     ],
+     [
+      27,
+      21.8
+     ],
+     [
+      27,
+      16.8
+     ],
+     [
+      26,
+      16.8
+     ],
+     [
+      26,
+      10.8
+     ],
+     [
+      25,
+      10.8
+     ],
+     [
+      25,
+      5.8
+     ],
+     [
+      24,
+      5.8
+     ],
+     [
+      24,
+      0.8
+     ],
+     [
+      23,
+      0.8
+     ],
+     [
+      23,
+      -5.2
+     ],
+     [
+      22,
+      -5.2
+     ],
+     [
+      22,
+      -10.2
+     ],
+     [
+      21,
+      -10.2
+     ],
+     [
+      21,
+      -15.2
+     ],
+     [
+      20,
+      -15.2
+     ],
+     [
+      20,
+      -21.2
+     ],
+     [
+      19,
+      -21.2
+     ],
+     [
+      19,
+      -26.2
+     ],
+     [
+      18,
+      -26.2
+     ],
+     [
+      15,
+      -46.2
+     ]
+    ]
+   ],
+   "silhouetteArea": 3977,
+   "towerSilhouette": [
+    [
+     [
+      9,
+      -46.2
+     ],
+     [
+      9,
+      -45.2
+     ],
+     [
+      3,
+      -45.2
+     ],
+     [
+      3,
+      -44.2
+     ],
+     [
+      -2,
+      -44.2
+     ],
+     [
+      -2,
+      -43.2
+     ],
+     [
+      -13,
+      -42.2
+     ],
+     [
+      -13,
+      -41.2
+     ],
+     [
+      -18,
+      -41.2
+     ],
+     [
+      -18,
+      -40.2
+     ],
+     [
+      -23,
+      -40.2
+     ],
+     [
+      -23,
+      -39.2
+     ],
+     [
+      -31,
+      -38.2
+     ],
+     [
+      -30,
+      -37.2
+     ],
+     [
+      -30,
+      -32.2
+     ],
+     [
+      -29,
+      -32.2
+     ],
+     [
+      -29,
+      -27.2
+     ],
+     [
+      -28,
+      -27.2
+     ],
+     [
+      -27,
+      -16.2
+     ],
+     [
+      -26,
+      -16.2
+     ],
+     [
+      -26,
+      -11.2
+     ],
+     [
+      -25,
+      -11.2
+     ],
+     [
+      -25,
+      -6.2
+     ],
+     [
+      -24,
+      -6.2
+     ],
+     [
+      -24,
+      -0.2
+     ],
+     [
+      -23,
+      -0.2
+     ],
+     [
+      -22,
+      6.8
+     ],
+     [
+      -8,
+      4.8
+     ],
+     [
+      -8,
+      3.8
+     ],
+     [
+      -3,
+      3.8
+     ],
+     [
+      -3,
+      2.8
+     ],
+     [
+      3,
+      2.8
+     ],
+     [
+      3,
+      1.8
+     ],
+     [
+      8,
+      1.8
+     ],
+     [
+      8,
+      0.8
+     ],
+     [
+      13,
+      0.8
+     ],
+     [
+      13,
+      -0.2
+     ],
+     [
+      23,
+      -1.2
+     ],
+     [
+      15,
+      -46.2
+     ]
+    ]
+   ],
+   "flipped": 15,
+   "lat": 22.539907504530238,
+   "lon": 114.01781060163572,
+   "credit": {
+    "title": "Shenzhen World Trade Centre",
+    "author": "Stefan L.",
+    "url": "https://3dwarehouse.sketchup.com/model/c9ca184e7707b8b3f7fc80615b9e474d",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 200 patch tris [Google Earth Snapshot1], y0 7.28 (base (terrain patch), patch -15.1..14.8), 0 underground, 10 ground-level horizontal",
+    "faces: 0 coincident duplicates removed, 15 flipped outward, 0 vertex normals re-derived",
+    "atlas 512px (k 1.92 px/m): 20 cells, 1 bands, 2 swatches; textured 84% of area"
+   ]
+  },
+  "xiangmi_lake_financial_tower_9dda4aac": {
+   "id": "xiangmi_lake_financial_tower_9dda4aac",
+   "file": "models/city/xiangmi_lake_financial_tower_9dda4aac.glb",
+   "source": "xiangmi_lake_financial_tower_9dda4aac.glb",
+   "role": "frontage",
+   "bytes": 19108,
+   "texBytes": 130,
+   "tris": 466,
+   "drawCalls": 1,
+   "height": 307.8,
+   "atlas": 64,
+   "photoTextured": false,
+   "texturedShare": 0,
+   "nativeOrigin": [
+    -0.9,
+    -0.3
+   ],
+   "groundOffset": 0,
+   "groundHow": "base (above patch)",
+   "footprint": [
+    [
+     -24.8,
+     -19.9
+    ],
+    [
+     -15.4,
+     -21.8
+    ],
+    [
+     -3.6,
+     -24.2
+    ],
+    [
+     14,
+     -27.7
+    ],
+    [
+     15.2,
+     -27.9
+    ],
+    [
+     20.8,
+     -0.3
+    ],
+    [
+     24.4,
+     17.7
+    ],
+    [
+     24.7,
+     19.3
+    ],
+    [
+     24.8,
+     19.7
+    ],
+    [
+     24.8,
+     19.9
+    ],
+    [
+     24.8,
+     19.9
+    ],
+    [
+     24.3,
+     20
+    ],
+    [
+     17,
+     21.4
+    ],
+    [
+     -14,
+     27.7
+    ],
+    [
+     -15.2,
+     27.9
+    ],
+    [
+     -24.6,
+     -18.7
+    ],
+    [
+     -24.8,
+     -19.9
+    ]
+   ],
+   "footprintArea": 1992,
+   "silhouette": [
+    [
+     [
+      10.2,
+      -27.9
+     ],
+     [
+      10.2,
+      -26.9
+     ],
+     [
+      5.2,
+      -26.9
+     ],
+     [
+      5.2,
+      -25.9
+     ],
+     [
+      0.2,
+      -25.9
+     ],
+     [
+      0.2,
+      -24.9
+     ],
+     [
+      -4.8,
+      -24.9
+     ],
+     [
+      -4.8,
+      -23.9
+     ],
+     [
+      -24.8,
+      -20.9
+     ],
+     [
+      -24.8,
+      -14.9
+     ],
+     [
+      -23.8,
+      -14.9
+     ],
+     [
+      -23.8,
+      -9.9
+     ],
+     [
+      -22.8,
+      -9.9
+     ],
+     [
+      -22.8,
+      -4.9
+     ],
+     [
+      -21.8,
+      -4.9
+     ],
+     [
+      -21.8,
+      0.1
+     ],
+     [
+      -20.8,
+      0.1
+     ],
+     [
+      -20.8,
+      5.1
+     ],
+     [
+      -19.8,
+      5.1
+     ],
+     [
+      -19.8,
+      10.1
+     ],
+     [
+      -18.8,
+      10.1
+     ],
+     [
+      -18.8,
+      15.1
+     ],
+     [
+      -17.8,
+      15.1
+     ],
+     [
+      -17.8,
+      20.1
+     ],
+     [
+      -16.8,
+      20.1
+     ],
+     [
+      -15.8,
+      28.1
+     ],
+     [
+      -10.8,
+      28.1
+     ],
+     [
+      -10.8,
+      27.1
+     ],
+     [
+      -5.8,
+      27.1
+     ],
+     [
+      -5.8,
+      26.1
+     ],
+     [
+      -0.8,
+      26.1
+     ],
+     [
+      -0.8,
+      25.1
+     ],
+     [
+      4.2,
+      25.1
+     ],
+     [
+      4.2,
+      24.1
+     ],
+     [
+      9.2,
+      24.1
+     ],
+     [
+      9.2,
+      23.1
+     ],
+     [
+      14.2,
+      23.1
+     ],
+     [
+      14.2,
+      22.1
+     ],
+     [
+      19.2,
+      22.1
+     ],
+     [
+      19.2,
+      21.1
+     ],
+     [
+      24.2,
+      21.1
+     ],
+     [
+      25.2,
+      20.1
+     ],
+     [
+      16.2,
+      -27.9
+     ]
+    ]
+   ],
+   "silhouetteArea": 2088,
+   "towerSilhouette": [
+    [
+     [
+      10.2,
+      -27.9
+     ],
+     [
+      10.2,
+      -26.9
+     ],
+     [
+      5.2,
+      -26.9
+     ],
+     [
+      5.2,
+      -25.9
+     ],
+     [
+      0.2,
+      -25.9
+     ],
+     [
+      0.2,
+      -24.9
+     ],
+     [
+      -4.8,
+      -24.9
+     ],
+     [
+      -4.8,
+      -23.9
+     ],
+     [
+      -24.8,
+      -20.9
+     ],
+     [
+      -24.8,
+      -14.9
+     ],
+     [
+      -23.8,
+      -14.9
+     ],
+     [
+      -23.8,
+      -9.9
+     ],
+     [
+      -22.8,
+      -9.9
+     ],
+     [
+      -22.8,
+      -4.9
+     ],
+     [
+      -21.8,
+      -4.9
+     ],
+     [
+      -21.8,
+      0.1
+     ],
+     [
+      -20.8,
+      0.1
+     ],
+     [
+      -20.8,
+      5.1
+     ],
+     [
+      -19.8,
+      5.1
+     ],
+     [
+      -19.8,
+      10.1
+     ],
+     [
+      -18.8,
+      10.1
+     ],
+     [
+      -18.8,
+      15.1
+     ],
+     [
+      -17.8,
+      15.1
+     ],
+     [
+      -17.8,
+      20.1
+     ],
+     [
+      -16.8,
+      20.1
+     ],
+     [
+      -15.8,
+      28.1
+     ],
+     [
+      -10.8,
+      28.1
+     ],
+     [
+      -10.8,
+      27.1
+     ],
+     [
+      -5.8,
+      27.1
+     ],
+     [
+      -5.8,
+      26.1
+     ],
+     [
+      -0.8,
+      26.1
+     ],
+     [
+      -0.8,
+      25.1
+     ],
+     [
+      4.2,
+      25.1
+     ],
+     [
+      4.2,
+      24.1
+     ],
+     [
+      9.2,
+      24.1
+     ],
+     [
+      9.2,
+      23.1
+     ],
+     [
+      14.2,
+      23.1
+     ],
+     [
+      14.2,
+      22.1
+     ],
+     [
+      19.2,
+      22.1
+     ],
+     [
+      19.2,
+      21.1
+     ],
+     [
+      24.2,
+      21.1
+     ],
+     [
+      25.2,
+      20.1
+     ],
+     [
+      16.2,
+      -27.9
+     ]
+    ]
+   ],
+   "flipped": 133,
+   "lat": 22.543422178103345,
+   "lon": 114.0259677180319,
+   "credit": {
+    "title": "Xiangmi Lake Financial Tower",
+    "author": "Brady Cloud",
+    "url": "https://3dwarehouse.sketchup.com/model/9dda4aac-e4d4-4798-be27-a998ddc09b21",
+    "license": "3D Warehouse General Model License (https://3dwarehouse.sketchup.com/tos/)"
+   },
+   "log": [
+    "ground: 2 patch tris [Location Snapshot], y0 -0.00 (base (above patch), patch -0.0..0.0), 0 underground, 20 ground-level horizontal",
+    "faces: 165 coincident duplicates removed, 133 flipped outward, 6 vertex normals re-derived",
+    "atlas 64px (k 10.00 px/m): 0 cells, 0 bands, 2 swatches; textured 0% of area"
    ]
   },
   "xingye_bank_building_3a5658da": {
