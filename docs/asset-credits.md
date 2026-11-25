@@ -115,8 +115,9 @@ Poly Haven 的 [Shanghai Riverside](https://polyhaven.com/a/shanghai_riverside)�
 | 文件 | 工具（版本） | Prompt（摘要，全文见 prompts.md） | 使用位置 |
 |---|---|---|---|
 | `public/textures/ai/billboard_01.jpg` | Cursor Agent 内置图像生成工具 `GenerateImage`（2026-11-24） | 深圳城市宣传海报：黄昏天际线、带竖向肋条的超高层、文字“深圳 创新之城” | 深南大道右侧路边 / 楼顶灯箱广告牌（`src/city/props/`） |
-| `public/textures/ai/billboard_02.jpg` | 同上 | 虚构鲜果茶广告：荔枝芒果果茶、洋红到橙色渐变、文字“鲜果茶” | 同上 |
-| `public/textures/ai/billboard_03.jpg` | 同上 | 虚构科技展广告：霓虹电路光轨、无人机剪影、文字“科技周” | 同上 |
-| `public/textures/ai/billboard_04.jpg` | 同上 | 虚构深圳湾夜跑节广告：海滨步道跑者剪影、晚霞、文字“深圳湾夜跑” | 同上（生成结果自带广告牌外框，已用 `sips` 裁掉） |
+| `public/textures/ai/billboard_02.jpg`（原始 `billboard_apec_a.jpg`） | 同上 | APEC 欢迎海报（浅色山水版）：青绿海浪与山脊、红橙祥云飘带、文字“APEC CHINA 2026 · 相约深圳 见证奇迹” | 同上 |
+| `public/textures/ai/billboard_03.jpg`（原始 `billboard_apec_b.jpg`） | 同上 | APEC LED 广告（深蓝夜景版）：深圳湾大桥与发光楼群、彩色飘带、同上文字 | 同上 |
+| `public/textures/ai/billboard_04.jpg`（原始 `billboard_02.jpg`） | 同上 | 虚构鲜果茶广告：荔枝芒果果茶、洋红到橙色渐变、文字“鲜果茶” | 同上 |
+| `public/textures/ai/facade_apec_01.jpg`（原始 `facade_apec_portrait.jpg`） | 同上 | APEC 竖版 LED 屏画面（9:16）：上方文字“APEC CHINA 2026 · 相约深圳 见证奇迹”，下方山水与祥云飘带 | APEC LED 屏幕（`src/city/screens/`） |
 
-原始生成文件（未修改）保存在 `docs/ai-assets/original/`，完整 prompt 与后处理记录见 [ai-assets/README.md](ai-assets/README.md)。四张均为虚构广告，不含真实品牌、商标或 APEC 官方徽标。
+原始生成文件（未修改）保存在 `docs/ai-assets/original/`，完整 prompt、裁切等后处理与已停用的早期素材（“科技周”“深圳湾夜跑”）见 [ai-assets/README.md](ai-assets/README.md)。全部为虚构广告或原创画面，不含真实品牌、商标或 APEC 官方徽标。

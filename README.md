@@ -1,8 +1,8 @@
 # SHENZHEN DRIVE｜深圳极速穿越
 
-浏览器 3D 城市计时驾驶。驾驶小米 SU7（极速 350 km/h，可选白天 / 日落 / 入夜三种时段），沿深南大道从南山科技园一路向东，穿过世界之窗、华侨城、车公庙 / 香蜜湖，进入福田中心区后绕行 CBD：右转益田路直奔平安金融中心脚下，左转福华三路、左转金田路平交穿过深南大道，最后左转福中三路，沿深圳市民中心正立面冲线。基于真实 OpenStreetMap 数据，Three.js + TypeScript + Vite。
+浏览器 3D 城市计时驾驶。驾驶小米 SU7（极速 350 km/h，可选白天 / 日落两种时段），沿深南大道从南山科技园一路向东，穿过世界之窗、华侨城、车公庙 / 香蜜湖，进入福田中心区后绕行 CBD：右转益田路直奔平安金融中心脚下，左转福华三路、左转金田路平交穿过深南大道，最后左转福中三路，沿深圳市民中心正立面冲线。基于真实 OpenStreetMap 数据，Three.js + TypeScript + Vite。
 
-*A browser 3D time-trial: drive a Xiaomi SU7 east along Shenzhen's Shennan Boulevard at dusk, from Nanshan Science Park to the Civic Center.*
+*A browser 3D time-trial: drive a Xiaomi SU7 east along Shenzhen's Shennan Boulevard by day or at sunset, from Nanshan Science Park to the Civic Center.*
 
 ## 运行
 
@@ -11,7 +11,7 @@ npm install
 npm run dev          # 打开终端打印的地址，默认 http://127.0.0.1:5173/
 ```
 
-- **调试模式**：`http://127.0.0.1:5173/?debug` — 显示 FPS、draw call、三角面数和当前路线坐标 s/d；数字键 1–9 跳到对应检查点，0 跳到终点前转弯处，F 切换自由相机。
+- **调试模式**：`http://127.0.0.1:5173/?debug` — 显示 FPS、draw call、三角面数和当前路线坐标 s/d；数字键 1–8 跳到对应检查点，0 跳到下一个转弯前（连按依次切换 4 个转弯），F 切换自由相机。
 - **场景预览**：`http://127.0.0.1:5173/preview.html` — 不含玩法，镜头沿路线自动巡游，用于检查街景。
 - **打包**：`npm run build` 输出到 `dist/`，`npm run preview` 本地预览打包结果。
 - **稳定试玩版**：`npm run playtest` 打包到 `playtest/` 并在 `http://127.0.0.1:4173/` 提供静态服务。开发服务器（5173）在代码变动时会自动刷新页面；试玩请用 4173，它只在重新运行该命令时更新。
@@ -39,13 +39,15 @@ npm run dev          # 打开终端打印的地址，默认 http://127.0.0.1:517
 
 ```bash
 npm test             # Vitest 单元测试
-npm run e2e          # Playwright 冒烟测试（自动在 5177 端口启动 Vite）
+npm run e2e          # Playwright 冒烟测试（自动在 5177 端口启动 Vite；PW_PORT=xxxx 可换端口）
 npm run typecheck    # TypeScript 类型检查
 ```
 
 - `tests/route.test.ts`：世界坐标 ↔ 路线坐标 (s, d) 的往返精度、转弯处投影不跳支、起终点外推、左右符号、朝向约定。
-- `tests/data.test.ts`：`public/data/route.json` / `buildings.json` 存在时校验格式（含 `turns`、`clearZones`）、采样间距、除各转弯圆弧外无折角、每处转弯方向与半径、检查点顺序、分区连续、剪切比例 60–80%、建筑高度与轮廓。
-- `e2e/smoke.spec.ts`：菜单 → 开始 → 按住 W 驾驶 4 秒 → 左右转向 → R 重置（计时不清零）→ 传送到终点前 60 m 冲线 → 成绩页；全程检查控制台无报错，截图保存为 `evidence/smoke-0*.png`。
+- `tests/data.test.ts`：`public/data/route.json` / `buildings.json` / `city_models.json` 存在时校验格式（含 `turns`、`clearZones`）、采样间距、除各转弯圆弧外无折角、每处转弯方向与半径、检查点顺序、分区连续、剪切比例 60–80%、建筑高度与轮廓；真实建筑模型不压路面、不进视廊、互不重叠、文件存在。
+- `tests/vehicle.test.ts`、`tests/race.test.ts`：车辆加速 / 刹车 / 倒车 / 转向与边界碰撞；倒计时、检查点顺序、计时、暂停、重置、撞墙计数等比赛状态机。
+- `tests/screens.test.ts`、`tests/treeSight.test.ts`：APEC 屏幕选址规则、行道树避让地标视线。
+- `e2e/smoke.spec.ts`：菜单（版本号）→ 开始 → 按住 W 驾驶（HUD、小地图、录像已开始）→ Esc 暂停（计时、车辆、录像冻结）→ 继续 → 失焦自动暂停 → 左右转向 → R 回到检查点（计时不清零）→ 传送到终点前 60 m 冲线 → 成绩页 → 下载录像并校验文件大小；全程检查控制台无报错，截图保存为 `evidence/smoke-0*.png`。
 - `e2e/audio.spec.ts`：在真实 Chrome 中运行音频引擎，验证静止无声、电机音高随车速变化、静音和挂起 / 恢复。
 - 浏览器：未安装 Playwright 自带的 Chromium（`npx playwright install chromium`）时，自动使用系统 Google Chrome（macOS headless 下通过 ANGLE/Metal 硬件渲染 WebGL 2）；可用 `PW_CHANNEL=chromium` 或 `PW_CHANNEL=chrome` 指定。
 
@@ -73,14 +75,15 @@ src/
   vehicle/         简化运动学车辆、道路边界碰撞、SU7 模型与车漆
   camera/          第三人称跟随镜头
   race/            倒计时、检查点、计时、最佳成绩
-  hud/             开始界面、HUD、成绩页
+  hud/             开始界面、HUD、小地图、暂停菜单、成绩页、版本号
   input/           键盘输入
   audio/           Web Audio 程序化音效
-  city/            道路、道路设施、建筑、地标
-  render/          渲染器、天空与环境贴图、后处理
+  recording/       自动录像（MediaRecorder，画布 + HUD 合成 + 游戏声音）
+  city/            道路、道路设施、建筑、真实建筑模型、地标、APEC 屏幕
+  render/          渲染器、天空与环境贴图、时段预设、后处理
   debug/           ?debug 调试面板
-scripts/           Python 城市数据管线
-public/            data/（管线产物）、models/（SU7）、textures/
+scripts/           Python 城市数据管线、模型 / 贴图离线处理脚本
+public/            data/（管线产物）、models/（SU7、真实建筑）、textures/
 tests/、e2e/       Vitest 单元测试、Playwright 端到端测试
 evidence/          截图等过程证据
 docs/              资产归属、关键 prompts、版本记录
@@ -93,12 +96,15 @@ docs/              资产归属、关键 prompts、版本记录
 - **只开同向车道**：可驾驶范围始终是行驶方向的那一幅路（4 车道 × 3.5 m，车道线可自由跨越，越出道路边界才碰撞）；中央绿化带和对向车道是静态景观。CBD 支路在现实中只有 2–3 车道，游戏里统一按 4 车道宽度处理；福中三路西行紧贴市民中心南立面，车道整体向南（市民广场一侧）平移 7 m，避免压到建筑。
 - **转弯**：只在真实路口转弯，共 4 处（右转益田路 R30、左转福华三路 R40、左转金田路 R40、左转福中三路 R32），均为切线圆弧倒角，其余路段无折角。左转圆弧都在路口范围内；右转按渠化右转处理，圆弧内侧会切过路口转角约 7 m。
 - **地标视廊**：为了让平安金融中心在深南大道上一路充当天际线引导、在 CBD 段清楚可见，让市民中心在最后一段完整露出，让世界之窗埃菲尔铁塔可见，数据管线沿视线（追尾镜头位置 → 地标）把挡视线的建筑压低到视线以下；压低后不足 12 m 或是程序化补位块的直接去掉。不在视线上的建筑一律不动，华侨城大厦（300 m）保留不压。扫过的视线楔形写入 `route.json` 的 `clearZones`，运行时补位建筑会避开这些区域。参数见 `scripts/city_config.json` 的 `viewCorridors`。
-- **APEC**：只在香蜜湖路口以路牌文字出现（“深圳国际交流中心 · 2026 APEC 主会场”），不使用官方徽标，不建模国际交流中心。
+- **APEC**：香蜜湖路口的路牌文字（“深圳国际交流中心 · 2026 APEC 主会场”）、路边广告牌和 LED 屏幕上的“APEC China 2026 · 相约深圳 见证奇迹”画面，只用文字和自绘图形，不使用官方徽标，不建模国际交流中心。
+- **真实建筑模型**：沿线部分建筑来自 3D Warehouse 的真实深圳建筑模型，位置按 OSM 轮廓重新配准；模型自带的照片贴图分辨率较低，近看偏糊。
 - **范围**：MVP 不含交通车辆和行人。
 
 ## 资产归属（摘要）
 
 - 小米 SU7 模型：Sketchfab [Xiaomi SU7](https://sketchfab.com/3d-models/xiaomi-su7-ca2cda599f5341068c992c9f44551bf9)，作者 Car2022（现名 Mona x Supercars），CC BY 4.0；仅在运行时替换车漆材质。本项目与小米公司无关联，未获其认可。
 - 地图数据 © OpenStreetMap contributors，[ODbL 1.0](https://www.openstreetmap.org/copyright)，经 Geofabrik 提取。
-- Three.js（MIT）、postprocessing（Zlib）。天空、环境贴图和全部音效由代码程序生成，无音频文件。
+- 真实深圳建筑模型：3D Warehouse 多位作者，[General Model License](https://3dwarehouse.sketchup.com/tos/)，仅随游戏分发处理后的文件，逐个署名见资产清单。
+- 小叶榕（Valery.Li）与国标路牌（notbadworks）：Sketchfab，CC BY 4.0，均为离线烘焙 / 裁切后的贴图。
+- Three.js（MIT）、postprocessing（Zlib）。天空和全部音效由代码程序生成，无音频文件。
 - AI 生成素材及完整清单见 [docs/asset-credits.md](docs/asset-credits.md)；关键 prompts 见 [docs/prompts.md](docs/prompts.md)；版本记录见 [docs/CHANGELOG.md](docs/CHANGELOG.md)。
