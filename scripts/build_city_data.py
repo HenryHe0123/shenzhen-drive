@@ -1022,6 +1022,7 @@ def main():
     city_records, model_report = [], None
     if regs:
         city_records, blds, model_report = finalize_city_models(cfg, regs, reg_polys, route, blds, sp, U, F, L, route["oppositeOffset"])
+    view_check(cfg, route, blds, city_records)
     route.pop("_sight", None)
     lap = lap_time(cl, step, cfg["race"], route["finish"]["s"])
     print(f"[lap] optimal lap estimate {lap['time'] // 60:.0f}:{lap['time'] % 60:05.2f} "
@@ -1402,6 +1403,31 @@ def apply_view_corridors(cfg, route, blds, F, final_s):
     print(f"[view] {len(zones)} clear-zone polygons, {sum(len(z) for z in zones)} vertices")
     route["_sight"] = sight
     return keep, zones
+
+
+def view_check(cfg, route, blds, models):
+    """Report what still rises above a landmark sight line after capping and model filtering
+    (keepIds and landmark replacements are exempt by design), and how many clear-zone overlaps
+    are harmless (below every sight line)."""
+    if not route.get("_sight"):
+        return
+    zones = [Polygon(z) for z in route.get("clearZones") or []]
+    zones = [z if z.is_valid else z.buffer(0) for z in zones]
+    keep = {int(r[1:]) for r in cfg.get("viewCorridorDefaults", {}).get("keepIds", [])}
+    n_zone, above = 0, []
+    items = [(f"osm {b['id']}", b["h"], Polygon(b["fp"]), b["id"] in keep) for b in blds if b["id"] > 0]
+    items += [(m["id"], m["height"], Polygon(m["footprint"]), bool(m.get("replacesLandmark")) or bool(set(m["replacesOsm"]) & keep))
+              for m in models]
+    for name, h, p, exempt in items:
+        p = p if p.is_valid else p.buffer(0)
+        if not any(p.intersection(z).area > 1.0 for z in zones):
+            continue
+        n_zone += 1
+        top, lm = sight_cap(route, p)
+        if h > top + 0.5 and not exempt:
+            above.append(f"{name} ({h:.0f} m > {top:.0f} m, {lm})")
+    print(f"[view] check: {n_zone} kept buildings/models overlap clear zones; {len(above)} rise above a sight line"
+          + (": " + ", ".join(above[:12]) if above else ""))
 
 
 def sight_cap(route, poly):
