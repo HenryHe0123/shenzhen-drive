@@ -13,3 +13,7 @@ playtest/
 data-raw/dev/
 /shenzhen-drive-*.mp4
 /shenzhen-drive-*.webm
+# Presentation material (kept locally, not in the repo)
+present/
+*.pptx
+*.key
