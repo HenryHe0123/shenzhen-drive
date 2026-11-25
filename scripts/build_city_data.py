@@ -1022,6 +1022,7 @@ def main():
     city_records, model_report = [], None
     if regs:
         city_records, blds, model_report = finalize_city_models(cfg, regs, reg_polys, route, blds, sp, U, F, L, route["oppositeOffset"])
+    route.pop("_sight", None)
     lap = lap_time(cl, step, cfg["race"], route["finish"]["s"])
     print(f"[lap] optimal lap estimate {lap['time'] // 60:.0f}:{lap['time'] % 60:05.2f} "
           f"(top {lap['vmax'] * 3.6:.0f} km/h, slowest corner {lap['vmin_corner'] * 3.6:.0f} km/h, "
@@ -1311,6 +1312,7 @@ def apply_view_corridors(cfg, route, blds, F, final_s):
     cap = np.full(len(blds), np.inf)
     owner = [None] * len(blds)
     zones = []
+    sight = []  # per corridor: (landmark, sight lines, cameras, distances, minVisibleFrom, cameraHeight, margin)
     for vc in vcs:
         o = {**dflt, **vc}
         l = lmk.get(o["landmark"])
@@ -1359,6 +1361,7 @@ def apply_view_corridors(cfg, route, blds, F, final_s):
             print(f"[view] {o['landmark']}: no viewpoint has it within +-{o['halfFov']} deg")
             continue
         segs = np.array(segs, dtype=object)
+        sight.append((o["landmark"], segs, np.array(cams), np.array(dists), H, ch, o["margin"]))
         si, bi = tree.query(segs, predicate="intersects")
         inter = shapely.intersection(segs[si], polys[bi])
         t_in = shapely.distance(shapely.points(np.array(cams)[si]), inter)
@@ -1397,7 +1400,24 @@ def apply_view_corridors(cfg, route, blds, F, final_s):
     for k, st in stats.items():
         print(f"[view] {k}: capped {st['capped']}, dropped {st['dropped']} (removed {st['lost']:.0f} m of height in total)")
     print(f"[view] {len(zones)} clear-zone polygons, {sum(len(z) for z in zones)} vertices")
+    route["_sight"] = sight
     return keep, zones
+
+
+def sight_cap(route, poly):
+    """Lowest sight-line height (same rule as apply_view_corridors) over a final-frame footprint:
+    (cap m, landmark), or (inf, None) when no sight line crosses it."""
+    best, who = np.inf, None
+    for lm, segs, cams, dists, H, ch, margin in route.get("_sight", []):
+        hit = shapely.intersects(segs, poly)
+        if not hit.any():
+            continue
+        idx = np.nonzero(hit)[0]
+        t_in = shapely.distance(shapely.points(cams[idx]), shapely.intersection(segs[idx], poly))
+        y = float(np.min(ch + (H - ch) * t_in / dists[idx] - margin))
+        if y < best:
+            best, who = y, lm
+    return best, who
 
 
 # ----------------------------------------------------------------------------
@@ -1687,9 +1707,14 @@ def finalize_city_models(cfg, regs, reg_polys, route, blds, sp, U, F, L, opp_fin
         if not replaces and not set(r["targets"]) & keep_ids:
             hit = [z for z in zones if r["fp_f"].intersection(z).area > rc["clearZoneMinArea"]]
             if hit:
+                # a clear zone is the swept wedge; only a model that rises above a sight line blocks
                 a = sum(r["fp_f"].intersection(z).area for z in hit)
-                skipped.append((r, f"inside a landmark clear zone ({a:.0f} m2)"))
-                continue
+                top, lm_v = sight_cap(route, r["fp_f"])
+                if meta["height"] > top:
+                    skipped.append((r, f"blocks the view to {lm_v} ({a:.0f} m2 in a clear zone, {meta['height']:.0f} m > sight line {top:.0f} m)"))
+                    continue
+                r["viewCap"] = round(float(top), 1) if np.isfinite(top) else 9999.0
+                r["clearZoneNote"] = f"{a:.0f} m2 in a clear zone but below the sight lines ({meta['height']:.0f} m <= {top:.0f} m)"
         if replaces and not e.get("part"):
             replaced.add(replaces)
         kept.append(r)
@@ -1738,9 +1763,14 @@ def finalize_city_models(cfg, regs, reg_polys, route, blds, sp, U, F, L, opp_fin
                    footprint=round_pts(np.asarray(r["fp_f"].exterior.coords)[:-1], 1), replacesOsm=r["replacesOsm"])
         if r["replacesLandmark"]:
             rec["replacesLandmark"] = r["replacesLandmark"]
+        if r.get("viewCap") is not None:
+            rec["viewCap"] = r["viewCap"]
         rec.update(photoTextured=meta["photoTextured"], tris=meta["tris"], drawCalls=meta["drawCalls"], bytes=meta["bytes"],
                    credit=meta["credit"])
         records.append(rec)
+    for r in final:
+        if r.get("clearZoneNote"):
+            print(f"[models] keep {r['id'][:44]:44} {r['clearZoneNote']}")
     for r, why in skipped:
         print(f"[models] skip {r['id'][:44]:44} {why}")
     print(f"[models] placed {len(records)} of {len(regs)}; removed {n_osm} replaced OSM footprints and {n_fill} procedural fillers")
