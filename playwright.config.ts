@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { chromium, defineConfig, devices } from '@playwright/test';
 
-const PORT = 5177;
+const PORT = Number(process.env.PW_PORT ?? 5177);
 
 // The bundled Chromium is optional (`npx playwright install chromium`). Without it we use
 // the system Google Chrome, whose headless mode renders WebGL 2 through ANGLE/Metal on macOS.
