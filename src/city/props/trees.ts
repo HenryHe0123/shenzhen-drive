@@ -6,6 +6,7 @@ import { PropGeo, type UVRect, type V3 } from './geo';
 import { type InstanceItem, WindowedInstances } from './instances';
 import type { Route } from '../../route/Route';
 import { createImpostor, type Impostor, loadImpostor } from './treeImpostor';
+import { BanyanLod, createNearMaterials, disposeNearModel, loadNearModel } from './treeNear';
 import { treeSightCaps } from './treeSight';
 
 /**
@@ -253,24 +254,32 @@ export async function banyanInstances(
 ): Promise<WindowedInstances> {
   let imp: Impostor;
   let canopy: { radius: number; base: number };
+  let dataHeight: number;
+  const base = import.meta.env.BASE_URL;
+  const nearLoad = loadNearModel(`${base}${CONFIG.city.treeNearUrl}`, aniso).catch((e: unknown) => {
+    console.warn('[trees] near banyan mesh unavailable, impostors only:', e);
+    return null;
+  });
+  const shading = {
+    alphaTest: 0.5,
+    mipAlphaGain: 0.25,
+    aoIndirect: 0.55,
+    aoDirect: 0.25,
+    wrap: 0.8,
+    translucency: 0.45,
+    roughness: 0.9,
+    shadowReach: 16,
+    lampColor: CONFIG.city.lampColor,
+    lampGlow: 0.3,
+  };
   try {
-    const { data, color, normal } = await loadImpostor(`${import.meta.env.BASE_URL}${CONFIG.city.treeImpostorUrl}`, aniso);
+    const { data, color, normal } = await loadImpostor(`${base}${CONFIG.city.treeImpostorUrl}`, aniso);
     canopy = { radius: data.canopyRadius / data.height, base: data.canopyBottom / data.height };
-    imp = createImpostor(data, color, normal, {
-      height: CONFIG.city.treeBanyanHeight,
-      alphaTest: 0.5,
-      mipAlphaGain: 0.25,
-      aoIndirect: 0.55,
-      aoDirect: 0.25,
-      wrap: 0.8,
-      translucency: 0.45,
-      roughness: 0.9,
-      shadowReach: 16,
-      lampColor: CONFIG.city.lampColor,
-      lampGlow: 0.3,
-    });
+    dataHeight = data.height;
+    imp = createImpostor(data, color, normal, { height: CONFIG.city.treeBanyanHeight, ...shading });
   } catch (e) {
     console.warn('[trees] banyan impostor unavailable, using procedural banyans:', e);
+    nearLoad.then((m) => m && disposeNearModel(m));
     return new WindowedInstances(banyanGeometry(), fallback, items, ahead, behind);
   }
   const H = CONFIG.city.treeBanyanHeight;
@@ -286,13 +295,27 @@ export async function banyanInstances(
     const h = Math.min(trees[i].h, Math.max(caps[i], BANYAN_FALLBACK_HEIGHT * s));
     return { ...it, m: it.m.clone().scale(k.setScalar(h / (H * s))) };
   });
-  const w = new WindowedInstances(imp.geometry, imp.material, sized, ahead, behind);
+  const { sunDir } = imp;
+  const near = await nearLoad;
+  let w: WindowedInstances;
+  if (near) {
+    const { materials, depthMaterial } = createNearMaterials(near, CONFIG.city.treeBanyanHeight, { sunDir, foliageGain: 0.9, ...shading });
+    const { treeNearCount: count, treeNearFull: full, treeNearFar: far } = CONFIG.city;
+    const geometry = near.geometry;
+    w = new BanyanLod(imp.geometry, imp.material, sized, ahead, behind, { geometry, materials, depthMaterial, scale: CONFIG.city.treeBanyanHeight / dataHeight }, { count, full, far });
+    imp.geometry.addEventListener('dispose', () => {
+      disposeNearModel(near);
+      for (const m of [...materials, depthMaterial]) m.dispose();
+    });
+  } else {
+    w = new WindowedInstances(imp.geometry, imp.material, sized, ahead, behind);
+  }
   w.mesh.customDepthMaterial = imp.depthMaterial;
   w.mesh.receiveShadow = true;
-  const { sunDir } = imp;
   const target = new THREE.Vector3();
   let sun: THREE.DirectionalLight | null | undefined;
-  w.mesh.onBeforeRender = (_r, scene) => {
+  w.mesh.onBeforeRender = (_r, scene, camera) => {
+    if (w instanceof BanyanLod) w.setCamera(camera);
     if (sun === undefined) {
       sun = null;
       scene.traverse((o) => {

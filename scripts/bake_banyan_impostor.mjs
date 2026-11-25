@@ -55,6 +55,9 @@ const CONFIG = {
   vineCutHi: 0.9,
   /** Bark farther than this from the trunk axis (model m) is aerial-root strands and gets the same cut. */
   barkCutRadius: 2.6,
+  /** Bark xz scale at the ground, easing back to 1 between these fractions of the canopy base height (same in bake_banyan_near.mjs). */
+  trunkSlim: 0.65,
+  trunkSlimTop: [0.35, 1.0],
   /** Linear albedo multipliers: leaves toward a deeper 小叶榕 green, bark / roots toward grey-brown. */
   gradeLeaf: [0.92, 1.18, 0.78],
   gradeBark: [0.8, 0.78, 0.76],
@@ -67,7 +70,7 @@ const CREDIT = {
   author: 'Valery.Li',
   url: 'https://sketchfab.com/3d-models/chinese-banyan-ficus-microcarpa-2a0dbcdf8f5d48f5ad79987c7a8170ce',
   license: 'CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)',
-  changes: 'Rendered into a 16-azimuth impostor atlas (albedo, normals, ambient occlusion); the original mesh and textures are not shipped.',
+  changes: 'Aerial roots pruned, trunk slimmed below the canopy and colours graded, then rendered into a 16-azimuth impostor atlas (albedo, normals, ambient occlusion); the original mesh and textures are not shipped.',
 };
 
 async function convertModel() {
