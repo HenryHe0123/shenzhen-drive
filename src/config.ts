@@ -327,8 +327,8 @@ export const CONFIG = {
     /** Gap filler: s step (m) and lateral probe width (m) for missing street wall. */
     buildingFillerStep: 100,
     buildingFillerProbe: 150,
-    /** Fog multiplier for skyline landmarks (Ping An, KK100, Lianhuashan). */
-    landmarkFogScale: 0.2,
+    /** Fog multiplier for skyline landmarks (Ping An, KK100, Lianhuashan); 1 = same fog as every other building. */
+    landmarkFogScale: 1,
     treeSpacing: 12,
     /** Street banyans: impostor atlas baked by scripts/bake_banyan_impostor.mjs (relative to BASE_URL). */
     treeImpostorUrl: 'textures/trees/banyan.json',
@@ -385,8 +385,8 @@ export const CONFIG = {
     skylineHeight: 300,
     /** Role 'skyline' and models at least this tall get the thinned fog farFogScale and the far tone (m). */
     fogScaleHeight: 350,
-    /** Fog multiplier of those clean-geometry skyline towers (Ping An); photo models use city.landmarkFogScale. */
-    farFogScale: 0.2,
+    /** Fog multiplier of those clean-geometry skyline towers (Ping An); photo models use city.landmarkFogScale. 1 = normal fog. */
+    farFogScale: 1,
     /** Distance (m) over which their facade darkens, and the specular / diffuse reduction reached. */
     farTone: { near: 1200, far: 5000, spec: 0.6, diffuse: 0.45 },
     /**

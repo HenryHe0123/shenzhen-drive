@@ -96,15 +96,10 @@
     "oppositeMargin": 9,
     "rightMargin": 10
   },
-  "viewCorridorsNote": "artistic simplification: buildings crossing a sight line from the chase camera to a landmark are capped just below the line (dropped if the cap is < minKeep m or they are procedural fillers); s0/s1 are final route s or turnStart/turnEnd/finish; halfFov = bearing limit from the route tangent; swept wedges -> route.json clearZones",
+  "viewCorridorsNote": "off since v0.5.0 (real heights win; landmarks may be hidden by real buildings and trees). When set: buildings crossing a sight line from the chase camera to a landmark are capped just below the line (dropped if the cap is < minKeep m or they are procedural fillers); s0/s1 are final route s or turnStart/turnEnd/finish; halfFov = bearing limit from the route tangent; swept wedges -> route.json clearZones. v0.4.3 used: pingan {s0: {at: landmark:eiffel, offset: 300}, s1: turn1Start, step 10, minVisibleFrom 220, halfFov 45}; pingan {s0: turn1End, s1: landmark:pingan, step 5, minVisibleFrom 30, halfFov 60}; civic_center {s0: {at: 深南大道, offset: -200}, s1: finish, step 5, minVisibleFrom 8, halfFov 100, targetSpacing 20}; eiffel {s0: {at: landmark:eiffel, offset: -890}, s1: landmark:eiffel, step 10, minVisibleFrom 40, halfFov 75, targetSpacing 10}",
   "viewCorridorDefaults": { "cameraBack": 7, "cameraD": 1.75, "cameraHeight": 3.0, "margin": 2.0, "minKeep": 12, "targetSpacing": 25, "zoneSimplify": 4,
     "keepIds": ["w694439493"], "keepNote": "never capped: 华侨城大厦 / OCT Tower (300 m, signature of the OCT section; hides the distant Ping An tip only around s 3000-3450)" },
-  "viewCorridors": [
-    { "landmark": "pingan", "s0": { "at": "landmark:eiffel", "offset": 300 }, "s1": "turn1Start", "step": 10, "minVisibleFrom": 220, "halfFov": 45 },
-    { "landmark": "pingan", "s0": "turn1End", "s1": "landmark:pingan", "step": 5, "minVisibleFrom": 30, "halfFov": 60 },
-    { "landmark": "civic_center", "s0": { "at": "深南大道", "offset": -200 }, "s1": "finish", "step": 5, "minVisibleFrom": 8, "halfFov": 100, "targetSpacing": 20 },
-    { "landmark": "eiffel", "s0": { "at": "landmark:eiffel", "offset": -890 }, "s1": "landmark:eiffel", "step": 10, "minVisibleFrom": 40, "halfFov": 75, "targetSpacing": 10 }
-  ],
+  "viewCorridors": [],
   "procedural": {
     "enabled": true,
     "note": "filler blocks (negative ids, counted as 'estimated') only where OSM has no building, road, park/water/plaza/parking or landmark",

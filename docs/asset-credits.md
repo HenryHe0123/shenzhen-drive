@@ -42,12 +42,15 @@ Poly Haven 的 [Shanghai Bund](https://polyhaven.com/a/shanghai_bund)（Greg Zaa
 - 位置与朝向：`scripts/build_city_data.py` 用 OSM 建筑轮廓重新配准（yaw + 平移，使轮廓 IoU 最大），再套用路线剪切变换；被替换的 OSM 轮廓从 `public/data/buildings.json` 中删除。
 
 <!-- city-models:start -->
-共 50 个文件（49 个由 `public/data/city_models.json` 放置）。本表由 `scripts/build_city_data.py` 按实际随游戏分发的文件自动生成。
+共 62 个文件（61 个由 `public/data/city_models.json` 放置）。本表由 `scripts/build_city_data.py` 按实际随游戏分发的文件自动生成。
 
 | 文件 | 模型（原标题） | 作者 | 来源 | 用途 | 个别改动 |
 |---|---|---|---|---|---|
 | `public/models/city/anlian_building_db0413ea.glb` | Shenzhen Anlian Building 深圳安联大厦 | David Z. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/db0413ea9ea45dcc78d19d4cf75cc077) | 沿街建筑 |  |
 | `public/models/city/arc_de_triomphe_window_of_world_e70fca62.glb` | 深圳世界之窗凯旋门 Arc De Triomphe in Shenzhen's Window of the World | xz H. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/e70fca6248bf58c7333c21dcc67a50a) | 地标 |  |
+| `public/models/city/astronautics_building_621c5110.glb` | 深圳航天大厦 Shenzhen Astronautics Building | David Z. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/621c5110f25baddbe9ce2b0747fa10c9) | 沿街建筑 |  |
+| `public/models/city/benyuan_building_3590d0a3.glb` | 深圳本元大厦 Shenzhen Benyuan Building(China) | xz H. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/3590d0a332fffc6dbf3cbee0dae92bb2) | 沿街建筑 |  |
+| `public/models/city/central_business_building_99eb7f85.glb` | Shenzhen Central Business Building 深圳中心商务大厦 | David Z. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/99eb7f854d0b0dafb7d30984861683cc) | 沿街建筑 |  |
 | `public/models/city/citizen_center_columns_1b723d6e.glb` | Shenzhen Citizen Center Columns | David Z. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/1b723d6efe2343282e4b5d011481ed57) | 深圳市民中心的组成部分，随其模型一同替换手工地标 |  |
 | `public/models/city/civic_center_mot_638756e4.glb` | 深圳市民中心 | MOT | [3D Warehouse](https://3dwarehouse.sketchup.com/model/638756e451330cb6f5f59be4a8fc936f) | 地标，替换手工地标 深圳市民中心 | 裁掉主体南侧跨越福中三路的台阶平台 |
 | `public/models/city/convention_exibition_center_4acfaf83.glb` | 深圳会展中心 Shenzhen Convention & Exibition Center | David Z. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/4acfaf8313552ee77917503a0aa843ba) | 沿街建筑 |  |
@@ -55,20 +58,28 @@ Poly Haven 的 [Shanghai Bund](https://polyhaven.com/a/shanghai_bund)（Greg Zaa
 | `public/models/city/customs_d29ae84d.glb` | 深圳海关 Shenzhen Customs | David Z. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/d29ae84d48e4f971a11382752cc4a90) | 沿街建筑 |  |
 | `public/models/city/dabaihui_plaza_7a7ad91b.glb` | Dabaihui Plaza | Brady Cloud | [3D Warehouse](https://3dwarehouse.sketchup.com/model/7a7ad91b-b9a7-420e-98df-5e7225be8f68) | 沿街建筑 |  |
 | `public/models/city/diwang_builiding_f2c8db34.glb` | 地王大厦 Diwang Builiding | John Tang | [3D Warehouse](https://3dwarehouse.sketchup.com/model/f2c8db347ef09231ad3ff2466ab804ac) | 远景 |  |
+| `public/models/city/duty_free_commercial_building_7ffab75e.glb` | 深圳免税商务大厦 Shenzhen Duty-free Commercial Building(China) | xz H. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/7ffab75eebd0a70418a29c6239335606) | 沿街建筑 |  |
 | `public/models/city/eiffel_tower_window_of_world_9d17334b.glb` | 深圳世界之窗埃菲尔铁塔 Eiffel Tower in Shenzhen's Window of the World(China) | xz H. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/9d17334bf5b3be1777502157ac53443f) | 未放置：手工地标 世界之窗 埃菲尔铁塔 的备选（replaceLandmark=false），保留供对比 |  |
+| `public/models/city/excellence_building_8e1904f6.glb` | 深圳卓越大厦 Shenzhen Excellence Building | David Z. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/8e1904f67ff4e2e3d7a034a794845add) | 沿街建筑 |  |
 | `public/models/city/farser_corporate_residence_bf1f49d3.glb` | 深圳富瑞斯国际公寓酒店 Farser Corporate Residence Shenzhen(China) | xz H. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/bf1f49d3890474903f07b6de2b72a4d7) | 沿街建筑 |  |
+| `public/models/city/fengli_building_3c4d265b.glb` | 深圳丰立大厦 Shenzhen Fengli Building(China) | xz H. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/3c4d265b082366955a0feadcfd4953ef) | 沿街建筑 |  |
 | `public/models/city/fortune_building_c90a567b.glb` | 深圳财富大厦 Shenzhen Fortune Building | David Z. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/c90a567bfc8c7243bdf46b31b7778cf2) | 沿街建筑 |  |
 | `public/models/city/fuchun_eastern_building_vanke_5a3511e4.glb` | 深圳万科富春东方大厦 Fuchun Eastern Building, Shenzhen Vanke(China) | xz H. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/5a3511e4561ea1baa33fee85809a46f3) | 沿街建筑 |  |
 | `public/models/city/futian_shangri_la_hotel_3481c83f.glb` | 深圳福田香格里拉大酒店 Shenzhen Futian Shangri-La Hotel | David Z. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/3481c83fda183b447b01108cccff784e) | 沿街建筑 |  |
 | `public/models/city/galaxy_century_building_26468923.glb` | 深圳星河世纪大厦 Shenzhen Galaxy Century Building(China) | xz H. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/2646892347497b72a05782541ebe9181) | 沿街建筑 |  |
 | `public/models/city/gold_central_hotel_d8d82029.glb` | 深圳金中環酒店公寓 Shenzhen Gold Central Hotel | David Z. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/d8d8202918e9548aeaa81f55a9a2ffc2) | 沿街建筑 |  |
 | `public/models/city/great_international_investment_plaza_f8adf623.glb` | 大中华国际交易广场 Great China International Investment Plaza | David Z. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/f8adf623c6969b2ecca165dd51caaddd) | 沿街建筑 |  |
+| `public/models/city/guosen_securities_tower_10e48303.glb` | Shenzhen-Guosen Securities Tower | Beer M. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/10e48303-39e7-4f00-957e-2942a1a30ab0) | 沿街建筑 |  |
 | `public/models/city/hanking_center_7d0712d1.glb` | Hanking Center | Brady Cloud | [3D Warehouse](https://3dwarehouse.sketchup.com/model/7d0712d1-fcdb-4a11-bfa8-fb8942538815) | 地标 |  |
 | `public/models/city/huarong_building_729765e7.glb` | 深圳华融大厦 Shenzhen Huarong Building(China) | xz H. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/729765e7eef0036518a29c6239335606) | 沿街建筑 |  |
+| `public/models/city/information_hub_building_63851b14.glb` | 深圳信息枢纽大厦 Shenzhen Information Hub Building | David Z. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/63851b14933c7aeac194766c3e685368) | 沿街建筑 |  |
 | `public/models/city/international_chamber_of_commerce_tower_64beb6b2.glb` | International Chamber of Commerce Tower | Stefan L. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/64beb6b2d9343912e7a59953097812c1) | 沿街建筑 |  |
+| `public/models/city/international_commerce_building_5a5ed5b1.glb` | Shenzhen International Commerce Building 深圳国际商会大厦 | David Z. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/5a5ed5b108f758b6b7d30984861683cc) | 沿街建筑 |  |
+| `public/models/city/international_commerce_building_building_dd7a83ff.glb` | Shenzhen International Commerce Building Building B 深圳国际商会大厦B栋 | David Z. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/dd7a83fff3461a6ae9ce2b0747fa10c9) | 沿街建筑 |  |
 | `public/models/city/international_energy_headquarters_51b371ce.glb` | Shenzhen International Energy Headquarters | Beer M. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/51b371ce-a224-464d-8629-4ff18bf5b68e) | 沿街建筑 |  |
 | `public/models/city/jialinhaoting_garden_6004d8a8.glb` | 深圳嘉麟豪庭 Shenzhen Jialinhaoting Garden(China) | xz H. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/6004d8a8f4644c2a346cbdfc8d38d7d1) | 沿街建筑 |  |
 | `public/models/city/jiang_su_building_39aa4f9b.glb` | Jiang Su Building 江苏大厦 | David Z. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/39aa4f9be89b763e3afab28da07f9112) | 沿街建筑 |  |
+| `public/models/city/jw_jw_marriott_hotel_863002a0.glb` | 深圳JW万豪酒店 Shenzhen JW Marriott Hotel(China) | xz H. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/863002a0190a3e1faeae74f54f27504f) | 沿街建筑 |  |
 | `public/models/city/kerry_construction_plaza_2_3dbc324e.glb` | 深圳嘉里建設廣場二期 Kerry Construction Plaza 2 | David Z. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/3dbc324e747d596b49bee0b3b22a551d) | 沿街建筑 |  |
 | `public/models/city/kk100_b7451df0.glb` | KK100 | Brady Cloud | [3D Warehouse](https://3dwarehouse.sketchup.com/model/b7451df0-3070-4209-95f5-ff0cfda917e3) | 远景，替换手工地标 京基100 |  |
 | `public/models/city/lord_center_a035ce82.glb` | 诺德中心 Lord Center | David Z. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/a035ce82e743f50b72721b5205679ff) | 沿街建筑 |  |
@@ -89,6 +100,7 @@ Poly Haven 的 [Shanghai Bund](https://polyhaven.com/a/shanghai_bund)（Greg Zaa
 | `public/models/city/temeisi_building_1a923979.glb` | 深圳特美思大厦 Shenzhen Temeisi Building(China) | xz H. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/1a923979c53a4f7f3af078df17b76f13) | 沿街建筑 |  |
 | `public/models/city/tencent_1c412809.glb` | 深圳腾讯大厦 Shenzhen Tencent(China) | xz H. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/1c4128092666a512d8b98d35d2e7a4e9) | 地标，替换手工地标 腾讯大厦 |  |
 | `public/models/city/time_square_excellence_15fb1d9a.glb` | Time Square Excellence Ⅱ 卓越时代广场二期 | David Z. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/15fb1d9addedd6107b01108cccff784e) | 沿街建筑 |  |
+| `public/models/city/times_finanial_center_709a19e8.glb` | 深圳时代金融中心 Shenzhen Times Finanial Center(China) | xz H. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/709a19e8d6372353af078df17b76f13) | 沿街建筑 |  |
 | `public/models/city/times_square_excellence_b8a73c35.glb` | Times Square Excellence 卓越時代廣場 | David Z. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/b8a73c35bdd46e4462fd14a1a2fade09) | 沿街建筑 |  |
 | `public/models/city/trade_center_220f453c.glb` | Shenzhen Trade Center 深圳经贸中心 | David Z. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/220f453c0ab67df265f1e8ef1297e5aa) | 沿街建筑 |  |
 | `public/models/city/unicom_building_3666a15a.glb` | 深圳联通大厦 China Unicom Building (Shenzhen) | xz H. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/3666a15a39a2a205a5b5516fe36a596a) | 沿街建筑 |  |

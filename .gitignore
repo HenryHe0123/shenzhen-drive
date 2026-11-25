@@ -3,6 +3,8 @@ data-raw/*.pkl
 __pycache__/
 data-raw/download.log
 data-raw/assets/
+data-raw/cmab/
+data-raw/overture/
 node_modules/
 dist/
 .venv/
