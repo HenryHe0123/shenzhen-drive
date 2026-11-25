@@ -12,9 +12,9 @@
 
 | 文件 | 来源 | 作者 | 授权 | 使用方式 |
 |---|---|---|---|---|
-| `public/textures/trees/banyan_color.webp`、`banyan_normal.webp`、`banyan.json`（原始 GLB 在 `data-raw/assets/sketchfab/`，不入库） | Sketchfab：[Chinese Banyan (Ficus Microcarpa)](https://sketchfab.com/3d-models/chinese-banyan-ficus-microcarpa-2a0dbcdf8f5d48f5ad79987c7a8170ce) | Valery.Li | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | 由 `scripts/bake_banyan_impostor.mjs` 离线渲染成 16 个方位的 impostor 图集（反照率 + 覆盖度、法线 + 天空可见度）；烘焙时修剪下垂气根、调整叶片与树皮颜色。原始网格和贴图不随游戏分发；运行时见 `src/city/props/trees.ts`、`treeImpostor.ts` |
+| `public/textures/trees/banyan_color.webp`、`banyan_normal.webp`、`banyan.json`（原始 GLB 在 `data-raw/assets/sketchfab/`，不入库） | Sketchfab：[Chinese Banyan (Ficus Microcarpa)](https://sketchfab.com/3d-models/chinese-banyan-ficus-microcarpa-2a0dbcdf8f5d48f5ad79987c7a8170ce) | Valery.Li | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | 远景：由 `scripts/bake_banyan_impostor.mjs` 离线渲染成 16 个方位的 impostor 图集（反照率 + 覆盖度、法线 + 天空可见度）；烘焙时修剪下垂气根、树冠以下的树干收细、调整叶片与树皮颜色。近景（v0.3.2 起，`public/models/trees/banyan_near.*`）：由 `scripts/bake_banyan_near.mjs` 用 meshoptimizer 减面到约 8,900 个三角面，修剪气根、收细树干、叶片面片放大，烘焙树冠法线和逐顶点天空可见度，叶片 / 细枝 / 藤蔓贴图调色后打包成一张 WebP 图集，树皮转 WebP。原始网格和贴图不随游戏分发；运行时见 `src/city/props/trees.ts`、`treeImpostor.ts`、`treeNear.ts` |
 
-署名（CC BY 4.0）：“[Chinese Banyan (Ficus Microcarpa)](https://sketchfab.com/3d-models/chinese-banyan-ficus-microcarpa-2a0dbcdf8f5d48f5ad79987c7a8170ce)” by Valery.Li, licensed under CC BY 4.0. Changes: rendered into a 16-azimuth impostor atlas (albedo, normals, ambient occlusion), aerial roots trimmed and colours graded during the bake; the original mesh is not shipped.
+署名（CC BY 4.0）：“[Chinese Banyan (Ficus Microcarpa)](https://sketchfab.com/3d-models/chinese-banyan-ficus-microcarpa-2a0dbcdf8f5d48f5ad79987c7a8170ce)” by Valery.Li, licensed under CC BY 4.0. Changes: rendered into a 16-azimuth impostor atlas (albedo, normals, ambient occlusion); decimated to a ~8.9k-triangle near-LOD mesh with a packed WebP leaf atlas; aerial roots trimmed, trunk slimmed and colours graded; the original mesh is not shipped.
 
 ### 国标路牌贴图
 
