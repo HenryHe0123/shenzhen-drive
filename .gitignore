@@ -5,6 +5,7 @@ data-raw/download.log
 data-raw/assets/
 data-raw/cmab/
 data-raw/overture/
+data-raw/heights/
 node_modules/
 dist/
 .venv/

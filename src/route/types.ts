@@ -168,8 +168,8 @@ export interface BuildingsData {
     generatedAt: string;
     osmTimestamp: string | null;
     count: number;
-    /** Where each height comes from: OSM height / levels, CMAB, Overture, zone estimate (procedural blocks included). */
-    heightSources: { tag: number; levels: number; cmab?: number; overture?: number; estimated: number };
+    /** Where each height comes from: OSM height / levels, CMAB, WSF3D 90 m cell average, Overture, zone estimate (procedural blocks included). */
+    heightSources: { tag: number; levels: number; cmab?: number; wsf3d?: number; overture?: number; estimated: number };
     footprintSources?: { osm: number; overture: number; procedural: number };
   };
   buildings: BuildingRecord[];

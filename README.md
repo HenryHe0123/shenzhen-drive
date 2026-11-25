@@ -62,14 +62,15 @@ npm run typecheck    # TypeScript 类型检查
 
 ```bash
 uv venv .venv
-source .venv/bin/activate && uv pip install osmium shapely numpy matplotlib pyarrow pyogrio pyproj overturemaps
+source .venv/bin/activate && uv pip install osmium shapely numpy matplotlib pyarrow pyogrio pyproj overturemaps rasterio
 sh data-raw/download.sh                        # 下载 Geofabrik 广东省 OSM 提取（约 176 MB，可断点续传，进度见 data-raw/download.log）
 sh data-raw/download.sh cmab                   # CMAB 建筑高度：7.9 GB 压缩包，校验后解出深圳一层并裁剪到范围内（首次会从源码编译 unrar）
+sh data-raw/download.sh wsf3d                  # WSF3D 90 m 网格建筑高度：只从全球文件里读取路线范围那一小块（约 50 KB）
 sh data-raw/download.sh overture               # Overture 建筑轮廓（范围内约 5.7 万个要素）
 .venv/bin/python scripts/build_city_data.py    # 或 npm run data；--rebuild 忽略缓存，--no-plot 不生成 evidence/route_plot.png
 ```
 
-- 输入（均不入库）：`data-raw/guangdong-latest.osm.pbf`；`data-raw/cmab/cmab_corridor.parquet`（`scripts/clip_cmab.py` 生成）；`data-raw/overture/buildings.parquet`。后两项缺失时管线跳过对应来源。
+- 输入（均不入库）：`data-raw/guangdong-latest.osm.pbf`；`data-raw/cmab/cmab_corridor.parquet`（`scripts/clip_cmab.py` 生成）；`data-raw/heights/wsf3d_corridor.tif`（`scripts/clip_wsf3d.py` 生成）；`data-raw/overture/buildings.parquet`。后三项缺失时管线跳过对应来源。
 - 输出：`public/data/route.json`（中心线、车道宽度、对向车道、辅路、分区、检查点、终点、转弯、路口、地标、路牌、天桥、公交站、地铁口，格式见 `src/route/types.ts`）和 `public/data/buildings.json`（OSM 与 Overture 建筑轮廓、高度、功能、年代，`meta.heightSources` 记录每种高度来源的数量）。
 - 参数（路线各段道路 `route.legs` 与转弯半径、剪切区间、检查点、地标 OSM id、视廊 `viewCorridors`（v0.5.0 起为空）、CMAB 与 Overture 的匹配规则、辅路与路边设施、高度估算规则、圈速估算 `race`）在 `scripts/city_config.json`；重复运行结果一致，运行时打印理想圈速估算、CMAB 校准结果与各项自检。
 
@@ -105,7 +106,7 @@ docs/              资产归属、版本记录与版本对比、OSM 数据覆盖
 - **只开同向车道**：可驾驶范围始终是行驶方向的那一幅路（4 车道 × 3.5 m，车道线可自由跨越，越出道路边界才碰撞）；中央绿化带和对向车道是静态景观。CBD 支路在现实中只有 2–3 车道，游戏里统一按 4 车道宽度处理；福中三路西行紧贴市民中心南立面，车道整体向南（市民广场一侧）平移 7 m，避免压到建筑。
 - **转弯**：只在真实路口转弯，共 4 处（右转益田路 R30、左转福华三路 R40、左转金田路 R40、左转福中三路 R32），均为切线圆弧倒角，其余路段无折角。左转圆弧都在路口范围内；右转按渠化右转处理，圆弧内侧会切过路口转角约 7 m。
 - **真实优先（v0.5.0 起）**：建筑一律按数据的真实高度，不再为露出地标而压低或删除（v0.4.3 及以前的“地标视廊”已关闭，代码保留，`viewCorridors` 为空）；平安金融中心、市民中心、埃菲尔铁塔在部分路段会被真实建筑或行道树挡住，这是有意的结果。地标的远景雾效与其他建筑相同。没有任何数据依据的虚构建筑为 0：OSM 没有轮廓的地方用 Overture 的机器学习屋顶轮廓补，两者都没有的地方保持空地。
-- **建筑高度**：优先级为 OSM `height` > OSM 楼层数 × 3.2 m > CMAB > 按片区和占地面积估算。CMAB 只覆盖经度 114.028 以东（福田 / 罗湖），并且高楼严重偏矮，校准后只用于占地不在 1500–3000 m² 的建筑（见 `docs/CHANGELOG.md` v0.5.0）。
+- **建筑高度**：优先级为 OSM `height` > OSM 楼层数 × 3.2 m > CMAB 或 WSF3D（按占地面积取校准后更准的那个）> 按片区和占地面积估算。CMAB 是单栋数据，但只覆盖经度 114.028 以东（福田 / 罗湖），并且高楼严重偏矮；WSF3D 是全球 90 m 网格的平均建筑高度，覆盖全线，整体偏低约 12 m。两者的校准结果见 `docs/CHANGELOG.md` v0.5.0。
 - **道路横断面**：车行道仍为 4 车道 × 3.5 m（碰撞边界不变）；路边按 OSM 的深南大道辅路建出侧分带（行道树、双臂路灯）、辅路（沥青和标线，车开不进去）、自行车道和人行道，没有辅路的路段保持原来的路缘、绿化带、自行车道、人行道。人行天桥、公交候车亭、地铁出入口雨棚按 OSM 位置放置，只做视觉、不参与碰撞，不使用真实商标和标识。
 - **APEC**：香蜜湖路口的路牌文字（“深圳国际交流中心 · 2026 APEC 主会场”）、路边广告牌和 LED 屏幕上的“APEC China 2026 · 相约深圳 见证奇迹”画面，只用文字和自绘图形，不使用官方徽标，不建模国际交流中心。
 - **真实建筑模型**：沿线部分建筑来自 3D Warehouse 的真实深圳建筑模型，位置按 OSM 轮廓重新配准；模型自带的照片贴图分辨率较低，近看偏糊。
@@ -114,7 +115,7 @@ docs/              资产归属、版本记录与版本对比、OSM 数据覆盖
 ## 资产归属（摘要）
 
 - 小米 SU7 模型：Sketchfab [Xiaomi SU7](https://sketchfab.com/3d-models/xiaomi-su7-ca2cda599f5341068c992c9f44551bf9)，作者 Car2022（现名 Mona x Supercars），CC BY 4.0；仅在运行时替换车漆材质。本项目与小米公司无关联，未获其认可。
-- 地图数据 © OpenStreetMap contributors，[ODbL 1.0](https://www.openstreetmap.org/copyright)，经 Geofabrik 提取；补充建筑轮廓来自 Overture Maps（ODbL 1.0，机器学习屋顶来源 CC BY 4.0），补充建筑高度来自 CMAB（Zhang、Zhao、Long，CC BY 4.0）。
+- 地图数据 © OpenStreetMap contributors，[ODbL 1.0](https://www.openstreetmap.org/copyright)，经 Geofabrik 提取；补充建筑轮廓来自 Overture Maps（ODbL 1.0，机器学习屋顶来源 CC BY 4.0），补充建筑高度来自 CMAB（Zhang、Zhao、Long，CC BY 4.0）和 WSF3D（© DLR，CC BY 4.0）。
 - 真实深圳建筑模型：3D Warehouse 多位作者，[General Model License](https://3dwarehouse.sketchup.com/tos/)，仅随游戏分发处理后的文件，逐个署名见资产清单。
 - 小叶榕（Valery.Li）与国标路牌（notbadworks）：Sketchfab，CC BY 4.0，均为离线烘焙 / 减面 / 裁切后的版本。
 - 日落预设的车漆反射 HDRI：Poly Haven Shanghai Riverside（Alex Radosnov），CC0。

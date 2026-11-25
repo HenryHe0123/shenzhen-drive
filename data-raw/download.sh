@@ -2,6 +2,7 @@
 # Resumable downloads of the raw city data. Progress goes to download.log.
 #   sh data-raw/download.sh            OSM Guangdong extract (Geofabrik)
 #   sh data-raw/download.sh cmab       CMAB building heights: 7.9 GB archive, Shenzhen layer clipped to the bbox
+#   sh data-raw/download.sh wsf3d      WSF3D 90 m building height, only the bbox window of the global file (needs rasterio in .venv)
 #   sh data-raw/download.sh overture   Overture Maps buildings in the bbox (needs overturemaps in .venv)
 #   sh data-raw/download.sh all
 cd "$(dirname "$0")"
@@ -42,6 +43,14 @@ cmab() {
   cd ..
 }
 
+# WSF3D building height (DLR, CC BY 4.0): reads only the bbox blocks of the global cloud-optimised GeoTIFF.
+wsf3d() {
+  {
+    echo "[$(date '+%F %T')] wsf3d start"
+    "$ROOT/.venv/bin/python" "$ROOT/scripts/clip_wsf3d.py" && echo "WSF3D_DONE"
+  } >> download.log 2>&1
+}
+
 # Overture Maps buildings (ODbL 1.0); the release used is recorded in overture/buildings.parquet.state.
 overture() {
   mkdir -p overture
@@ -54,7 +63,8 @@ overture() {
 case "${1:-osm}" in
   osm) osm ;;
   cmab) cmab ;;
+  wsf3d) wsf3d ;;
   overture) overture ;;
-  all) osm; cmab; overture ;;
-  *) echo "usage: sh data-raw/download.sh [osm|cmab|overture|all]"; exit 2 ;;
+  all) osm; cmab; wsf3d; overture ;;
+  *) echo "usage: sh data-raw/download.sh [osm|cmab|wsf3d|overture|all]"; exit 2 ;;
 esac

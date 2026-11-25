@@ -42,22 +42,31 @@ So the zone/area height rules carry most of the near field; the skyline is fully
 **v0.5.0 height sources** (`buildings.json` `meta.heightSources`, full uncut route, near ≤ 300 m plus far
 skyline 300–1500 m with h ≥ 80 m; procedural blocks are off, so every record is a real footprint):
 
-| footprints | count | OSM `height` | OSM levels × 3.2 m | CMAB | zone estimate |
-|---|---:|---:|---:|---:|---:|
-| OSM (incl. 575 far) | 1,430 | 220 | 746 | 49 | 415 (29%) |
-| Overture machine-learned rooftops | 762 | – | – | 129 | 633 (83%) |
-| all | 2,192 | 220 (10%) | 746 (34%) | 178 (8%) | 1,048 (48%) |
+| footprints | count | OSM `height` | OSM levels × 3.2 m | CMAB | WSF3D (90 m cell mean) | zone estimate |
+|---|---:|---:|---:|---:|---:|---:|
+| OSM (incl. 644 far) | 1,495 | 220 | 746 | 36 | 476 | 17 (1%) |
+| Overture machine-learned rooftops (incl. 60 far) | 822 | – | – | 118 | 648 | 56 (7%) |
+| all | 2,317 | 220 (9%) | 746 (32%) | 154 (7%) | 1,124 (49%) | 73 (3%) |
 
 v0.4.3 for comparison: 1,624 records = 224 `height`, 743 levels, 453 estimated OSM footprints and 204
-procedural blocks (60% data-backed counting the blocks, 68% of the real footprints).
+procedural blocks (60% data-backed counting the blocks, 68% of the real footprints). Far skyline
+buildings (300–1500 m) still need a data-backed height ≥ 80 m, which WSF3D now supplies for 121 more.
 
 CMAB (`scripts/clip_cmab.py`, file `province/广东省/zhusanjiaoyi20220302` of `CMAB_origin.rar`) covers
 Shenzhen only east of lon 114.028 (福田 / 罗湖); 南山 and most of the route west of 香蜜湖 have no
-CMAB rooftops, which is why Overture additions there mostly keep zone estimates. Calibration on the
-corridor (pipeline log `[cmab]`): on 31 OSM buildings with `height`, CMAB is a median 122 m too low
-(+6 m below 30 m, −37 m at 30–100 m, −173 m above 100 m); 平安金融中心 has no CMAB rooftop at all.
-On 370 buildings with `height` or levels, CMAB beats the zone estimate except on 1500–3000 m²
-footprints (towers), so CMAB is used below OSM levels and never for those footprint sizes.
+CMAB rooftops. Calibration on the corridor (pipeline log `[cmab]`): on 31 OSM buildings with `height`,
+CMAB is a median 122 m too low (+6 m below 30 m, −37 m at 30–100 m, −173 m above 100 m); 平安金融中心
+has no CMAB rooftop at all.
+
+WSF3D (`scripts/clip_wsf3d.py`, window of DLR's global `WSF3D_V02_BuildingHeight.tif`) covers the whole
+route. On 2,081 buildings with `height` or levels (pipeline log `[wsf3d]`) its median error is 17.5 m
+against 30.2 m for the zone estimate, with a −12.5 m bias. By footprint size: 0–600 m² 12.3 vs 17.5 m,
+600–1500 m² 36.4 vs 39.8 m, 1500–3000 m² 41.3 vs 49.8 m, ≥ 3000 m² 20.3 vs 27.6 m. Where both exist,
+CMAB wins below 600 m² (8.7 vs 11.0 m) and above 3000 m² (11.3 vs 37.0 m), WSF3D in between. Order
+used: OSM `height` > OSM levels > CMAB / WSF3D by footprint size > zone estimate; WSF3D is skipped when
+height / √area > 8.3 (99th percentile of OSM buildings ≥ 80 m), which stops small footprints inside a
+tower cell from becoming needles. GHSL GHS-BUILT-H (100 m) was tested and is no better than the zone
+estimate (28 m median error).
 
 **2. Footprint gaps: yes.** Footprint share of the 600 m wide corridor, per 250 m of real route,
 has a median of only 13% (dense Shenzhen blocks are typically 25–40%). Bins below 6% (real arc

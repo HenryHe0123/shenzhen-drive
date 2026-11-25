@@ -766,20 +766,22 @@ def hash01(oid: int, salt: int = 0) -> float:
     return (z & 0xFFFFFFFFFFFF) / float(1 << 48)
 
 
-def building_height(tags, zone, area, oid, hc, cmab_h=None, cmab_first=None):
-    """(height, source): OSM height > OSM levels > CMAB > zone estimate. cmab_first(levels_height)
-    True lets CMAB win over the levels height in height bands where calibration found it closer."""
+def building_height(tags, zone, area, oid, hc, alt=None, alt_first=None):
+    """(height, source): OSM height > OSM levels > alt (CMAB / WSF3D height and source, see data_height) >
+    zone estimate. alt_first(levels_height) True lets a CMAB height win over the levels height in height
+    bands where calibration found it closer."""
     h = parse_height(tags.get("height"))
     if h:
         return h, "tag"
     lv = parse_levels(tags.get("building:levels"))
+    alt_h, alt_src = alt or (None, None)
     if lv:
         hl = lv * hc["levelHeight"] + hc.get("roofAllowance", 0.0)
-        if cmab_h and cmab_first and cmab_first(hl):
-            return cmab_h, "cmab"
+        if alt_h and alt_src == "cmab" and alt_first and alt_first(hl):
+            return alt_h, alt_src
         return hl, "levels"
-    if cmab_h:
-        return cmab_h, "cmab"
+    if alt_h:
+        return alt_h, alt_src
     btype = tags.get("building", "yes")
     r = hash01(oid)
     if btype in hc["lowTypes"]:
@@ -858,6 +860,84 @@ def cmab_skip(cc, area):
     """True for footprint sizes where calibration found CMAB no better than the zone estimate."""
     lo, hi = cc.get("skipArea", (0, 0))
     return lo <= area < hi
+
+
+def data_height(cfg, area, cmab_h, wsf_h):
+    """(height, source) from CMAB or WSF3D for a footprint without OSM height / levels: whichever the
+    calibration found closer for this footprint size (cmab.skipArea, wsf3d.preferOverCmabArea); (None, None)
+    when neither has a value."""
+    use_cmab = bool(cmab_h) and not cmab_skip(cfg.get("cmab", {}), area)
+    wc = cfg.get("wsf3d", {})
+    lo, hi = wc.get("preferOverCmabArea", (0, 0))
+    if wsf_h and wsf_h > wc.get("maxSlenderness", math.inf) * math.sqrt(area):
+        wsf_h = None
+    if wsf_h and (lo <= area < hi or not use_cmab):
+        return wsf_h, "wsf3d"
+    if use_cmab:
+        return cmab_h, "cmab"
+    return None, None
+
+
+def load_wsf3d(cfg, proj):
+    """WSF3D cell heights clipped to the bbox (scripts/clip_wsf3d.py) -> sample(poly) = mean of the cell
+    values > 0 under a sampleStep m grid inside a local-metre footprint (its representative point when the
+    grid misses it), or None. None when the file is missing."""
+    wc = cfg.get("wsf3d")
+    if not wc:
+        return None
+    path = ROOT / wc["path"]
+    if not path.exists():
+        print(f"[wsf3d] {path.relative_to(ROOT)} missing; run sh data-raw/download.sh wsf3d")
+        return None
+    import rasterio
+
+    with rasterio.open(path) as ds:
+        arr = ds.read(1).astype(float) * wc["gain"]
+        inv = ~ds.transform
+    st = wc["sampleStep"]
+
+    def sample(poly):
+        minx, miny, maxx, maxy = poly.bounds
+        gx, gz = np.meshgrid(np.arange(minx + st / 2, maxx, st), np.arange(miny + st / 2, maxy, st))
+        pts = np.column_stack([gx.ravel(), gz.ravel()])
+        if len(pts):
+            pts = pts[shapely.contains_xy(poly, pts[:, 0], pts[:, 1])]
+        if not len(pts):
+            pts = np.array(poly.representative_point().coords)
+        ll = proj.inv(pts)
+        col, row = inv * (ll[:, 0], ll[:, 1])
+        r, c = np.floor(row).astype(int), np.floor(col).astype(int)
+        ok = (r >= 0) & (r < arr.shape[0]) & (c >= 0) & (c < arr.shape[1])
+        v = arr[r[ok], c[ok]]
+        v = v[v > 0]
+        return float(v.mean()) if len(v) else None
+
+    print(f"[wsf3d] {arr.shape[1]} x {arr.shape[0]} cells from {path.relative_to(ROOT)}, max {arr.max():.0f} m")
+    return sample
+
+
+def wsf3d_calibration(rows, hc):
+    """rows: (tags, area, WSF3D height, CMAB height or None, zone estimate). Median |error| against OSM height /
+    levels x levelHeight, per footprint-size band."""
+    ref = []
+    for t, a, w, c, e in rows:
+        h = parse_height(t.get("height"))
+        lv = parse_levels(t.get("building:levels"))
+        truth = h or (lv * hc["levelHeight"] + hc.get("roofAllowance", 0.0) if lv else None)
+        if truth and w:
+            ref.append((truth, a, w, c, e))
+    if not ref:
+        return
+    R = np.array([(t, a, w, np.nan if c is None else c, e) for t, a, w, c, e in ref], float)
+    med = lambda col, m: np.median(np.abs(R[m, col] - R[m, 0])) if m.any() else float("nan")  # noqa: E731
+    allm = np.ones(len(R), bool)
+    print(f"[wsf3d] calibration on {len(R)} buildings with OSM height or levels: median |error| WSF3D {med(2, allm):.1f} m, "
+          f"zone estimate {med(4, allm):.1f} m; WSF3D bias {np.median(R[:, 2] - R[:, 0]):+.1f} m")
+    for lo, hi in ((0, 600), (600, 1500), (1500, 3000), (3000, 1e12)):
+        m = (R[:, 1] >= lo) & (R[:, 1] < hi)
+        mc = m & np.isfinite(R[:, 3])
+        print(f"[wsf3d]   footprint {lo:.0f}-{hi if hi < 1e12 else '':>4} m2: n {m.sum()}, WSF3D {med(2, m):.1f} m, estimate {med(4, m):.1f} m; "
+              f"where CMAB exists (n {mc.sum()}): WSF3D {med(2, mc):.1f} m, CMAB {med(3, mc):.1f} m")
 
 
 def cmab_match(poly, cm, min_overlap):
@@ -1333,8 +1413,9 @@ def main():
 
     # ---- buildings (view corridors run after the fillers so fillers cannot re-block) ----
     cm = load_cmab(cfg, proj)
-    blds, hs, obstacles = build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms, cm, margins)
-    ov_blds, _, ov_polys = overture_buildings(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, lms, load_overture(cfg, proj), cm, margins)
+    wsf = load_wsf3d(cfg, proj)
+    blds, hs, obstacles = build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms, cm, margins, wsf)
+    ov_blds, _, ov_polys = overture_buildings(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, lms, load_overture(cfg, proj), cm, margins, wsf)
     fill = procedural_fill(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, obstacles + ov_polys + model_obstacles, lms)
     blds = sorted(blds + ov_blds + fill, key=lambda r: (r["s"], r["id"]))
     final_s = lambda v: v if isinstance(v, (int, float)) else (  # noqa: E731
@@ -1351,9 +1432,14 @@ def main():
     print(f"[lap] optimal lap estimate {lap['time'] // 60:.0f}:{lap['time'] % 60:05.2f} "
           f"(top {lap['vmax'] * 3.6:.0f} km/h, slowest corner {lap['vmin_corner'] * 3.6:.0f} km/h, "
           f"{lap['full'] / 1000:.1f} km at > 300 km/h)")
-    hs = dict(tag=0, levels=0, cmab=0, overture=0, estimated=0)
+    hs = dict(tag=0, levels=0, cmab=0, wsf3d=0, overture=0, estimated=0)
+    by_fp = defaultdict(lambda: defaultdict(int))
     for b in blds:
-        hs[b.pop("_src", "estimated")] += 1
+        src = b.pop("_src", "estimated")
+        hs[src] += 1
+        by_fp["overture" if b.get("src") == "overture" else "procedural" if b["id"] < 0 else "osm"][src] += 1
+    for k, v in by_fp.items():
+        print(f"[heights] {k} footprints: " + ", ".join(f"{s} {n}" for s, n in v.items()))
     write_json(out_dir / "route.json", route)
     print(f"[out] route.json {(out_dir / 'route.json').stat().st_size / 1024:.0f} KB")
     footprints = dict(osm=sum(1 for b in blds if b["id"] > 0 and b.get("src") != "overture"),
@@ -1411,12 +1497,13 @@ def lanes_report(osm, R, proj, U):
 # ----------------------------------------------------------------------------
 
 
-def build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms, cm=None, margins=None):
+def build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms, cm=None, margins=None, wsf=None):
     bc, hc = cfg["buildings"], cfg["heights"]
     margins = margins or road_margins(cfg, None, grid, opp_o)
     cc = cfg.get("cmab", {})
     bands = cc.get("preferOverLevels", [])
     cmab_first = (lambda hl: any(lo <= hl < hi for lo, hi in bands)) if bands else None
+    wsf_rows = []
     exclude = set(bc["excludeIds"])
     near_d, far_d = bc["nearDist"], bc["farDist"]
     lo = U.p.min(0) - far_d - 200
@@ -1449,7 +1536,7 @@ def build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms, cm=N
 
     polys = [c[2] for c in cands]
     dist = shapely.distance(np.array(polys, dtype=object), U.line)
-    hs = dict(tag=0, levels=0, cmab=0, estimated=0)
+    hs = dict(tag=0, levels=0, cmab=0, wsf3d=0, estimated=0)
     out = []
     dropped = defaultdict(int)
     sec_ids = {s["id"] for s in cfg["sections"]}
@@ -1469,9 +1556,11 @@ def build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms, cm=N
         cmab_h = float(cm["h"][mi]) if mi is not None and cm["h"][mi] > 0 else None
         if cmab_h:
             calib.append((t, cmab_h))
-            if cmab_skip(cc, poly.area):
-                cmab_h = None
-        h, src = building_height(t, zone, poly.area, oid, hc, cmab_h, cmab_first)
+        wsf_h = wsf(poly) if wsf else None
+        if wsf_h:
+            est, _ = building_height({"building": t.get("building", "yes")}, zone, poly.area, oid, hc)
+            wsf_rows.append((t, poly.area, wsf_h, cmab_h, est))
+        h, src = building_height(t, zone, poly.area, oid, hc, data_height(cfg, poly.area, cmab_h, wsf_h), cmab_first)
         if far and (src == "estimated" or h < bc["farMinHeight"]):
             continue
         simp = poly.simplify(bc["simplify"] if not far else bc["simplifyFar"], preserve_topology=True)
@@ -1514,6 +1603,8 @@ def build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms, cm=N
     if cm is not None:
         print(f"[cmab] {len(calib)} of the in-range OSM buildings matched a CMAB rooftop")
         cmab_calibration(calib, hc)
+    if wsf is not None:
+        wsf3d_calibration(wsf_rows, hc)
     obstacles = [p for p, dd in zip(polys, dist) if dd <= near_d + 60]
     return out, hs, obstacles
 
@@ -1557,11 +1648,11 @@ def overture_id(gid):
     return 10**15 + int(gid.replace("-", "")[:12], 16) % 10**14
 
 
-def overture_buildings(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, lms, ov, cm, margins=None):
+def overture_buildings(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, lms, ov, cm, margins=None, wsf=None):
     """Overture rooftops that overlap no OSM building (< maxOsmOverlap of their area), off the road corridor,
-    outside parks / water / plazas / construction sites / landmarks; heights Overture > CMAB > zone estimate."""
+    outside parks / water / plazas / construction sites / landmarks; heights Overture > CMAB / WSF3D > zone estimate."""
     if not ov:
-        return [], dict(overture=0, cmab=0, estimated=0), []
+        return [], dict(overture=0, cmab=0, wsf3d=0, estimated=0), []
     oc, bc, hc = cfg["overture"], cfg["buildings"], cfg["heights"]
     near_d, far_d = bc["nearDist"], bc["farDist"]
     margins = margins or road_margins(cfg, None, grid, opp_o)
@@ -1586,7 +1677,7 @@ def overture_buildings(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, lms, ov, 
     open_tree = shapely.STRtree(opens)
     sites = [Polygon(l["ring"]).buffer(5) for l in lms if l["ring"] is not None and l["cfg"]["id"] != "lianhuashan"]
     out, kept_polys = [], []
-    hs = dict(overture=0, cmab=0, estimated=0)
+    hs = dict(overture=0, cmab=0, wsf3d=0, estimated=0)
     dropped = defaultdict(int)
     for rec in ov:
         poly = rec["poly"]
@@ -1612,14 +1703,13 @@ def overture_buildings(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, lms, ov, 
         s_c, d_c = float(s_c[0]), float(d_c[0])
         zone = zone_of(s_c)
         mi = cmab_match(poly, cm, cfg.get("cmab", {}).get("minOverlap", 0.3))
+        alt = data_height(cfg, poly.area, float(cm["h"][mi]) if mi is not None and cm["h"][mi] > 0 else None, wsf(poly) if wsf else None)
         if rec["height"] and rec["height"] > 0:
             h, src = float(rec["height"]), "overture"
         elif rec["floors"] and rec["floors"] > 0:
             h, src = rec["floors"] * hc["levelHeight"] + hc.get("roofAllowance", 0.0), "overture"
-        elif mi is not None and cm["h"][mi] > 0 and not cmab_skip(cfg.get("cmab", {}), poly.area):
-            h, src = float(cm["h"][mi]), "cmab"
         else:
-            h, src = building_height({}, zone, poly.area, overture_id(rec["id"]), hc)
+            h, src = building_height({}, zone, poly.area, overture_id(rec["id"]), hc, alt)
         if far and (src == "estimated" or h < bc["farMinHeight"]):
             continue
         simp = poly.simplify(bc["simplify"] if not far else bc["simplifyFar"], preserve_topology=True)

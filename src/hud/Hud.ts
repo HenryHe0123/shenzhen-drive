@@ -222,7 +222,7 @@ export class Hud implements OverlaySource {
       el(
         'div',
         'credit',
-        'Xiaomi SU7 model by Car2022 (CC BY 4.0) · Map data © OpenStreetMap contributors · Buildings: Overture Maps Foundation, CMAB (CC BY 4.0)',
+        'Xiaomi SU7 model by Car2022 (CC BY 4.0) · Map data © OpenStreetMap contributors · Buildings: Overture Maps Foundation, CMAB, WSF3D © DLR (CC BY 4.0)',
       ),
     );
     const menuVersion = el('div', 'version num', BUILD.label);
