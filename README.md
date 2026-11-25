@@ -108,4 +108,4 @@ docs/              资产归属、关键 prompts、版本记录
 - 小叶榕（Valery.Li）与国标路牌（notbadworks）：Sketchfab，CC BY 4.0，均为离线烘焙 / 减面 / 裁切后的版本。
 - 日落预设的车漆反射 HDRI：Poly Haven Shanghai Riverside（Alex Radosnov），CC0。
 - Three.js（MIT）、postprocessing（Zlib）。天空和全部音效由代码程序生成，无音频文件。
-- AI 生成素材及完整清单见 [docs/asset-credits.md](docs/asset-credits.md)；关键 prompts 见 [docs/prompts.md](docs/prompts.md)；版本记录见 [docs/CHANGELOG.md](docs/CHANGELOG.md)。
+- AI 生成素材及完整清单见 [docs/asset-credits.md](docs/asset-credits.md)；关键 prompts 见 [docs/prompts.md](docs/prompts.md)；版本记录见 [docs/CHANGELOG.md](docs/CHANGELOG.md)（逐项细节）和 [docs/versions.md](docs/versions.md)（各版本之间的区别与起因一览）。
