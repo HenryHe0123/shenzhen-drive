@@ -19,6 +19,8 @@ interface GameState {
   fps: number;
   paused: boolean;
   minimap: 'overview' | 'local';
+  view: 'chase' | 'cockpit';
+  activeCamera: 'orbit' | 'chase' | 'cockpit' | 'free';
   recording: { enabled: boolean; status: string; active: boolean; mimeType: string; bytes: number; duration: number };
 }
 
@@ -135,6 +137,16 @@ test('menu → countdown → drive → pause → reset → finish → download r
   expect((await getState(page)).paused).toBe(true);
   expect(await page.evaluate(() => (window as HookWindow).__SZD__!.resume())).toBe(true);
   expect((await getState(page)).paused).toBe(false);
+
+  // C toggles the driver's-seat view and back; the choice persists.
+  expect(driving.activeCamera).toBe('chase');
+  await page.keyboard.press('KeyC');
+  await expect.poll(async () => (await getState(page)).activeCamera).toBe('cockpit');
+  expect(await page.evaluate(() => localStorage.getItem('shenzhen-drive.view.v1'))).toBe('cockpit');
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: evidence('smoke-02b-cockpit.png') });
+  await page.keyboard.press('KeyC');
+  await expect.poll(async () => (await getState(page)).activeCamera).toBe('chase');
 
   await page.keyboard.press('KeyA', { delay: 150 });
   await page.keyboard.press('KeyD', { delay: 150 });

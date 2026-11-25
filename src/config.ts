@@ -139,11 +139,31 @@ export const CONFIG = {
     /** Visual front wheel angle = steer * clamp(physical steer limit, min, max) (rad). */
     wheelSteerMin: 0.12,
     wheelSteerMax: 0.45,
+    /**
+     * Steering wheel, cut out of the GLB dashboard meshes at load so it can turn: triangles of
+     * these materials whose centroid lies within the cylinder (body space, m; axis points forward
+     * down the column, fitted to the rim vertices).
+     */
+    steeringWheel: {
+      materials: ['Mesh13Mtl', 'Mesh16Mtl'],
+      center: [-0.415, 0.875, -0.423],
+      axis: [0.002, -0.342, -0.94],
+      radius: 0.2,
+      axialMin: -0.06,
+      axialMax: 0.07,
+      /** Steering wheel angle / visual front wheel angle: about 55° at full input at speed, 200° parked. */
+      ratio: 8,
+    },
     /** Tail light material (shared with some red interior trim) and its emissive gain while braking. */
     tailLightMaterial: 'Mesh19Mtl',
     brakeLightGain: 3,
     /** Tinted window glass and the glossy black glass roof / windscreen backing. */
     glassMaterials: ['Mesh26Mtl', 'Mesh72Mtl'],
+    /** Window glass (blended, mirror-like): GLB opacity 0.5 and green tint lightened for the cockpit view. */
+    windowGlassMaterial: 'Mesh26Mtl',
+    windowGlassOpacity: 0.25,
+    /** Share of the GLB green tint kept (0 = neutral, 1 = original). */
+    windowGlassTint: 0.5,
     /** HDRI reflection strength (× the preset's hdri.intensity) of paint, glass and rims. */
     hdriPaintGain: 1.0,
     hdriGlassGain: 0.7,
@@ -177,9 +197,36 @@ export const CONFIG = {
     far: 15000,
   },
 
+  /** First-person view from the driver's seat (left-hand drive). */
+  cockpit: {
+    /**
+     * Eye point in car body space (m): +X right, +Y up from the road, -Z forward, origin at the
+     * car center. Centered on the steering wheel, just in front of the GLB driver's headrest
+     * (front face z ≈ 0.11).
+     */
+    eyeX: -0.39,
+    eyeY: 1.18,
+    eyeZ: -0.03,
+    /** Downward tilt of the gaze (rad): wheel, cluster and center screen in the lower third. */
+    pitch: -0.1,
+    fovBase: 66,
+    fovMax: 76,
+    /** Head turn into the steering direction at full lock (rad), faded in with speed up to lookIntoFullKmh. */
+    lookInto: 0.1,
+    lookIntoFullKmh: 60,
+    lookLerp: 4,
+    /** Head lag against longitudinal / lateral acceleration (m per m/s^2), clamped to maxLean. */
+    leanPerAccel: 0.004,
+    maxLean: 0.04,
+    vibration: 0.004,
+    /** Below the headliner / A-pillar distance (~0.2 m) but no closer, to keep distant depth precision. */
+    near: 0.1,
+  },
+
   race: {
     countdownSeconds: 3,
-    bestTimeKey: 'shenzhen-drive.best.v1',
+    /** v1 held times on the 12.3 km cut route (until v0.3.2). */
+    bestTimeKey: 'shenzhen-drive.best.v2',
     /** Checkpoint is passed when s crosses it while moving forward along the route. */
     minForwardDot: 0.0,
     /** Car center at the start (route coordinates). */
@@ -363,13 +410,13 @@ export const CONFIG = {
     textureUrl: 'textures/ai/facade_apec_01.jpg',
     /**
      * Sides tried in order; the median is too narrow for a face that spans ~26 m across the road.
-     * The APEC-sign window starts before s 5800 because from there on the right side lies in the
+     * The APEC-sign window (竹子林) ends at s 7500 because further on the right side lies in the
      * Ping An sight-line zone and the far side is behind the median trees.
      */
     windows: [
-      { name: 'apec-sign', s0: 5450, s1: 6400, sides: ['right', 'median', 'left'] },
-      { name: 'shennan-futian', s0: 7600, s1: 8800, sides: ['right', 'median', 'left'] },
-      { name: 'cbd-loop', s0: 9960, s1: 11680, sides: ['right', 'left'] },
+      { name: 'apec-sign', s0: 7250, s1: 7500, sides: ['right', 'median', 'left'] },
+      { name: 'shennan-futian', s0: 11400, s1: 12600, sides: ['right', 'median', 'left'] },
+      { name: 'cbd-loop', s0: 13760, s1: 15480, sides: ['right', 'left'] },
     ],
     /** 2:1 landscape face (m); the bottom edge clears the street canopy from a few hundred meters and keeps the face in the chase view at 80 m. */
     width: 28,

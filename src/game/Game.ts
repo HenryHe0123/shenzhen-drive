@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { AudioEngine } from '../audio/AudioEngine';
 import { ChaseCamera } from '../camera/ChaseCamera';
+import { CockpitCamera } from '../camera/CockpitCamera';
+import { getViewMode, toggleViewMode, type ViewMode } from '../camera/viewMode';
 import { CONFIG, KMH } from '../config';
 import { DebugOverlay } from '../debug/DebugOverlay';
 import type { Hud } from '../hud/Hud';
@@ -48,8 +50,14 @@ export interface GameState {
   /** Countdown / race frozen by the pause menu (Esc / P, window blur, hidden tab). */
   paused: boolean;
   minimap: 'overview' | 'local';
+  /** Selected driving camera (the start menu always shows the orbit view). */
+  view: ViewMode;
+  /** Camera actually rendering this frame. */
+  activeCamera: ActiveCamera;
   recording: RecordingState;
 }
+
+type ActiveCamera = 'orbit' | 'chase' | 'cockpit' | 'free';
 
 /** Debug key 0 places the car this far before the next turn (m). */
 const TURN_TELEPORT_OFFSET = 250;
@@ -63,6 +71,8 @@ export class Game {
   readonly vehicle: Vehicle;
   readonly race: Race;
   private readonly chase: ChaseCamera;
+  private readonly cockpit: CockpitCamera;
+  private activeCamera: ActiveCamera = 'orbit';
   private readonly debugUi: DebugOverlay | null;
   private readonly prev = { x: 0, z: 0, yaw: 0 };
   private readonly focus = new THREE.Vector3();
@@ -89,6 +99,7 @@ export class Game {
     this.vehicle = new Vehicle(route);
     this.race = new Race({ checkpoints: route.data.checkpoints, finish: route.data.finish, startS: CONFIG.race.startS });
     this.chase = new ChaseCamera(deps.camera);
+    this.cockpit = new CockpitCamera(deps.camera);
     this.debugUi = deps.debugRoot ? new DebugOverlay(deps.debugRoot, deps.renderer, deps.camera) : null;
     this.frameInfo = { dt: 0, time: 0, focus: this.focus, s: 0, speed: 0 };
     this.placeCar(CONFIG.race.startS, true);
@@ -253,6 +264,8 @@ export class Game {
       fps: this.fps,
       paused: this.race.paused,
       minimap: this.deps.hud.minimapMode,
+      view: getViewMode(),
+      activeCamera: this.activeCamera,
       recording: this.deps.recorder.state(),
     };
   }
@@ -264,7 +277,24 @@ export class Game {
     this.prev.x = v.x;
     this.prev.z = v.z;
     this.prev.yaw = v.yaw;
-    if (snapCamera) this.chase.snap(v.x, v.z, v.yaw);
+    if (snapCamera) {
+      this.chase.snap(v.x, v.z, v.yaw);
+      this.cockpit.reset();
+    }
+  }
+
+  /** Cuts to another camera: the chase view snaps behind the car unless it blends in from the menu orbit. */
+  private switchCamera(next: ActiveCamera, x: number, z: number, yaw: number): void {
+    const prev = this.activeCamera;
+    this.activeCamera = next;
+    if (next === 'chase' && prev !== 'orbit') this.chase.snap(x, z, yaw);
+    if (next === 'cockpit') this.cockpit.reset();
+    const cam = this.deps.camera;
+    const near = next === 'cockpit' ? CONFIG.cockpit.near : CONFIG.camera.near;
+    if (cam.near !== near) {
+      cam.near = near;
+      cam.updateProjectionMatrix();
+    }
   }
 
   private onKey(code: string): boolean {
@@ -293,6 +323,9 @@ export class Game {
         case 'KeyN':
           hud.toggleMinimap();
           return true;
+        case 'KeyC':
+          toggleViewMode();
+          return true;
       }
       return false;
     }
@@ -302,6 +335,9 @@ export class Game {
         return this.pause();
       case 'KeyN':
         hud.toggleMinimap();
+        return true;
+      case 'KeyC':
+        toggleViewMode();
         return true;
       case 'KeyR':
         this.resetToCheckpoint();
@@ -321,7 +357,6 @@ export class Game {
     if (!this.debugUi) return false;
     if (code === 'KeyF') {
       this.debugUi.toggleFreeCam(this.focus);
-      if (!this.debugUi.freeCam) this.chase.snap(this.vehicle.x, this.vehicle.z, this.vehicle.yaw);
       return true;
     }
     const m = /^Digit(\d)$/.exec(code);
@@ -450,8 +485,15 @@ export class Game {
     this.focus.set(x, 0, z);
 
     const phase = this.race.phase;
-    if (this.debugUi?.freeCam) this.debugUi.updateCamera(this.focus);
-    else if (phase === 'menu' || phase === 'loading') this.chase.orbit(dt, x, z, yaw);
+    const active: ActiveCamera = this.debugUi?.freeCam
+      ? 'free'
+      : phase === 'menu' || phase === 'loading'
+        ? 'orbit'
+        : getViewMode();
+    if (active !== this.activeCamera) this.switchCamera(active, x, z, yaw);
+    if (active === 'free') this.debugUi!.updateCamera(this.focus);
+    else if (active === 'orbit') this.chase.orbit(dt, x, z, yaw);
+    else if (active === 'cockpit') this.cockpit.update(dt, car.body, v);
     else this.chase.update(dt, x, z, yaw, v.speed, v.longAccel);
 
     const f = this.frameInfo;

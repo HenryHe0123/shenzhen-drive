@@ -390,10 +390,11 @@ describe.skipIf(!routeJson)('public/data/route.json', () => {
     expect(orderErrors(r, r.meta.length)).toEqual([]);
   });
 
-  it('is cut to 60–80 % of the real length', () => {
+  it('is the full real route, without cuts', () => {
+    expect(r.meta.cuts).toEqual([]);
     const ratio = r.meta.length / r.meta.realLength;
-    expect(ratio).toBeGreaterThanOrEqual(0.6);
-    expect(ratio).toBeLessThanOrEqual(0.8);
+    expect(ratio).toBeGreaterThanOrEqual(0.99);
+    expect(ratio).toBeLessThanOrEqual(1);
   });
 
   it('turns in the declared directions, each with a fillet radius of roughly 20 m or more', () => {

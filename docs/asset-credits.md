@@ -42,7 +42,7 @@ Poly Haven 的 [Shanghai Bund](https://polyhaven.com/a/shanghai_bund)（Greg Zaa
 - 位置与朝向：`scripts/build_city_data.py` 用 OSM 建筑轮廓重新配准（yaw + 平移，使轮廓 IoU 最大），再套用路线剪切变换；被替换的 OSM 轮廓从 `public/data/buildings.json` 中删除。
 
 <!-- city-models:start -->
-共 49 个文件（48 个由 `public/data/city_models.json` 放置）。本表由 `scripts/build_city_data.py` 按实际随游戏分发的文件自动生成。
+共 50 个文件（49 个由 `public/data/city_models.json` 放置）。本表由 `scripts/build_city_data.py` 按实际随游戏分发的文件自动生成。
 
 | 文件 | 模型（原标题） | 作者 | 来源 | 用途 | 个别改动 |
 |---|---|---|---|---|---|
@@ -93,6 +93,7 @@ Poly Haven 的 [Shanghai Bund](https://polyhaven.com/a/shanghai_bund)（Greg Zaa
 | `public/models/city/trade_center_220f453c.glb` | Shenzhen Trade Center 深圳经贸中心 | David Z. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/220f453c0ab67df265f1e8ef1297e5aa) | 沿街建筑 |  |
 | `public/models/city/unicom_building_3666a15a.glb` | 深圳联通大厦 China Unicom Building (Shenzhen) | xz H. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/3666a15a39a2a205a5b5516fe36a596a) | 沿街建筑 |  |
 | `public/models/city/university_science_and_technology_buildi_2cfdf5a0.glb` | 深圳大学科技楼 Shenzhen University Science and Technology Building(China) | xz H. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/2cfdf5a09dd5409810e5a1783aea6854) | 沿街建筑 |  |
+| `public/models/city/world_trade_centre_c9ca184e.glb` | Shenzhen World Trade Centre | Stefan L. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/c9ca184e7707b8b3f7fc80615b9e474d) | 沿街建筑 |  |
 | `public/models/city/xingye_bank_building_3a5658da.glb` | 深圳兴业银行大厦 Shenzhen Xingye Bank Building | David Z. | [3D Warehouse](https://3dwarehouse.sketchup.com/model/3a5658da00400e7abfe8d59f826a82b5) | 沿街建筑 |  |
 | `public/models/city/yitian_holiday_plaza_u5b41a7d.glb` | Yitian holiday plaza益田假日广场 | Simba Xu | [3D Warehouse](https://3dwarehouse.sketchup.com/model/u5b41a7d2-8228-4690-ab46-9f0529caae3a) | 沿街建筑 |  |
 <!-- city-models:end -->

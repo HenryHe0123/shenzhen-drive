@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-11-25T12:49:40Z",
+ "generatedAt": "2026-11-25T14:09:45Z",
  "note": "Per-model metadata written by scripts/process_city_models.mjs. Local frame: origin on the ground at the footprint-hull centroid, native axes (north = -Z), metres. GLB: one mesh; primitive 0 = material atlas (opaque), optional primitive 1 = material cutout (alphaMode MASK); both sample one sRGB WebP atlas (sampler wrapS REPEAT, wrapT CLAMP_TO_EDGE); double-sided, faces oriented outward.",
  "models": {
   "anlian_building_db0413ea": {

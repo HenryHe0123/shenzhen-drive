@@ -2018,7 +2018,8 @@ def validate(route, bdata, cfg):
     check(gaps.max() <= 2000, f"max gap between start/checkpoints/finish {gaps.max():.0f} m")
     between = [c for c in cps if any(a["s1"] < c < b["s0"] for a, b in zip(turns, turns[1:]))]
     check(len(turns) < 2 or between, f"{len(between)} checkpoint(s) between turns: {between}")
-    check(6 <= len(cps) <= 9, f"{len(cps)} checkpoints")
+    # debug keys 1-9 reach the first nine
+    check(6 <= len(cps) <= 10, f"{len(cps)} checkpoints")
     check(L - fin >= 150, f"run-out after finish {L - fin:.0f} m")
     secs = route["sections"]
     check(secs[0]["s0"] == 0 and secs[-1]["s1"] == L and all(a["s1"] == b["s0"] and a["s0"] < a["s1"] for a, b in zip(secs, secs[1:])),

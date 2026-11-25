@@ -1,3 +1,4 @@
+import { getViewMode, onViewModeChange, setViewMode, VIEW_LABELS, VIEW_MODES } from '../camera/viewMode';
 import { CONFIG } from '../config';
 import { getTimeOfDay, onTimeOfDayChange, setTimeOfDay, TIME_LABELS, TIME_PRESETS } from '../render/timeOfDay';
 import type { Route } from '../route/Route';
@@ -71,6 +72,44 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', html = ''):
   return e;
 }
 
+/** Labelled radio buttons bound to a global setting; stays in sync when it changes elsewhere. */
+function radioGroup<T extends string>(
+  label: string,
+  values: readonly T[],
+  labels: Record<T, string>,
+  get: () => T,
+  set: (v: T) => void,
+  onChange: (cb: () => void) => void,
+  blurOnClick: boolean,
+): HTMLElement {
+  const group = el('div', 'tod');
+  group.setAttribute('role', 'radiogroup');
+  group.setAttribute('aria-label', label);
+  const btns = values.map((v) => {
+    const b = el('button', 'tod-btn', labels[v]);
+    b.type = 'button';
+    b.dataset.value = v;
+    b.setAttribute('role', 'radio');
+    b.addEventListener('click', () => {
+      set(v);
+      if (blurOnClick) b.blur();
+    });
+    return b;
+  });
+  const sync = () => {
+    const cur = get();
+    for (const b of btns) {
+      const on = b.dataset.value === cur;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-checked', String(on));
+    }
+  };
+  sync();
+  onChange(sync);
+  group.append(el('span', 'tod-label', label), ...btns);
+  return group;
+}
+
 /** DOM overlay: start screen, countdown, driving HUD with minimap, pause menu and results. */
 export class Hud implements OverlaySource {
   private readonly menu: HTMLElement;
@@ -135,6 +174,7 @@ export class Hud implements OverlaySource {
         <span class="keys"><kbd>A</kbd><kbd>D</kbd> <kbd>←</kbd><kbd>→</kbd></span><span>转向</span>
         <span class="keys"><kbd>R</kbd></span><span>回到上一个检查点（计时不停）</span>
         <span class="keys"><kbd>Esc</kbd><kbd>P</kbd></span><span>暂停</span>
+        <span class="keys"><kbd>C</kbd></span><span>视角：车外 / 车内</span>
         <span class="keys"><kbd>N</kbd></span><span>小地图：全程 / 局部</span>
         <span class="keys"><kbd>M</kbd></span><span>静音</span>
       </div>
@@ -142,8 +182,10 @@ export class Hud implements OverlaySource {
     this.menuBest = card.querySelector('.best')!;
     const tod = this.timeSelector(true);
     tod.id = 'time-select';
+    const view = this.viewSelector(true);
+    view.id = 'view-select';
     const menuRow = el('div', 'opt-row');
-    menuRow.append(tod, this.recToggle('rec-toggle-menu', true));
+    menuRow.append(tod, view, this.recToggle('rec-toggle-menu', true));
     card.append(menuRow);
 
     this.startBtn = el('button', 'btn');
@@ -241,7 +283,9 @@ export class Hud implements OverlaySource {
     this.muteBtn = button('pause-mute', '声音 开', 'M', opts.onToggleMute);
     this.muteBtn.classList.add('mute-toggle');
     this.muteBtn.setAttribute('aria-pressed', 'false');
-    row.append(ptod, this.muteBtn, this.recToggle('rec-toggle-pause', false));
+    const pview = this.viewSelector(false);
+    pview.id = 'pause-view-select';
+    row.append(ptod, this.muteBtn, pview, this.recToggle('rec-toggle-pause', false));
     const pauseVersion = el('div', 'version num', BUILD.label);
     pauseVersion.id = 'pause-version';
     pc.append(actions, row, el('div', 'btn-hint', '↑ ↓ 选择 · Enter / 空格 确认 · Esc 继续'), pauseVersion);
@@ -498,34 +542,14 @@ export class Hud implements OverlaySource {
     return b;
   }
 
-  /** 白天 / 日落 / 入夜 radio group; applies live behind the menus. */
+  /** 白天 / 日落 radio group; applies live behind the menus. */
   private timeSelector(blurOnClick: boolean): HTMLElement {
-    const tod = el('div', 'tod');
-    tod.setAttribute('role', 'radiogroup');
-    tod.setAttribute('aria-label', '时间');
-    const btns = TIME_PRESETS.map((t) => {
-      const b = el('button', 'tod-btn', TIME_LABELS[t]);
-      b.type = 'button';
-      b.dataset.time = t;
-      b.setAttribute('role', 'radio');
-      b.addEventListener('click', () => {
-        setTimeOfDay(t);
-        if (blurOnClick) b.blur();
-      });
-      return b;
-    });
-    const sync = () => {
-      const cur = getTimeOfDay();
-      for (const b of btns) {
-        const on = b.dataset.time === cur;
-        b.classList.toggle('active', on);
-        b.setAttribute('aria-checked', String(on));
-      }
-    };
-    sync();
-    onTimeOfDayChange(sync);
-    tod.append(el('span', 'tod-label', '时间'), ...btns);
-    return tod;
+    return radioGroup('时间', TIME_PRESETS, TIME_LABELS, getTimeOfDay, setTimeOfDay, onTimeOfDayChange, blurOnClick);
+  }
+
+  /** 车外 / 车内 radio group (same as the C key); applies live behind the pause menu. */
+  private viewSelector(blurOnClick: boolean): HTMLElement {
+    return radioGroup('视角', VIEW_MODES, VIEW_LABELS, getViewMode, setViewMode, onViewModeChange, blurOnClick);
   }
 
   private set(e: HTMLElement, key: string, text: string): void {

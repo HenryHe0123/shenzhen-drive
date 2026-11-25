@@ -41,10 +41,8 @@
     "smoothSigma": 20,
     "sampleSpacing": 2.0
   },
-  "cuts": [
-    { "s0": 800, "s1": 2600, "note": "科技园 east straight incl. 科苑北路/铜鼓路 crossings; also removes an OSM lane-shift jog (~35 m S-bend) near 铜鼓路" },
-    { "s0": 7500, "s1": 9500, "note": "竹子林 - 车公庙 west: 2 km dead-straight run (heading 80 deg), incl. 竹子林四路" }
-  ],
+  "cutsNote": "none: the full real route is driven. Until v0.3.2 two straights were cut (800-2600 科技园 east incl. 科苑北路/铜鼓路 and an OSM lane-shift jog near 铜鼓路; 7500-9500 竹子林 - 车公庙 west), 76% of the real length",
+  "cuts": [],
   "cutProtect": {
     "minDist": 400,
     "landmarks": ["tencent", "eiffel", "pingan", "civic_center"],
@@ -62,11 +60,13 @@
     "note": "optimal-lap estimator (SU7 Ultra): v <= sqrt(latAcc * R); a(v) = accel * (1 - (v / vmax)^2); constant braking; target ~2:45-3:15",
     "vmax": 97.2, "accel": 12, "brake": 15, "latAcc": 10, "startS": 6, "curvatureWindow": 10
   },
-  "lengthRatio": [0.6, 0.8],
+  "lengthRatio": [0.99, 1.0],
   "checkpoints": [
+    { "at": "科苑北路", "name": "科技园" },
     { "at": "沙河东路" },
     { "at": "landmark:eiffel", "name": "世界之窗" },
     { "s": 6300, "name": "华侨城" },
+    { "at": "竹子林四路", "offset": 195, "name": "竹子林" },
     { "at": "香蜜湖路" },
     { "at": "香梅路" },
     { "at": "新洲路" },
