@@ -257,6 +257,12 @@ export const CONFIG = {
     propViewBehind: 250,
     /** Half width of visual cross streets at intersections (m). */
     crossHalfWidth: 15,
+    /** Side-street closures (props/closures.ts): barrier pitch along the mouth (m), upload window ahead (m). */
+    closureBarrierPitch: 1.55,
+    closureViewAhead: 1400,
+    /** No-entry sign planter: distance behind the barrier line (m) and turn toward approaching traffic (deg). */
+    closureSignSetback: 1.0,
+    closureSignAngleDeg: 35,
     lampColor: '#ffb469',
     /** HDR multiplier of lamp heads; well above the bloom threshold. */
     lampIntensity: 9,
