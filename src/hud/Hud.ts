@@ -1,6 +1,7 @@
 import { getViewMode, onViewModeChange, setViewMode, VIEW_LABELS, VIEW_MODES } from '../camera/viewMode';
 import { CONFIG } from '../config';
 import { getTimeOfDay, onTimeOfDayChange, setTimeOfDay, TIME_LABELS, TIME_PRESETS } from '../render/timeOfDay';
+import { penaltySeconds } from '../race/score';
 import type { Route } from '../route/Route';
 import { formatTime } from './format';
 import { Minimap, type MinimapMode } from './Minimap';
@@ -38,9 +39,9 @@ export interface HudFrame {
   progress: number;
   sectionName: string;
   passed: number;
-  /** Wall impacts counted so far in this run, and how many were heavy or severe. */
-  wallHits: number;
+  /** Heavy and severe wall impacts so far in this run (light ones are not counted). */
   heavyHits: number;
+  severeHits: number;
   /** Damage after a heavy impact; null hides the panel. */
   damage: DamageView | null;
   /** Rendered car pose for the minimap, and its arc length. */
@@ -62,12 +63,15 @@ export interface DamageView {
 }
 
 export interface ResultInfo {
+  /** Driven time and the final score (time + penalties), s. */
   time: number;
+  score: number;
+  heavyHits: number;
+  severeHits: number;
+  /** Best score. */
   best: number | null;
   record: boolean;
   assisted: boolean;
-  wallHits: number;
-  heavyHits: number;
 }
 
 export interface PauseInfo {
@@ -163,6 +167,7 @@ export class Hud implements OverlaySource {
   private readonly recBtn: HTMLButtonElement;
   private readonly result: HTMLElement;
   private readonly resultTime: HTMLElement;
+  private readonly resultBreakdown: HTMLElement;
   private readonly resultBest: HTMLElement;
   private readonly resultWalls: HTMLElement;
   private readonly recordEl: HTMLElement;
@@ -240,7 +245,7 @@ export class Hud implements OverlaySource {
     this.timeEl.id = 'hud-time';
     this.timeEl.textContent = formatTime(0);
     this.timerBest = el('span', 'num');
-    this.wallsEl = el('span', 'timer-walls num', '撞墙 0');
+    this.wallsEl = el('span', 'timer-walls num', '重撞 0 · 严重 0');
     this.wallsEl.id = 'hud-walls';
     const timerSub = el('div', 'timer-best');
     timerSub.append(this.timerBest, this.wallsEl);
@@ -331,13 +336,15 @@ export class Hud implements OverlaySource {
       <div class="result-title">抵达终点</div>
       <div class="result-dest">${opts.startName} → 福田中心区 · ${opts.finishName}</div>
       <div class="result-time num" id="result-time"></div>
+      <div class="best num" id="result-breakdown"></div>
       <div class="record hidden">新纪录!</div>
-      <div class="best num"></div>
+      <div class="best num" id="result-best"></div>
       <div class="best num" id="result-walls"></div>
       <div class="note hidden"></div>`;
     this.resultTime = rc.querySelector('#result-time')!;
+    this.resultBreakdown = rc.querySelector('#result-breakdown')!;
     this.recordEl = rc.querySelector('.record')!;
-    this.resultBest = rc.querySelector('.best')!;
+    this.resultBest = rc.querySelector('#result-best')!;
     this.resultWalls = rc.querySelector('#result-walls')!;
     this.noteEl = rc.querySelector('.note')!;
     const retry = el('button', 'btn', '再来一次');
@@ -521,9 +528,10 @@ export class Hud implements OverlaySource {
     this.set(this.timeEl, 'time', formatTime(f.time));
     this.set(this.sectionName, 'section', f.sectionName);
     this.set(this.cpText, 'cp', `检查点 ${f.passed}/${n} · ${pct}%`);
-    const walls = f.heavyHits > 0 ? `撞墙 ${f.wallHits} · 重 ${f.heavyHits}` : `撞墙 ${f.wallHits}`;
+    const penalty = penaltySeconds(f.heavyHits, f.severeHits);
+    const walls = `重撞 ${f.heavyHits} · 严重 ${f.severeHits}${penalty > 0 ? ` · 罚时 +${penalty} s` : ''}`;
     this.updateDamage(f.damage);
-    if (this.set(this.wallsEl, 'walls', walls) && f.wallHits > 0) {
+    if (this.set(this.wallsEl, 'walls', walls) && penalty > 0) {
       // restart the flash animation
       this.wallsEl.classList.remove('hit');
       void this.wallsEl.offsetWidth;
@@ -550,14 +558,17 @@ export class Hud implements OverlaySource {
   }
 
   showResult(r: ResultInfo): void {
-    this.resultTime.textContent = formatTime(r.time);
+    const R = CONFIG.race;
+    const penalty = penaltySeconds(r.heavyHits, r.severeHits);
+    this.resultTime.textContent = formatTime(r.score);
     this.cache.set('result', this.resultTime.textContent);
+    this.resultBreakdown.innerHTML = `用时 <b>${formatTime(r.time)}</b> · ${penalty > 0 ? `罚时 <b>+${penalty} s</b>` : '无罚时'}`;
     this.recordEl.classList.toggle('hidden', !r.record);
     this.resultBest.innerHTML = r.best !== null ? `最佳成绩 <b>${formatTime(r.best)}</b>` : '';
     this.resultWalls.innerHTML =
-      r.wallHits === 0
-        ? '撞墙 <b>0</b> 次 · 零失误'
-        : `撞墙 <b>${r.wallHits}</b> 次${r.heavyHits > 0 ? ` · 其中重撞 <b>${r.heavyHits}</b> 次` : ''}`;
+      penalty === 0
+        ? '重撞 <b>0</b> · 严重撞击 <b>0</b> · 零失误'
+        : `重撞 <b>${r.heavyHits}</b> 次（每次 +${R.penaltyHeavy} s）· 严重撞击 <b>${r.severeHits}</b> 次（每次 +${R.penaltySevere} s）`;
     this.updateDamage(null);
     this.noteEl.classList.toggle('hidden', !r.assisted);
     this.noteEl.textContent = r.assisted ? '本局使用了调试传送，不计入最佳成绩' : '';

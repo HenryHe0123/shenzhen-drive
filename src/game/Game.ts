@@ -9,6 +9,7 @@ import type { Hud } from '../hud/Hud';
 import { turnHint } from '../hud/turnHint';
 import type { Input } from '../input/Input';
 import { loadBestTime, submitBestTime } from '../race/bestTime';
+import { finalScore, penaltySeconds } from '../race/score';
 import { Race, type Phase, type RaceEvent } from '../race/Race';
 import type { GameRecorder, RecordingState } from '../recording/Recorder';
 import type { Route } from '../route/Route';
@@ -45,9 +46,10 @@ export interface GameState {
   d: number;
   checkpointsPassed: number;
   checkpointCount: number;
-  /** Wall impacts of at least the light tier during the current run, and how many of them were heavy or severe. */
-  wallHits: number;
+  /** Heavy and severe wall impacts during the current run (light ones are not counted), and their penalty (s). */
   heavyHits: number;
+  severeHits: number;
+  penalty: number;
   /** Damage from heavy impacts: power / top-speed multiplier and seconds left without drive. */
   damage: { powerScale: number; stall: number; secondsLeft: number };
   fps: number;
@@ -93,8 +95,8 @@ export class Game {
   private stuck = 0;
   private pinned = 0;
   private wrongWay = 0;
-  private wallHits = 0;
   private heavyHits = 0;
+  private severeHits = 0;
   private readonly damage = new Damage();
   private muted = false;
   private audioStarted = false;
@@ -225,7 +227,7 @@ export class Game {
   }
 
   private beginRun(snapCamera: boolean): void {
-    this.wallHits = this.heavyHits = 0;
+    this.heavyHits = this.severeHits = 0;
     this.damage.reset();
     if (!this.audioStarted) {
       this.audioStarted = true;
@@ -268,8 +270,9 @@ export class Game {
       d: v.d,
       checkpointsPassed: this.race.passed,
       checkpointCount: this.race.checkpointCount,
-      wallHits: this.wallHits,
       heavyHits: this.heavyHits,
+      severeHits: this.severeHits,
+      penalty: penaltySeconds(this.heavyHits, this.severeHits),
       damage: { powerScale: this.damage.powerScale, stall: this.damage.stall, secondsLeft: this.damage.secondsLeft },
       fps: this.fps,
       paused: this.race.paused,
@@ -431,11 +434,11 @@ export class Game {
     }
   }
 
-  /** A counted impact during the run; heavy and severe ones shake the camera, severe ones stop the car dead. */
+  /** An impact during the run: heavy and severe ones are counted (penalty), shake the camera; severe ones stop the car dead. */
   private onWallHit(tier: ImpactTier, normalSpeed: number): void {
-    this.wallHits++;
     if (tier === 'light') return;
-    this.heavyHits++;
+    if (tier === 'severe') this.severeHits++;
+    else this.heavyHits++;
     const strength = Math.min(1, normalSpeed / (CONFIG.collision.severeKmh * KMH));
     this.chase.bump(strength);
     this.cockpit.bump(strength);
@@ -461,9 +464,18 @@ export class Game {
       case 'finish': {
         audio.chime(true);
         const assisted = this.race.assisted;
-        const record = !assisted && submitBestTime(e.time);
+        const score = finalScore(e.time, this.heavyHits, this.severeHits);
+        const record = !assisted && submitBestTime(score);
         this.best = loadBestTime();
-        hud.showResult({ time: e.time, best: this.best, record, assisted, wallHits: this.wallHits, heavyHits: this.heavyHits });
+        hud.showResult({
+          time: e.time,
+          score,
+          heavyHits: this.heavyHits,
+          severeHits: this.severeHits,
+          best: this.best,
+          record,
+          assisted,
+        });
         this.deps.recorder.finish(e.time);
         this.syncRecording();
         break;
@@ -544,8 +556,8 @@ export class Game {
         progress: v.s / data.finish.s,
         sectionName: route.sectionAt(v.s).name,
         passed: this.race.passed,
-        wallHits: this.wallHits,
         heavyHits: this.heavyHits,
+        severeHits: this.severeHits,
         damage:
           phase === 'racing' && this.damage.active
             ? { stall: this.damage.stall, power: this.damage.powerScale, secondsLeft: this.damage.secondsLeft }

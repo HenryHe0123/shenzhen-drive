@@ -48,6 +48,8 @@ export const HUD_CSS = /* css */ `
 #ui .tod-btn.active { color: #04141a; background: linear-gradient(180deg, #5fe0f0, var(--accent-2)); }
 #ui .best { margin-top: 20px; font-size: 14px; color: rgba(238, 243, 248, 0.7); min-height: 20px; }
 #ui .best b { color: #fff; font-weight: 700; }
+#ui #result .best:empty { display: none; }
+#ui #result #result-breakdown { margin-top: 6px; }
 #ui .btn {
   margin-top: 22px; padding: 13px 54px; border: 0; border-radius: 999px; cursor: pointer;
   font: 700 17px -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; letter-spacing: 0.2em; color: #04141a;

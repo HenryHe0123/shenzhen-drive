@@ -249,8 +249,11 @@ export const CONFIG = {
 
   race: {
     countdownSeconds: 3,
-    /** v1 held times on the 12.3 km cut route (until v0.3.2). */
-    bestTimeKey: 'shenzhen-drive.best.v2',
+    /** Best score (time + penalties). v1: times on the 12.3 km cut route (until v0.3.2); v2: raw times without penalties (v0.4.0–v0.4.1). */
+    bestTimeKey: 'shenzhen-drive.best.v3',
+    /** Penalty (s) per heavy / severe wall impact, added to the time for the final score. */
+    penaltyHeavy: 5,
+    penaltySevere: 10,
     /** Checkpoint is passed when s crosses it while moving forward along the route. */
     minForwardDot: 0.0,
     /** Car center at the start (route coordinates). */
