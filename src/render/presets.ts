@@ -60,6 +60,8 @@ export interface LightingPreset {
   vignette: number;
   /** Skyline ring in the environment map (reflected by glass and paint); multiplier 0 hides it. */
   envCity: HdrColor;
+  /** Photographed HDRI (CONFIG.render.hdriUrl) on the car's paint, glass and rims (src/render/reflectionEnv.ts); absent = procedural environment. */
+  hdri?: { intensity: number };
 }
 
 /**
@@ -153,6 +155,7 @@ export const LIGHTING: Record<TimeOfDay, LightingPreset> = {
     shadowRadius: 3,
     vignette: 0.32,
     envCity: ['#5c4c44', 0.24],
+    hdri: { intensity: 0.6 },
   },
   dusk: {
     sky: {

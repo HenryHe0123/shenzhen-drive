@@ -1,6 +1,6 @@
 // Processes downloaded raw assets (data-raw/assets/, never committed) into the files the game ships:
-//   env:   data-raw/assets/hdri/<name>_2k.hdr → public/textures/env/<name>_1k.hdr (none shipped, see HDRIS)
-//          (2×2 box downsample in linear float, HDR range kept, RLE RGBE; prints the sun / brightest-sky
+//   env:   data-raw/assets/hdri/<name>_2k.hdr → public/textures/env/<name>_1k.hdr (see HDRIS)
+//          (2×2 box downsample in linear float, luminance capped, RLE RGBE; prints the sun / brightest-sky
 //          equirect u that a scene.environmentRotation needs to put the map's sun at a preset's azimuth)
 //   signs: data-raw/assets/sketchfab/chinese_road_signs_32_road_signs_and_more.glb → public/textures/signs/*.png
 //          (base color texture of each chosen sign, flipped upright, cropped to the sign face, 248 px)
@@ -214,19 +214,37 @@ async function previewPng({ W, H, rgb }, file, exposure) {
 }
 
 /**
- * Shipped maps: none. shanghai_riverside was evaluated for the golden preset's car reflections and
- * read cooler and flatter than the generated sky; shanghai_bund went with the retired dusk preset.
- * Add a name here to regenerate a map for another comparison.
+ * Shipped maps: shanghai_riverside (golden preset car reflections, src/render/reflectionEnv.ts).
+ * shanghai_bund went with the retired dusk preset. maxLum caps pixel luminance (hue kept): the
+ * sunset sun is a few hundred times the sky and would only add fireflies to the PMREM and bloom.
  */
-const HDRIS = [];
+const HDRIS = [{ name: 'shanghai_riverside', maxLum: 24 }];
+
+function clampLum({ rgb }, maxLum) {
+  let n = 0;
+  for (let o = 0; o < rgb.length; o += 3) {
+    for (let c = 0; c < 3; c++) if (!Number.isFinite(rgb[o + c]) || rgb[o + c] < 0) rgb[o + c] = 0;
+    const L = lum(rgb, o);
+    if (L <= maxLum) continue;
+    const k = maxLum / L;
+    rgb[o] *= k;
+    rgb[o + 1] *= k;
+    rgb[o + 2] *= k;
+    n++;
+  }
+  return n;
+}
 
 async function processEnv() {
   const outDir = path.join(ROOT, 'public/textures/env');
   fs.mkdirSync(outDir, { recursive: true });
-  for (const name of HDRIS) {
+  for (const { name, maxLum } of HDRIS) {
     const src = path.join(RAW, 'hdri', `${name}_2k.hdr`);
     const full = readHdr(fs.readFileSync(src));
     const half = downsample2(full);
+    const raw = analyze(half);
+    const clamped = clampLum(half, maxLum);
+    console.log(`[env] ${name}: sun at u ${raw.sunU}, elevation ${raw.sunElevationDeg}°, peak ${raw.peak} → ${clamped} px clamped to luminance ${maxLum}`);
     const bytes = writeHdr(half);
     const dst = path.join(outDir, `${name}_1k.hdr`);
     fs.writeFileSync(dst, bytes);

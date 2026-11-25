@@ -111,6 +111,12 @@ export const CONFIG = {
     /** Tail light material (shared with some red interior trim) and its emissive gain while braking. */
     tailLightMaterial: 'Mesh19Mtl',
     brakeLightGain: 3,
+    /** Tinted window glass and the glossy black glass roof / windscreen backing. */
+    glassMaterials: ['Mesh26Mtl', 'Mesh72Mtl'],
+    /** HDRI reflection strength (× the preset's hdri.intensity) of paint, glass and rims. */
+    hdriPaintGain: 1.0,
+    hdriGlassGain: 0.7,
+    hdriRimGain: 1.0,
   },
 
   camera: {
@@ -188,6 +194,17 @@ export const CONFIG = {
     bloomSmoothing: 0.3,
     bloomRadius: 0.7,
     vignette: 0.4,
+    /**
+     * Car reflections in presets with `hdri` (golden): Poly Haven shanghai_riverside, 1k, made by
+     * scripts/process_env_and_signs.mjs (which prints the sun's equirect u). The photo's sky is a
+     * cool blue; the tint warms it toward the generated sunset sky. Luminance is capped again at load.
+     */
+    hdriUrl: 'textures/env/shanghai_riverside_1k.hdr',
+    hdriSunU: 0.6003,
+    hdriTint: '#ffe2c4',
+    hdriMaxLuminance: 24,
+    /** Below-horizon multiplier: the photo's pale plaza → the game's darker asphalt. */
+    hdriGroundScale: 0.3,
   },
 
   city: {

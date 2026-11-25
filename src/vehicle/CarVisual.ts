@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CONFIG } from '../config';
+import { registerReflective } from '../render/reflectionEnv';
 import { steerLimit } from './Vehicle';
 
 /** Driving state the wheels and brake lights follow (the Vehicle satisfies it). */
@@ -135,6 +136,26 @@ function findStandardMaterial(root: THREE.Object3D, name: string): THREE.MeshSta
   return found;
 }
 
+function registerCarReflections(model: THREE.Object3D, paint: THREE.MeshStandardMaterial): void {
+  const C = CONFIG.car;
+  const glass = new Set<THREE.MeshStandardMaterial>();
+  const rims = new Set<THREE.MeshStandardMaterial>();
+  const glassNames: readonly string[] = C.glassMaterials;
+  model.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+      const s = m as THREE.MeshStandardMaterial;
+      if (!s.isMeshStandardMaterial) continue;
+      if (glassNames.includes(s.name)) glass.add(s);
+      else if (s.name === C.rimMaterial) rims.add(s);
+    }
+  });
+  registerReflective([paint], C.hdriPaintGain);
+  registerReflective(glass, C.hdriGlassGain);
+  registerReflective(rims, C.hdriRimGain);
+}
+
 function fallbackModel(): THREE.Object3D {
   const V = CONFIG.vehicle;
   const paint = paintMaterial();
@@ -197,6 +218,7 @@ export class CarVisual {
           tuneWheelMaterial(mesh.material as THREE.MeshStandardMaterial);
         }
       });
+      registerCarReflections(model, paint);
       model.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(model);
       model.position.set(-(box.min.x + box.max.x) / 2, -box.min.y, -(box.min.z + box.max.z) / 2);

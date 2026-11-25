@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CONFIG } from '../config';
 import type { FrameInfo, SceneryModule, WorldContext } from '../game/contracts';
 import { LIGHTING, type LightingPreset } from './presets';
+import { startReflectionEnv } from './reflectionEnv';
 import { bearingDir, createSkyMaterial, installSkyFog, setSkyParams } from './sky';
 import { getTimeOfDay, onTimeOfDayChange, type TimeOfDay } from './timeOfDay';
 
@@ -164,6 +165,7 @@ export function createEnvironment(ctx: WorldContext): SceneryModule {
 
   apply(getTimeOfDay());
   const unsubscribe = onTimeOfDayChange(apply);
+  const stopReflections = startReflectionEnv(renderer);
 
   return {
     update(frame: FrameInfo) {
@@ -171,6 +173,7 @@ export function createEnvironment(ctx: WorldContext): SceneryModule {
     },
     dispose() {
       unsubscribe();
+      stopReflections();
       scene.remove(sky, hemi, sun, sun.target);
       skyGeo.dispose();
       skyMat.dispose();
