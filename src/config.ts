@@ -270,6 +270,20 @@ export const CONFIG = {
     farFogScale: 0.2,
     /** Distance (m) over which their facade darkens, and the specular / diffuse reduction reached. */
     farTone: { near: 1200, far: 5000, spec: 0.6, diffuse: 0.45 },
+    /**
+     * Civic Center glass halls below `height` (m): mullion spacing, transom heights (m), daylit
+     * lobby glow (linear emission, off at night) and minimum glass reflectance.
+     */
+    civicLobby: { height: 14, bay: 1.5, transom: 3.6, transom2: 7.4, interior: [0.075, 0.068, 0.056], reflectance: 0.16 },
+    /**
+     * Civic Center roof underside (downward faces): coffer grid (m), light metal tone, and the
+     * sunlit plaza's bounce per preset as [sRGB, multiplier] (added as emission on the soffit).
+     */
+    soffit: {
+      grid: 3.0,
+      tone: '#b8b4ac',
+      bounce: { day: ['#efe4d2', 0.32], golden: ['#ffc58e', 0.26], dusk: ['#000000', 0] },
+    },
     /** Draw calls per model (spec 7.4): ordinary buildings / landmarks; more materials are atlased at load. */
     drawCallsBuilding: 2,
     drawCallsLandmark: 8,

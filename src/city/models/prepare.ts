@@ -52,6 +52,8 @@ export interface PrepareOptions {
   facadeMaterial: () => THREE.Material;
   styler?: FaceStyler;
   podium: number;
+  /** Photo-material roof undersides get the soffit treatment (createPhotoFacadeMaterial). */
+  soffit?: boolean;
 }
 
 type AnyAttr = THREE.BufferAttribute | THREE.InterleavedBufferAttribute;
@@ -352,6 +354,7 @@ export function prepareModel(gltfScene: THREE.Object3D, opts: PrepareOptions): P
       doubleSided: isCutout(g),
       fogScale: opts.fogScale,
       seed: opts.seed,
+      soffit: opts.soffit,
     });
     mat.color.copy(g.color);
     mat.alphaTest = g.mat.alphaTest;
@@ -398,6 +401,7 @@ export function prepareModel(gltfScene: THREE.Object3D, opts: PrepareOptions): P
       doubleSided: groups.some(isCutout),
       fogScale: opts.fogScale,
       seed: opts.seed,
+      soffit: opts.soffit,
     });
     mat.alphaTest = Math.max(...groups.map((g) => (isCutout(g) ? g.mat.alphaTest : 0)));
     addMesh(geo, mat, true);

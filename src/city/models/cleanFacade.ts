@@ -29,6 +29,26 @@ float fFar = smoothstep(${F.near.toFixed(1)}, ${F.far.toFixed(1)}, length(vViewP
 fSpec *= 1.0 - ${F.spec.toFixed(3)} * fFar;
 fDiff *= 1.0 - ${F.diffuse.toFixed(3)} * fFar;`
     : '';
+  const L = CONFIG.cityModels.civicLobby;
+  // Civic Center glass halls (style 8) at street level: seen level, the vision glass mirrors the
+  // dark skyline ring of the environment map and reads as black slabs between the wide mullions.
+  // Adds finer mullions and transoms, a lighter coated-glass reflectance and a daylit lobby glow.
+  const civic = `
+if (int(vFac.y + 0.5) == ${STYLE.civic} && vLY < ${L.height.toFixed(1)}) {
+  float cGlass = 1.0 - smoothstep(0.02, 0.08, dot(fDiff, vec3(0.3333)));
+  float cBay = ${L.bay.toFixed(2)};
+  float cM = fLine(vEdge.x, floor(vEdge.x / cBay + 0.5) * cBay, 0.04);
+  cM = max(cM, max(fLine(vLY, ${L.transom.toFixed(2)}, 0.06), fLine(vLY, ${L.transom2.toFixed(2)}, 0.05)));
+  cM *= cGlass;
+  float cDay = 1.0 - smoothstep(0.0, 0.6, uNight);
+  float cPane = fh13(vec3(floor(vEdge.x / cBay), floor(vLY / ${L.transom.toFixed(2)}), vFac.x * 31.0));
+  vec3 cIn = vec3(${L.interior.map((v) => v.toFixed(3)).join(', ')}) * (0.4 + 0.6 * smoothstep(0.0, ${L.transom.toFixed(2)}, mod(vLY, ${L.transom.toFixed(2)})));
+  cIn *= 0.45 + 1.1 * cPane * cPane;
+  fEmis += cIn * cDay * cGlass * (1.0 - cM);
+  fSpec = mix(fSpec, max(fSpec, vec3(${L.reflectance.toFixed(3)})), cGlass);
+  fDiff = mix(fDiff, vec3(0.42, 0.43, 0.44), cM);
+  fSpec = mix(fSpec, vec3(0.08), cM);
+}`;
   mat.onBeforeCompile = (shader, renderer) => {
     base(shader, renderer);
     shader.vertexShader = shader.vertexShader
@@ -36,10 +56,10 @@ fDiff *= 1.0 - ${F.diffuse.toFixed(3)} * fFar;`
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTint = aTint;');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vTint;')
-      .replace('sdFacade(normal, fDiff, fSpec, fRough, fEmis);', `sdFacade(normal, fDiff, fSpec, fRough, fEmis);\nfDiff *= vTint;\nfSpec *= vTint;${far}`);
+      .replace('sdFacade(normal, fDiff, fSpec, fRough, fEmis);', `sdFacade(normal, fDiff, fSpec, fRough, fEmis);\nfDiff *= vTint;\nfSpec *= vTint;${civic}${far}`);
   };
   const key = mat.customProgramCacheKey.bind(mat);
-  mat.customProgramCacheKey = () => key() + '-tint' + (opts.farTone ? '-far' : '');
+  mat.customProgramCacheKey = () => key() + '-tint-v2' + (opts.farTone ? '-far' : '');
   mat.name += 'Tinted';
   return mat;
 }
