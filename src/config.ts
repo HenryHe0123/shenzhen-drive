@@ -319,38 +319,55 @@ export const CONFIG = {
     accentWashIntensity: 0.6,
   },
 
-  /** APEC facade LED screens on real buildings (src/city/screens); one per s-window, picked from the data. */
+  /**
+   * APEC China 2026 roadside LED screens (src/city/screens): free-standing, facing approaching
+   * traffic above the tree canopy, one per s-window, placed from the data (pylons.ts).
+   */
   screens: {
+    /** Art composited on the left of the face (the slogan is drawn at runtime). */
     textureUrl: 'textures/ai/facade_apec_01.jpg',
+    /**
+     * Sides tried in order; the median is too narrow for a face that spans ~26 m across the road.
+     * The APEC-sign window starts before s 5800 because from there on the right side lies in the
+     * Ping An sight-line zone and the far side is behind the median trees.
+     */
     windows: [
-      { name: 'apec-sign', s0: 5800, s1: 6400, side: 'left' },
-      { name: 'shennan-futian', s0: 7600, s1: 8800 },
-      { name: 'cbd-loop', s0: 9960, s1: 11680 },
+      { name: 'apec-sign', s0: 5450, s1: 6400, sides: ['right', 'median', 'left'] },
+      { name: 'shennan-futian', s0: 7600, s1: 8800, sides: ['right', 'median', 'left'] },
+      { name: 'cbd-loop', s0: 9960, s1: 11680, sides: ['right', 'left'] },
     ],
-    /** Preferred / smallest width (m); 9:16 portrait, so 20 m wide is 35.6 m tall. */
-    width: 20,
-    minWidth: 16,
-    /** Preferred / lowest bottom edge (m), above the street and median trees. */
-    bottom: 22,
-    minBottom: 15,
-    roofGap: 3,
-    /** Wall run kept free beside the screen (m). */
-    edgeMargin: 1.5,
-    minHeight: 55,
-    /** Wall distance from the centerline of the carriageway on its side (the opposite one on the left, m). */
-    minDist: 25,
-    maxDist: 90,
-    /** Wall normal within this angle of the direction to the road; preferred tilt toward oncoming traffic (deg). */
-    maxFacingDeg: 30,
-    preferFacingDeg: 12,
-    /** Sight lines from these distances before the screen (m) must mostly reach it. */
-    viewBack: [260, 170, 90],
-    /** Screen face / frame front distance from the wall, frame border (m). */
-    offset: 0.42,
-    frameFront: 0.3,
-    border: 0.6,
-    /** Color multiplier per time-of-day preset (dusk blooms: threshold 0.85). */
-    brightness: { day: 1.1, golden: 1.3, dusk: 1.7 },
+    /** 2:1 landscape face (m); the bottom edge clears the street canopy from a few hundred meters and keeps the face in the chase view at 80 m. */
+    width: 28,
+    height: 14,
+    bottom: 26,
+    /** Face yaw from square-on to the road, toward the carriageway (deg). */
+    yawDeg: 20,
+    /** Ground footprint around the face center: half width beyond the face, depth behind / in front (m). */
+    footprintPad: 1,
+    footprintBack: 3,
+    footprintFront: 1.2,
+    /** Gap to the sidewalk / median curb (m), further lateral offsets tried, s step (m). */
+    clearance: 1.5,
+    extraOffsets: [4, 8, 14],
+    sStep: 10,
+    /** Chase-camera distances before the screen that are scored; at least minVisible must see it unobstructed. */
+    viewBack: [400, 320, 250, 200, 150, 110, 80],
+    minVisible: 3,
+    /** Street-tree canopy bands for those sight lines: radius around each trunk row, top height (m). */
+    canopyRadius: 4,
+    canopyTop: 11,
+    /**
+     * Chase-camera distances (every step from min to max, m) whose sight lines to the landmarks the
+     * face may not cut; inside min the car is passing under the screen and it leaves the view.
+     */
+    landmarkBackMin: 50,
+    landmarkBackMax: 700,
+    landmarkBackStep: 25,
+    /** Cabinet / steel shade of the supports (lit material). */
+    cabinetShade: 0.06,
+    columnShade: 0.5,
+    /** Face color multiplier per time-of-day preset (dusk blooms: threshold 0.85). */
+    brightness: { day: 1.05, golden: 1.2, dusk: 1.6 },
     /** LED pitch (m) and depth of the pixel-grid shading, faded out once a cell is under ~1.5 px. */
     ledPitch: 0.125,
     ledGrid: 0.22,
