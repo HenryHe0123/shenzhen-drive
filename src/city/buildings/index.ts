@@ -188,9 +188,9 @@ interface Placed {
 }
 
 /**
- * OSM building footprints extruded and merged per chunk of s with a shared
- * procedural facade shader; procedural blocks when buildings.json is missing,
- * plus gap fillers so the street wall stays continuous.
+ * OSM / Overture building footprints extruded and merged per chunk of s with a shared
+ * procedural facade shader; procedural blocks and street-wall gap fillers only when
+ * buildings.json is missing (or CONFIG.city.buildingFiller is set).
  */
 export async function createBuildings(ctx: WorldContext): Promise<SceneryModule> {
   const { route, scene } = ctx;
@@ -405,7 +405,7 @@ export async function createBuildings(ctx: WorldContext): Promise<SceneryModule>
   }
 
   // --- Gap filler: keep the street wall continuous ------------------------
-  {
+  if (C.buildingFiller || !ctx.buildings) {
     const step = C.buildingFillerStep;
     const probe = C.buildingFillerProbe;
     const nSeg = Math.ceil(L / step);

@@ -109,7 +109,7 @@ docs/              资产归属、版本记录与版本对比、OSM 数据覆盖
 ## 资产归属（摘要）
 
 - 小米 SU7 模型：Sketchfab [Xiaomi SU7](https://sketchfab.com/3d-models/xiaomi-su7-ca2cda599f5341068c992c9f44551bf9)，作者 Car2022（现名 Mona x Supercars），CC BY 4.0；仅在运行时替换车漆材质。本项目与小米公司无关联，未获其认可。
-- 地图数据 © OpenStreetMap contributors，[ODbL 1.0](https://www.openstreetmap.org/copyright)，经 Geofabrik 提取。
+- 地图数据 © OpenStreetMap contributors，[ODbL 1.0](https://www.openstreetmap.org/copyright)，经 Geofabrik 提取；补充建筑轮廓来自 Overture Maps（ODbL 1.0，机器学习屋顶来源 CC BY 4.0），补充建筑高度来自 CMAB（Zhang、Zhao、Long，CC BY 4.0）。
 - 真实深圳建筑模型：3D Warehouse 多位作者，[General Model License](https://3dwarehouse.sketchup.com/tos/)，仅随游戏分发处理后的文件，逐个署名见资产清单。
 - 小叶榕（Valery.Li）与国标路牌（notbadworks）：Sketchfab，CC BY 4.0，均为离线烘焙 / 减面 / 裁切后的版本。
 - 日落预设的车漆反射 HDRI：Poly Haven Shanghai Riverside（Alex Radosnov），CC0。

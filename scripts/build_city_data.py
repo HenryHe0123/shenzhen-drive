@@ -968,6 +968,174 @@ def opposite_orig(cfg, Ws, U: Polyline, R):
     return grid, np.clip(gauss1d(raw, oc["smoothSigma"] / 2.0), oc["min"], oc["max"])
 
 
+SIDE_ROAD_NAME = re.compile(r"辅路|辅道")
+
+
+def side_roads(cfg, osm, proj, U, opp_o, grid):
+    """Lateral centre offset of the side road (辅路) on each side, on the original 2 m s grid (NaN where there
+    is none), and its lane count. Candidates: ways named *辅路 / *辅道, or unnamed secondary / tertiary /
+    unclassified ways, running parallel to the route (right side in the driving direction, left side against
+    it when one-way), between minGap and maxGap beyond the carriageway edge."""
+    sc = cfg["sideRoads"]
+    edge = cfg["road"]["halfWidthRight"] + 0.3
+    out = {}
+    for side in ("right", "left"):
+        best = np.full(len(grid), np.nan)
+        lanes = np.full(len(grid), np.nan)
+        for w in osm["ways"].values():
+            t = w["tags"]
+            nm = t.get("name", "")
+            if not (SIDE_ROAD_NAME.search(nm) or (not nm and t.get("highway") in ("secondary", "tertiary", "unclassified"))):
+                continue
+            xy = resample(proj.fwd(w["ll"]), 2.0)
+            if len(xy) < 4:
+                continue
+            s, d = U.project(xy)
+            ds = np.diff(s)
+            par = np.abs(ds) / np.maximum(np.hypot(*np.diff(xy, axis=0).T), 1e-6) > 0.94
+            ow = is_oneway(t)
+            fwd = np.sign(np.median(ds)) * (1 if ow >= 0 else -1)
+            if ow != 0 and fwd != (1 if side == "right" else -1):
+                continue
+            ss, dd = (s[:-1] + s[1:]) / 2, (d[:-1] + d[1:]) / 2
+            opp = np.interp(ss, grid, opp_o)
+            gap = dd - edge if side == "right" else (opp - edge) - dd
+            ok = par & (gap > sc["minGap"]) & (gap < sc["maxGap"]) & (ss > 1) & (ss < U.length - 1)
+            n = parse_levels(t.get("lanes")) or sc["defaultLanes"]
+            for si, gi in zip(ss[ok], gap[ok]):
+                i = int(round(si / 2.0))
+                if 0 <= i < len(grid) and not (gi >= best[i]):
+                    best[i], lanes[i] = gi, n
+        # fill short holes, drop short runs, smooth inside runs, keep a planted separator
+        ok = ~np.isnan(best)
+        idx = np.nonzero(ok)[0]
+        if len(idx):
+            for a, b in zip(idx[:-1], idx[1:]):
+                if 1 < b - a <= sc["fillGap"] / 2.0:
+                    best[a:b + 1] = np.interp(np.arange(a, b + 1), [a, b], [best[a], best[b]])
+                    lanes[a:b + 1] = lanes[a]
+        ok = ~np.isnan(best)
+        runs, i = [], 0
+        while i < len(ok):
+            if ok[i]:
+                j = i
+                while j + 1 < len(ok) and ok[j + 1]:
+                    j += 1
+                runs.append((i, j))
+                i = j + 1
+            else:
+                i += 1
+        gap = np.full(len(grid), np.nan)
+        ln = np.full(len(grid), np.nan)
+        for a, b in runs:
+            if (b - a) * 2.0 < sc["minRun"]:
+                continue
+            g = gauss1d(best[a:b + 1], sc["smoothSigma"] / 2.0)
+            n = float(np.median(lanes[a:b + 1]))
+            hw = n * sc["laneWidth"] / 2
+            gap[a:b + 1] = np.maximum(g, sc["minSeparator"] + hw)
+            ln[a:b + 1] = n
+        centre = edge + gap if side == "right" else np.interp(grid, grid, opp_o) - edge - gap
+        out[side] = (centre, ln)
+        cov = np.mean(~np.isnan(gap))
+        print(f"[side] {side}: side road along {cov:.0%} of the route, {sum(1 for a, b in runs if (b - a) * 2 >= sc['minRun'])} runs, "
+              f"median gap to the carriageway edge {np.nanmedian(gap) if cov else float('nan'):.1f} m")
+    return out
+
+
+def road_margins(cfg, sr, grid, opp_o):
+    """margins(s) -> (right, opposite): a footprint vertex at (s, d) is on the road corridor when
+    opp(s) - opposite < d < right. Constant buildings.rightMargin / oppositeMargin, widened to the outer
+    edge of the side road plus buildingSetback (its curb and sidewalk) where there is one."""
+    bc, sc = cfg["buildings"], cfg.get("sideRoads", {})
+    if not sr:
+        return lambda s: (np.full(np.shape(s), bc["rightMargin"], float), np.full(np.shape(s), bc["oppositeMargin"], float))
+    (rc, rn), (lc, ln) = sr["right"], sr["left"]
+    right = rc + rn * sc["laneWidth"] / 2 + sc["buildingSetback"]
+    opp = (opp_o - lc) + ln * sc["laneWidth"] / 2 + sc["buildingSetback"]
+    right = np.where(np.isnan(right), bc["rightMargin"], np.maximum(bc["rightMargin"], right))
+    opp = np.where(np.isnan(opp), bc["oppositeMargin"], np.maximum(bc["oppositeMargin"], opp))
+    return lambda s: (np.interp(s, grid, right), np.interp(s, grid, opp))
+
+
+def street_furniture(cfg, osm, proj, U, sp, sf, F, L, opp_o, grid):
+    """Footbridges crossing the route, bus stops and subway entrances beside it, in final route coordinates."""
+    fc = cfg["streetFurniture"]
+    edge = cfg["road"]["halfWidthRight"] + 0.3
+    st = osm.get("street") or {}
+    bridges = []
+    for b in st.get("footbridges", []):
+        xy = proj.fwd(b["ll"])
+        if len(xy) < 2:
+            continue
+        line = LineString(xy)
+        if not line.intersects(U.line):
+            continue
+        for g in getattr(line.intersection(U.line), "geoms", [line.intersection(U.line)]):
+            if g.geom_type != "Point":
+                continue
+            p = np.array(g.coords[0])
+            s0, _ = U.project(p[None])
+            s0 = float(s0[0])
+            if sp.piece(np.array([s0]))[0] < 0:
+                continue
+            k = int(np.argmin(np.hypot(*(xy - p).T)))
+            a, c = xy[max(k - 1, 0)], xy[min(k + 1, len(xy) - 1)]
+            tan = U.tangent(np.clip(s0, 1, U.length - 1), 5.0)
+            v = (c - a) / (np.linalg.norm(c - a) + 1e-9)
+            if abs(float(v @ tan)) > math.cos(math.radians(45)):
+                continue
+            s_v, d_v = U.project(xy)
+            near = np.abs(s_v - s0) < fc["bridgeMaxSpan"]
+            opp = float(np.interp(s0, grid, opp_o))
+            d0, d1 = float(d_v[near].min()), float(d_v[near].max())
+            d0, d1 = max(d0, opp - fc["bridgeMaxReach"]), min(d1, fc["bridgeMaxReach"])
+            if d1 < edge + 2 or d0 > opp - edge - 2:
+                continue
+            ang = math.atan2(float(v @ tan), float(v @ np.array([-tan[1], tan[0]])))
+            bridges.append(dict(s=round(sf(s0), 1), d0=round(d0, 1), d1=round(d1, 1), skew=round(ang, 3), osmId=b["id"]))
+    bridges.sort(key=lambda r: r["s"])
+    dedup = []
+    for r in bridges:
+        if dedup and abs(r["s"] - dedup[-1]["s"]) < fc["bridgeMinSpacing"]:
+            continue
+        dedup.append(r)
+
+    def beside(items, max_out, min_spacing, label):
+        recs = []
+        for it in items:
+            p = proj.fwd(np.array(it["ll"]))
+            s0, d0 = U.project(p[None])
+            s0, d0 = float(s0[0]), float(d0[0])
+            if not (5 < s0 < U.length - 5) or sp.piece(np.array([s0]))[0] < 0:
+                continue
+            opp = float(np.interp(s0, grid, opp_o))
+            if edge < d0 < edge + max_out:
+                side = "right"
+            elif opp - edge - max_out < d0 < opp - edge:
+                side = "left"
+            else:
+                continue
+            rec = dict(s=round(sf(s0), 1), d=round(d0, 1), side=side)
+            if it.get("name"):
+                rec["name"] = it["name"]
+            recs.append(rec)
+        recs.sort(key=lambda r: (r["side"], r["s"]))
+        out = []
+        for r in recs:
+            if out and out[-1]["side"] == r["side"] and r["s"] - out[-1]["s"] < min_spacing:
+                continue
+            out.append(r)
+        out.sort(key=lambda r: r["s"])
+        print(f"[street] {len(out)} {label} ({sum(1 for r in out if r['side'] == 'right')} right, {sum(1 for r in out if r['side'] == 'left')} left)")
+        return out
+
+    stops = beside(st.get("bus_stops", []), fc["stopMaxOut"], fc["stopMinSpacing"], "bus stops")
+    exits = beside(st.get("subway_entrances", []), fc["entranceMaxOut"], fc["entranceMinSpacing"], "subway entrances")
+    print(f"[street] {len(dedup)} footbridges cross the route at s " + ", ".join(f"{r['s']:.0f}" for r in dedup))
+    return dedup, stops, exits
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--rebuild", action="store_true", help="re-cut the corridor extract and re-parse")
@@ -1050,10 +1218,12 @@ def main():
           f"({L / U.length:.1%} of real); splice rotations "
           + ", ".join(f"{math.degrees(r):+.2f} deg" for r in sp.rot[1:]))
 
-    # ---- opposite carriageway ----
+    # ---- opposite carriageway, side roads ----
     grid, opp_o = opposite_orig(cfg, opposite_chains(osm, cfg, proj), U, R)
     opp_f = np.interp(sp.s_orig(ss), grid, opp_o)
     opp_f = np.clip(gauss1d(opp_f, cfg["opposite"]["spliceSigma"] / step), cfg["opposite"]["min"], cfg["opposite"]["max"])
+    sr = side_roads(cfg, osm, proj, U, opp_o, grid) if cfg.get("sideRoads", {}).get("enabled") else None
+    margins = road_margins(cfg, sr, grid, opp_o)
     turns_f = [dict(s0=round(sf(t["s0"]), 1), s1=round(sf(t["s1"]), 1), direction=t["direction"], name=t["name"],
                     radius=t["radius"]) for t in R["turns"]]
 
@@ -1132,6 +1302,25 @@ def main():
         landmarks=landmarks,
         signs=signs,
     )
+    if sr:
+        so = sp.s_orig(ss)
+        runs = []
+        for side, key in (("right", "sideRoadRight"), ("left", "sideRoadLeft")):
+            c, n = (np.interp(so, grid, v) for v in sr[side])
+            route[key] = [None if math.isnan(v) else round(float(v), 2) for v in c]
+            i = 0
+            while i < len(c):
+                if math.isnan(c[i]):
+                    i += 1
+                    continue
+                j = i
+                while j + 1 < len(c) and not math.isnan(c[j + 1]):
+                    j += 1
+                runs.append(dict(side=side, s0=round(float(ss[i]), 1), s1=round(float(ss[j]), 1), lanes=int(round(float(np.nanmedian(n[i:j + 1]))))))
+                i = j + 1
+        route["sideRoadLanes"] = sorted(runs, key=lambda r: r["s0"])
+    if cfg.get("streetFurniture", {}).get("enabled"):
+        route["footbridges"], route["busStops"], route["subwayEntrances"] = street_furniture(cfg, osm, proj, U, sp, sf, F, L, opp_o, grid)
     out_dir = ROOT / "public" / "data"
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1143,8 +1332,8 @@ def main():
 
     # ---- buildings (view corridors run after the fillers so fillers cannot re-block) ----
     cm = load_cmab(cfg, proj)
-    blds, hs, obstacles = build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms, cm)
-    ov_blds, _, ov_polys = overture_buildings(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, lms, load_overture(cfg, proj), cm)
+    blds, hs, obstacles = build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms, cm, margins)
+    ov_blds, _, ov_polys = overture_buildings(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, lms, load_overture(cfg, proj), cm, margins)
     fill = procedural_fill(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, obstacles + ov_polys + model_obstacles, lms)
     blds = sorted(blds + ov_blds + fill, key=lambda r: (r["s"], r["id"]))
     final_s = lambda v: v if isinstance(v, (int, float)) else (  # noqa: E731
@@ -1180,7 +1369,7 @@ def main():
         write_city_models(cfg, city_records, now)
 
     ok = validate(route, bdata, cfg)
-    coverage_report(cfg, osm, proj, U, sp, R)
+    coverage_report(cfg, osm, proj, U, sp, R, ov_polys)
     if not args.no_plot:
         (ROOT / "evidence").mkdir(exist_ok=True)
         plot(route, bdata, sp, U, F, ROOT / "evidence" / "route_plot.png")
@@ -1221,8 +1410,9 @@ def lanes_report(osm, R, proj, U):
 # ----------------------------------------------------------------------------
 
 
-def build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms, cm=None):
+def build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms, cm=None, margins=None):
     bc, hc = cfg["buildings"], cfg["heights"]
+    margins = margins or road_margins(cfg, None, grid, opp_o)
     cc = cfg.get("cmab", {})
     bands = cc.get("preferOverLevels", [])
     cmab_first = (lambda hl: any(lo <= hl < hi for lo, hi in bands)) if bands else None
@@ -1295,10 +1485,11 @@ def build_buildings(cfg, osm, proj, U, sp, F, L, grid, opp_o, zone_of, lms, cm=N
             dropped["in cut"] += 1
             continue
         opp_v = np.interp(s_v, grid, opp_o)
-        inside = (d_v >= opp_v - bc["oppositeMargin"]) & (d_v <= bc["rightMargin"])
+        mr, mo = margins(s_v)
+        inside = (d_v >= opp_v - mo) & (d_v <= mr)
         inside &= (s_v > 0.5) & (s_v < U.length - 0.5)
-        if inside.any() or (opp_v[0] - bc["oppositeMargin"] <= d_c <= bc["rightMargin"] and 0.5 < s_c < U.length - 0.5):
-            dropped["road corridor"] += 1
+        if inside.any() or (opp_v[0] - mo[0] <= d_c <= mr[0] and 0.5 < s_c < U.length - 0.5):
+            dropped["road corridor" if (inside & (d_v <= bc["rightMargin"]) & (d_v >= opp_v - bc["oppositeMargin"])).any() else "side road"] += 1
             continue
         k = int(sp.piece(np.array([np.clip(s_c, 0, U.length)]))[0])
         fp2 = sp.apply(fp, k)
@@ -1365,13 +1556,14 @@ def overture_id(gid):
     return 10**15 + int(gid.replace("-", "")[:12], 16) % 10**14
 
 
-def overture_buildings(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, lms, ov, cm):
+def overture_buildings(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, lms, ov, cm, margins=None):
     """Overture rooftops that overlap no OSM building (< maxOsmOverlap of their area), off the road corridor,
     outside parks / water / plazas / construction sites / landmarks; heights Overture > CMAB > zone estimate."""
     if not ov:
         return [], dict(overture=0, cmab=0, estimated=0), []
     oc, bc, hc = cfg["overture"], cfg["buildings"], cfg["heights"]
     near_d, far_d = bc["nearDist"], bc["farDist"]
+    margins = margins or road_margins(cfg, None, grid, opp_o)
     t0 = time.time()
     lo = U.p.min(0) - far_d - 200
     hi = U.p.max(0) + far_d + 200
@@ -1438,7 +1630,8 @@ def overture_buildings(cfg, osm, proj, U, sp, L, grid, opp_o, zone_of, lms, ov, 
             dropped["in cut"] += 1
             continue
         opp_v = np.interp(s_v, grid, opp_o)
-        inside = (d_v >= opp_v - bc["oppositeMargin"]) & (d_v <= bc["rightMargin"]) & (s_v > 0.5) & (s_v < U.length - 0.5)
+        mr, mo = margins(s_v)
+        inside = (d_v >= opp_v - mo) & (d_v <= mr) & (s_v > 0.5) & (s_v < U.length - 0.5)
         if inside.any():
             dropped["road corridor"] += 1
             continue
@@ -2337,28 +2530,41 @@ def validate(route, bdata, cfg):
     return ok
 
 
-def coverage_report(cfg, osm, proj, U, sp, R):
-    """Footprint coverage per 250 m of original route, both sides, 0-300 m lateral."""
+def coverage_report(cfg, osm, proj, U, sp, R, extra=()):
+    """Footprint coverage per 250 m of original route, both sides, 0-300 m lateral: OSM footprints, then
+    OSM plus `extra` (original-frame polygons, e.g. the Overture additions)."""
     bins = np.arange(0, U.length + 250, 250.0)
     area = np.zeros(len(bins) - 1)
+    polys = []
     for b in osm["buildings"]:
         ring = proj.fwd(b["ring"])
         c = ring.mean(0)
         if (np.abs(c - U.p.mean(0)) > 9000).any():
             continue
-        s, d = U.project(c[None])
-        if abs(d[0]) > 300 or not (0.5 < s[0] < U.length - 0.5):
-            continue
         poly = Polygon(ring)
         if poly.is_valid:
-            area[int(s[0] // 250)] += poly.area
-    cov = area / (250 * 600)
-    kept = [(bins[i], cov[i]) for i in range(len(cov)) if sp.piece(np.array([bins[i] + 125]))[0] >= 0]
-    low = [f"{a:.0f}-{a + 250:.0f}" for a, c in kept if c < 0.06]
-    print(f"[coverage] footprint share of 600 m wide corridor per 250 m (kept parts): median {np.median([c for _, c in kept]):.0%}; "
-          f"bins < 6%: {len(low)} -> {', '.join(low)}")
+            polys.append(poly)
+    n_osm = len(polys)
+    area_all = None
+    for k, poly in enumerate(polys + list(extra)):
+        if k == n_osm:
+            area_all = area.copy()
+        s, d = U.project(np.array(poly.centroid.coords))
+        if abs(d[0]) > 300 or not (0.5 < s[0] < U.length - 0.5):
+            continue
+        (area_all if area_all is not None else area)[int(s[0] // 250)] += poly.area
+    if area_all is None:
+        area_all = area
+    kept_bins = [i for i in range(len(area)) if sp.piece(np.array([bins[i] + 125]))[0] >= 0]
+    for label, a in (("OSM", area), ("OSM + Overture", area_all)) if len(extra) else (("OSM", area),):
+        cov = a / (250 * 600)
+        low = [f"{bins[i]:.0f}-{bins[i] + 250:.0f}" for i in kept_bins if cov[i] < 0.06]
+        print(f"[coverage] {label}: footprint share of 600 m wide corridor per 250 m (kept parts): median {np.median(cov[kept_bins]):.0%}; "
+              f"bins < 6%: {len(low)} -> {', '.join(low)}")
+    cov = area_all / (250 * 600)
     cache = ROOT / "data-raw" / "coverage_bins.json"
-    cache.write_text(json.dumps([dict(s0=float(bins[i]), cover=round(float(cov[i]), 3), cut=bool(sp.piece(np.array([bins[i] + 125]))[0] < 0)) for i in range(len(cov))]))
+    cache.write_text(json.dumps([dict(s0=float(bins[i]), cover=round(float(cov[i]), 3), cover_osm=round(float(area[i] / (250 * 600)), 3),
+                                      cut=bool(sp.piece(np.array([bins[i] + 125]))[0] < 0)) for i in range(len(cov))]))
 
 
 def plot(route, bdata, sp, U, F, path):

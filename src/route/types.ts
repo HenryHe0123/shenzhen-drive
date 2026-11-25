@@ -57,6 +57,26 @@ export interface RouteData {
   intersections?: { s: number; name: string }[];
   landmarks: Landmark[];
   signs: { s: number; side: 'left' | 'right'; text: string; sub?: string }[];
+  /**
+   * Optional, one value per centerline sample: lateral offset d of the side road (辅路) centre on the
+   * right, and beyond the opposite carriageway on the left; null where there is none. Scenery only.
+   */
+  sideRoadRight?: (number | null)[];
+  sideRoadLeft?: (number | null)[];
+  /** Side road runs (s range per side) with their lane count. */
+  sideRoadLanes?: { side: 'left' | 'right'; s0: number; s1: number; lanes: number }[];
+  /** Pedestrian bridges crossing the route at s, spanning d0..d1; skew = angle (rad) from the route normal. */
+  footbridges?: { s: number; d0: number; d1: number; skew: number; osmId?: number }[];
+  busStops?: RoadsideItem[];
+  subwayEntrances?: RoadsideItem[];
+}
+
+export interface RoadsideItem {
+  s: number;
+  /** Lateral offset of the OSM node (m). */
+  d: number;
+  side: 'left' | 'right';
+  name?: string;
 }
 
 export interface Turn {

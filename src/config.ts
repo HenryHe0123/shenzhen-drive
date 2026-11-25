@@ -324,6 +324,11 @@ export const CONFIG = {
     buildingDrawDistance: 5000,
     /** Chunks within this distance (m, along s) cast shadows. */
     buildingShadowDistance: 150,
+    /**
+     * Procedural blocks filling street-wall gaps. Off when buildings.json is loaded (real open land stays
+     * open); always used for the procedural fallback city without data.
+     */
+    buildingFiller: false,
     /** Gap filler: s step (m) and lateral probe width (m) for missing street wall. */
     buildingFillerStep: 100,
     buildingFillerProbe: 150,

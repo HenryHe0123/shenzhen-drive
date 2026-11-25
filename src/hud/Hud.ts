@@ -218,7 +218,13 @@ export class Hud implements OverlaySource {
     this.startBtn.addEventListener('click', () => opts.onStart());
     this.menuError = el('div', 'error hidden');
     card.append(this.startBtn, el('div', 'btn-hint', '按 Enter / 空格 开始'), this.menuError);
-    card.append(el('div', 'credit', 'Xiaomi SU7 model by Car2022 (CC BY 4.0) · Map data © OpenStreetMap contributors'));
+    card.append(
+      el(
+        'div',
+        'credit',
+        'Xiaomi SU7 model by Car2022 (CC BY 4.0) · Map data © OpenStreetMap contributors · Buildings: Overture Maps Foundation, CMAB (CC BY 4.0)',
+      ),
+    );
     const menuVersion = el('div', 'version num', BUILD.label);
     menuVersion.id = 'menu-version';
     card.append(menuVersion);

@@ -114,7 +114,9 @@ Poly Haven 的 [Shanghai Bund](https://polyhaven.com/a/shanghai_bund)（Greg Zaa
 
 - © OpenStreetMap contributors. 数据依据 [Open Database License (ODbL) 1.0](https://www.openstreetmap.org/copyright) 提供。
 - 提取文件：Geofabrik [guangdong-latest.osm.pbf](https://download.geofabrik.de/asia/china/guangdong.html)。
-- 衍生数据：`public/data/route.json`、`public/data/buildings.json` 由 `scripts/build_city_data.py` 生成（深南大道东行中心线、剪切拼接、建筑轮廓，缺失高度按片区规则估算）。二者属于 OSM 衍生数据库，同样按 ODbL 1.0 提供；文件内 `meta.osmTimestamp` 记录 OSM 数据日期。
+- 建筑轮廓补充：[Overture Maps Foundation](https://overturemaps.org/) 建筑数据（`buildings` 主题，release 2026-11-18.0，[ODbL 1.0](https://opendatacommons.org/licenses/odbl/)）。只用其中非 OpenStreetMap 来源的轮廓，即机器学习识别的屋顶：East Asian building footprints（[doi:10.5281/zenodo.8174931](https://doi.org/10.5281/zenodo.8174931)，[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)），经 Overture 分发；`buildings.json` 里记为 `src: "overture"`。
+- 建筑高度、功能、年代补充：CMAB 中国多属性建筑数据集（Yecheng Zhang、Huimin Zhao、Ying Long，Mendeley Data v5，[doi:10.17632/b4t2wxhn2y.5](https://doi.org/10.17632/b4t2wxhn2y.5)，[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)）。只用于 OSM 没有高度和楼层数的建筑，规则见 `scripts/city_config.json` 的 `cmab`。原始数据不入库。
+- 衍生数据：`public/data/route.json`、`public/data/buildings.json` 由 `scripts/build_city_data.py` 生成（深南大道东行中心线、辅路、人行天桥 / 公交站 / 地铁口位置、建筑轮廓与高度；没有任何数据来源的高度按片区规则估算）。二者属于 OSM / Overture 衍生数据库，同样按 ODbL 1.0 提供；文件内 `meta.osmTimestamp` 记录 OSM 数据日期。
 
 ## 软件库
 
@@ -127,6 +129,9 @@ Poly Haven 的 [Shanghai Bund](https://polyhaven.com/a/shanghai_bund)（Greg Zaa
 | pyosmium | BSD-2-Clause | 离线数据管线 |
 | Shapely、NumPy | BSD-3-Clause | 离线数据管线 |
 | Matplotlib | Matplotlib License（PSF 类） | 离线数据管线（路线示意图） |
+| PyArrow、overturemaps | Apache-2.0、MIT | 离线数据管线（Overture 下载、读写 Parquet） |
+| pyogrio、pyproj | MIT | 离线数据管线（读取 CMAB shapefile、坐标转换） |
+| UnRAR（RARLAB） | UnRAR 免费许可 | 解压 CMAB 压缩包（本机从源码编译，不随游戏分发） |
 
 ## 程序生成内容（无外部素材）
 

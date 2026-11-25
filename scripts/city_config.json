@@ -49,6 +49,10 @@
     "intersections": ["香蜜湖路"]
   },
   "road": { "lanes": 4, "laneWidth": 3.5, "halfWidthLeft": 7, "halfWidthRight": 7 },
+  "sideRoadsNote": "辅路 from OSM (ways named *辅路 / *辅道, or unnamed secondary / tertiary / unclassified ways) running parallel to the route, minGap-maxGap m beyond the carriageway's outer edge (one-way ones in the direction of the adjacent carriageway); holes up to fillGap m bridged, runs shorter than minRun m dropped, smoothed with smoothSigma m; the planted separator (侧分带) keeps at least minSeparator m. Scenery only: the drivable carriageway and its walls do not change. route.json sideRoadRight / sideRoadLeft = centre offset d per centerline sample (null = none), sideRoadLanes = runs with the OSM lanes tag (defaultLanes if missing). buildingSetback = keep-out for buildings beyond the side road's asphalt edge (curb + sidewalk).",
+  "sideRoads": { "enabled": false, "minGap": 1.5, "maxGap": 26, "fillGap": 40, "minRun": 80, "smoothSigma": 12, "minSeparator": 2.4, "laneWidth": 3.25, "defaultLanes": 2, "buildingSetback": 4.5 },
+  "streetFurnitureNote": "footbridges (highway=footway/path/steps/... with bridge=*) crossing the route at more than 45 deg, bus stops (highway=bus_stop / public_transport=platform) and subway entrances (railway=subway_entrance) beside it, in route coordinates; scenery only.",
+  "streetFurniture": { "enabled": false, "bridgeMaxSpan": 30, "bridgeMaxReach": 70, "bridgeMinSpacing": 40, "stopMaxOut": 40, "stopMinSpacing": 30, "entranceMaxOut": 60, "entranceMinSpacing": 12 },
   "opposite": { "smoothSigma": 30, "spliceSigma": 20, "min": -60, "max": -14, "undivided": -14 },
   "sections": [
     { "id": "nanshan", "name": "南山科技园", "from": "start" },
@@ -103,10 +107,10 @@
   "cmabNote": "CMAB China Multi-Attribute Building dataset (Zhang, Zhao, Long; Mendeley Data b4t2wxhn2y v5, CC BY 4.0): machine-learned rooftop height / function / age. An OSM footprint matches the rooftop with the largest overlap when the overlap exceeds minOverlap of the footprint or the rooftop centroid lies inside it. Height priority: OSM height > OSM levels > CMAB > zone estimate; preferOverLevels = [lo, hi) bands of the levels height where CMAB wins instead (from the calibration printed by the pipeline: none, levels are closer in every band). skipArea = footprint area range (m2) where CMAB is not used: on 1500-3000 m2 footprints (towers) CMAB underestimates by a median 64 m and is no better than the zone estimate; on all other sizes it beats the estimate (median error 5-23 m vs 10-46 m on 370 buildings with OSM height or levels). The CMAB origin release covers Shenzhen only east of lon 114.028 (福田 / 罗湖, file zhusanjiaoyi20220302); 南山 is not in it.",
   "cmab": { "path": "data-raw/cmab/cmab_corridor.parquet", "minOverlap": 0.3, "preferOverLevels": [], "skipArea": [1500, 3000] },
   "overtureNote": "Overture Maps buildings (ODbL 1.0; release in data-raw/overture/buildings.parquet.state). Only features whose sources are not OpenStreetMap (machine-learned rooftops) are used, and only where they overlap no OSM building by maxOsmOverlap of their own area and lie outside open space (maxOpenOverlap or centroid inside). Same road-corridor, minArea and far rules as OSM buildings; ids 1e15 + hash of the Overture id, src = overture.",
-  "overture": { "enabled": false, "path": "data-raw/overture/buildings.parquet", "maxOsmOverlap": 0.2, "maxOpenOverlap": 0.2 },
+  "overture": { "enabled": true, "path": "data-raw/overture/buildings.parquet", "maxOsmOverlap": 0.2, "maxOpenOverlap": 0.2 },
   "procedural": {
-    "enabled": true,
-    "note": "filler blocks (negative ids, counted as 'estimated') only where OSM has no building, road, park/water/plaza/parking or landmark",
+    "enabled": false,
+    "note": "off since v0.5.0: with Overture footprints added, the land these blocks filled shows no building in either OSM or Overture (parks, depots, construction sites, interchanges). When enabled: filler blocks (negative ids, counted as 'estimated') only where OSM / Overture have no building, road, park/water/plaza/parking or landmark",
     "maxDist": 290,
     "step": 30,
     "bands": [36, 78, 125, 175, 228, 275],
