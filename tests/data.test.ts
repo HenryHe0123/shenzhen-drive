@@ -463,12 +463,14 @@ describe.skipIf(!cityModelsJson || !routeJson)('public/data/city_models.json', (
     expect(bad).toEqual([]);
   });
 
-  it('keeps models out of the landmark clear zones unless they replace the landmark (or a kept building)', () => {
+  it('keeps models in the landmark clear zones below the sight lines unless they replace the landmark (or a kept building)', () => {
     const bad: string[] = [];
     for (const m of c.models) {
       if (m.replacesLandmark || m.replacesOsm.some((id) => CLEAR_ZONE_KEEP.has(id))) continue;
       const a = (r.clearZones ?? []).reduce((acc, z) => acc + overlapArea(m.footprint, z), 0);
-      if (a > 2) bad.push(`${m.id}: ${a.toFixed(0)} m2 inside clear zones`);
+      if (a <= 2) continue;
+      if (m.viewCap === undefined) bad.push(`${m.id}: ${a.toFixed(0)} m2 inside clear zones without a viewCap`);
+      else if (m.height > m.viewCap) bad.push(`${m.id}: ${m.height} m rises above the sight line (${m.viewCap} m)`);
     }
     expect(bad).toEqual([]);
   });

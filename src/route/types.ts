@@ -120,6 +120,8 @@ export interface CityModelRecord {
   replacesOsm: number[];
   /** Hand-built landmark id (src/city/landmarks) this model replaces, if chosen. */
   replacesLandmark?: string;
+  /** Set when the footprint reaches into a route clearZones wedge: lowest landmark sight line over it (m). */
+  viewCap?: number;
   /** Old photo-textured model (needs the photo facade material) vs clean geometry. */
   photoTextured: boolean;
   tris: number;
