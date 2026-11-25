@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { chaseYawLerp } from '../src/camera/ChaseCamera';
+import { closureRuns } from '../src/city/props/closures';
+import { getRoadLayout } from '../src/city/road/layout';
 import { CONFIG, KMH } from '../src/config';
 import { Route } from '../src/route/Route';
 import { makeSyntheticRoute } from '../src/route/synthetic';
@@ -180,6 +183,83 @@ describe('vehicle kinematics', () => {
   });
 });
 
+describe('keyboard steering feel', () => {
+  /** Speed pinned so only the steering is measured. */
+  function cruise(v: Vehicle, kmh: number, steer: number, seconds: number, each?: (v: Vehicle) => void): void {
+    const n = Math.round(seconds / DT);
+    for (let i = 0; i < n; i++) {
+      v.speed = kmh * KMH;
+      v.step({ throttle: 0, brake: 0, steer }, DT);
+      each?.(v);
+    }
+  }
+
+  /** Full right for `hold` s, then 3 s hands off: peak and final heading change (rad) and lateral offset (m). */
+  function tap(kmh: number, hold: number) {
+    const v = freeCar(kmh * KMH);
+    let peak = 0;
+    const track = (c: Vehicle) => (peak = Math.max(peak, Math.abs(c.yaw - EAST)));
+    cruise(v, kmh, 1, hold, track);
+    cruise(v, kmh, 0, 3, track);
+    return { peak, final: Math.abs(v.yaw - EAST), lat: v.z };
+  }
+
+  // v0.3.1 kept 100 % of a tap's heading: 1.26° at 100, 0.50° at 200, 0.22° at 300 km/h after a 0.15 s tap.
+  for (const [kmh, maxFinalDeg] of [
+    [100, 0.7],
+    [200, 0.28],
+    [300, 0.12],
+  ] as const) {
+    it(`gives back about half of a 0.15 s tap's heading at ${kmh} km/h`, () => {
+      const r = tap(kmh, 0.15);
+      expect(r.final).toBeLessThan(0.55 * r.peak);
+      expect(r.final).toBeGreaterThan(0.4 * r.peak);
+      expect((r.final * 180) / Math.PI).toBeLessThan(maxFinalDeg);
+      expect(r.lat).toBeGreaterThan(0.3);
+    });
+  }
+
+  it('keeps the full heading of a deliberate hold', () => {
+    const r = tap(100, 0.6);
+    expect(r.final).toBeGreaterThan(0.99 * r.peak);
+    expect((r.final * 180) / Math.PI).toBeGreaterThan(8);
+  });
+
+  it('lets a counter-steer cancel heading instead of giving it back', () => {
+    const v = freeCar(200 * KMH);
+    cruise(v, 200, 1, 0.6);
+    cruise(v, 200, 0, 0.2);
+    cruise(v, 200, -1, 0.15);
+    cruise(v, 200, 0, 0.4);
+    const yaw = v.yaw;
+    cruise(v, 200, 0, 3);
+    expect(Math.abs(v.yaw - yaw)).toBeLessThan(1e-4);
+  });
+
+  it('gives nothing back at parking speeds or in reverse', () => {
+    const r = tap(30, 0.15);
+    expect(r.final).toBeGreaterThan(0.99 * r.peak);
+    const v = freeCar(-5);
+    v.step({ throttle: 0, brake: 1, steer: 1 }, DT);
+    expect(v.wheelSteer).toBeCloseTo(v.steer, 9);
+  });
+
+  it('keeps the tightest circle at 60 km/h near 26 m (CBD turns R30–R40, T1 at ~60 km/h)', () => {
+    const v = freeCar(60 * KMH);
+    cruise(v, 60, 1, 2);
+    const y0 = v.yaw;
+    cruise(v, 60, 1, 1);
+    const r = (60 * KMH) / Math.abs(v.yaw - y0);
+    expect(r).toBeGreaterThan(24);
+    expect(r).toBeLessThan(29);
+  });
+
+  it('smooths the chase camera yaw more at top speed', () => {
+    expect(chaseYawLerp(VMAX)).toBeLessThan(chaseYawLerp(0));
+    expect(chaseYawLerp(VMAX)).toBeCloseTo(CONFIG.camera.yawLerpHigh, 9);
+  });
+});
+
 describe('road boundary collision', () => {
   const route = new Route(makeSyntheticRoute());
 
@@ -258,6 +338,20 @@ describe('road boundary collision', () => {
     expect(allInside).toBe(true);
     expect(v.speed).toBeLessThan(0);
     expect(v.d).toBeLessThan(dAtWall - 2);
+  });
+
+  it('closes every drawn cross-street mouth just outside the drivable boundary, never at the turns', () => {
+    const l = getRoadLayout(route);
+    const runs = closureRuns(l);
+    expect(l.cross.length).toBeGreaterThan(0);
+    expect(runs.length).toBe(2 * l.cross.length);
+    for (const r of runs) {
+      const inner = r.side === 'right' ? r.d - route.dMax : route.dMin - r.d;
+      expect(inner).toBeGreaterThan(0.25);
+      expect(inner).toBeLessThan(0.8);
+      expect(r.s1 - r.s0).toBeGreaterThanOrEqual(2 * CONFIG.city.crossHalfWidth);
+      for (const t of route.turns) expect(r.s1 < t.s0 - 20 || r.s0 > t.s1 + 20).toBe(true);
+    }
   });
 
   it('treats the route start as a wall', () => {

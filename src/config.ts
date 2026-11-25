@@ -53,6 +53,37 @@ export const CONFIG = {
     steerRate: 3.5,
     steerRateHigh: 1.8,
     steerReturnRate: 6.0,
+    /**
+     * Wheel angle ∝ |steer|^steerExpo (1 = linear): > 1 softens short taps, full lock unchanged. Kept linear:
+     * in scripted keyboard runs 1.15–1.5 made small corrections at 300 km/h too weak (the slew ramp already softens taps there).
+     */
+    steerExpo: 1.0,
+    /**
+     * Straight-line stability: after a short key press the car counter-steers by itself to give back
+     * this share of the heading the press added, so a tap moves the car sideways instead of leaving it
+     * pointed off-line. Uses only the car's own heading history, never the road (0 = off). Higher values
+     * also give back part of small heading corrections (at 300 km/h, 0.6+ made lane holding harder).
+     */
+    recenter: 0.5,
+    /** Presses up to recenterTapTime (s) get the full share, fading to none at recenterHoldTime (a deliberate turn keeps its heading). */
+    recenterTapTime: 0.2,
+    recenterHoldTime: 0.5,
+    /**
+     * Presses less than this many seconds apart (either direction) form one manoeuvre: press time adds up
+     * (rhythmic tapping through a curve keeps its heading) and a counter-steer cancels heading rather than being given back.
+     */
+    recenterChainTime: 0.4,
+    /** Speed band (km/h) over which the give-back fades in; off when crawling and reversing. */
+    recenterFromKmh: 40,
+    recenterFullKmh: 90,
+    /** Time constant of the give-back (s), the smoothing of its counter-steer (s, at most a quarter of the former: no overshoot). */
+    recenterTime: 0.4,
+    recenterSmoothing: 0.1,
+    /** Largest heading (rad) the give-back may still owe, and its largest counter-steer as a fraction of full lock. */
+    recenterMaxAngle: 0.1,
+    recenterMaxSteer: 0.4,
+    /** Visual only: the body turns this far into the turn per m/s^2 of lateral acceleration (rad), a hint of tyre slip. */
+    visualSlipPerLatAccel: 0.0035,
   },
 
   collision: {
@@ -124,6 +155,8 @@ export const CONFIG = {
     fovMax: 80,
     /** Exponential smoothing rates (1/s); the yaw lag shows the car's flank (and wheels) in turns. */
     yawLerp: 4,
+    /** Yaw smoothing at top speed, blended in with (v / vmax)^2: small heading corrections don't swing the view. */
+    yawLerpHigh: 2.5,
     fovLerp: 3,
     /** Extra distance / height at max speed (m); slightly closer to offset the wide FOV. */
     speedDistance: -0.3,
@@ -224,6 +257,12 @@ export const CONFIG = {
     propViewBehind: 250,
     /** Half width of visual cross streets at intersections (m). */
     crossHalfWidth: 15,
+    /** Side-street closures (props/closures.ts): barrier pitch along the mouth (m), upload window ahead (m). */
+    closureBarrierPitch: 1.55,
+    closureViewAhead: 1400,
+    /** No-entry sign planter: distance behind the barrier line (m) and turn toward approaching traffic (deg). */
+    closureSignSetback: 1.0,
+    closureSignAngleDeg: 35,
     lampColor: '#ffb469',
     /** HDR multiplier of lamp heads; well above the bloom threshold. */
     lampIntensity: 9,

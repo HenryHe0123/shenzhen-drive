@@ -8,6 +8,7 @@ import { FIRST_ROAD, getRoadLayout, inClearZone, type Interval, inJunction, SIDE
 import { mulberry32 } from '../road/textures';
 import { placeMatrix, PropGeo, type V3 } from './geo';
 import { type InstanceItem, WindowedInstances } from './instances';
+import { createClosures } from './closures';
 import { createKeepOut } from './keepout';
 import { DOUBLE_HEADS, doubleLampGeometry, lampMaterials, lensGeometry, poolGeometry, poolMaterial, SINGLE_HEADS, singleLampGeometry } from './lamps';
 import { isSquareSign, RoadSignAtlas, type RoadSignKind, signPanel } from './roadSigns';
@@ -585,6 +586,8 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
     m.matrixAutoUpdate = false;
     root.add(m);
   });
+  const closures = createClosures(l, aniso);
+  root.add(closures.root);
   scene.add(root);
   if (ctx.debug) ((window as unknown as { __SCENERY__?: Record<string, THREE.Object3D> }).__SCENERY__ ??= {}).props = root;
 
@@ -611,9 +614,11 @@ export async function createProps(ctx: WorldContext): Promise<SceneryModule> {
   return {
     update(frame: FrameInfo) {
       for (const w of windows) w.update(frame.s);
+      closures.update(frame.s);
     },
     dispose() {
       unsubscribe();
+      closures.dispose();
       scene.remove(root);
       for (const w of windows) w.mesh.geometry.dispose();
       for (const m of statics) {
