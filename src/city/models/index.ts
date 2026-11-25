@@ -98,7 +98,7 @@ export async function createCityModels(ctx: WorldContext): Promise<SceneryModule
   let facadeNear: THREE.Material | null = null;
   let facadeFar: THREE.Material | null = null;
   const facade = (far: boolean) => {
-    if (far) return (facadeFar ??= createTintedFacadeMaterial({ fogScale: C.landmarkFogScale }));
+    if (far) return (facadeFar ??= createTintedFacadeMaterial({ fogScale: M.farFogScale, farTone: true }));
     return (facadeNear ??= createTintedFacadeMaterial());
   };
 

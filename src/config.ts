@@ -264,8 +264,12 @@ export const CONFIG = {
     maxConcurrentLoads: 3,
     /** Models at least this tall stay visible at any distance (skyline guides, m); others use city.buildingDrawDistance. */
     skylineHeight: 300,
-    /** Role 'skyline' and models at least this tall get the thinned landmark fog (m). */
+    /** Role 'skyline' and models at least this tall get the thinned fog farFogScale and the far tone (m). */
     fogScaleHeight: 350,
+    /** Fog multiplier of those clean-geometry skyline towers (Ping An); photo models use city.landmarkFogScale. */
+    farFogScale: 0.2,
+    /** Distance (m) over which their facade darkens, and the specular / diffuse reduction reached. */
+    farTone: { near: 1200, far: 5000, spec: 0.6, diffuse: 0.45 },
     /** Draw calls per model (spec 7.4): ordinary buildings / landmarks; more materials are atlased at load. */
     drawCallsBuilding: 2,
     drawCallsLandmark: 8,

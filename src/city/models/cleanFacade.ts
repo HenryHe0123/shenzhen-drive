@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { CONFIG } from '../../config';
 import { STYLE, createFacadeMaterial } from '../buildings/facadeMaterial';
 
 export type FacadeStyle = (typeof STYLE)[keyof typeof STYLE];
@@ -15,9 +16,19 @@ const TINT_STRENGTH = 0.6;
  * its diffuse and specular colors: the clean GLBs' swatch colors pull the
  * style palette toward the real building's glass or cladding.
  */
-export function createTintedFacadeMaterial(opts: { fogScale?: number } = {}): THREE.MeshStandardMaterial {
+export function createTintedFacadeMaterial(opts: { fogScale?: number; farTone?: boolean } = {}): THREE.MeshStandardMaterial {
   const mat = createFacadeMaterial(opts);
   const base = mat.onBeforeCompile.bind(mat);
+  const F = CONFIG.cityModels.farTone;
+  // Skyline towers kilometres away: their glass mirrors the bright horizon haze and the sunlit
+  // steel matches it, so in fog they fade to an outline. Far off, the facade darkens toward the
+  // tone of a tower seen against the haze (less mirror, darker cladding); fog still applies on top.
+  const far = opts.farTone
+    ? `
+float fFar = smoothstep(${F.near.toFixed(1)}, ${F.far.toFixed(1)}, length(vViewPosition));
+fSpec *= 1.0 - ${F.spec.toFixed(3)} * fFar;
+fDiff *= 1.0 - ${F.diffuse.toFixed(3)} * fFar;`
+    : '';
   mat.onBeforeCompile = (shader, renderer) => {
     base(shader, renderer);
     shader.vertexShader = shader.vertexShader
@@ -25,10 +36,10 @@ export function createTintedFacadeMaterial(opts: { fogScale?: number } = {}): TH
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTint = aTint;');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vTint;')
-      .replace('sdFacade(normal, fDiff, fSpec, fRough, fEmis);', 'sdFacade(normal, fDiff, fSpec, fRough, fEmis);\nfDiff *= vTint;\nfSpec *= vTint;');
+      .replace('sdFacade(normal, fDiff, fSpec, fRough, fEmis);', `sdFacade(normal, fDiff, fSpec, fRough, fEmis);\nfDiff *= vTint;\nfSpec *= vTint;${far}`);
   };
   const key = mat.customProgramCacheKey.bind(mat);
-  mat.customProgramCacheKey = () => key() + '-tint';
+  mat.customProgramCacheKey = () => key() + '-tint' + (opts.farTone ? '-far' : '');
   mat.name += 'Tinted';
   return mat;
 }
