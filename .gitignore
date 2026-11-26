@@ -6,6 +6,13 @@ data-raw/assets/
 data-raw/cmab/
 data-raw/overture/
 data-raw/heights/
+data-raw/terrain/
+data-raw/imagery/
+data-raw/landmarks/
+data-raw/metro_*.npy
+data-raw/metro_*.npz
+data-raw/metro_*.json
+data-raw/metro_*.log
 node_modules/
 dist/
 .venv/

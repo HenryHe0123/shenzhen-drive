@@ -3,13 +3,15 @@
 
 Reads the global cloud-optimised GeoTIFF over HTTP (only the blocks covering the bbox) and writes
 `wsf3d.path` of scripts/city_config.json: average building height per ~90 m cell, Int16 with gain
-0.1 (as in the source), which scripts/build_city_data.py samples per footprint.
+0.1 (as in the source), which scripts/build_city_data.py samples per footprint. With --metro the
+whole-city bbox (`metro.bbox`) goes to `metro.wsf3d` instead (scripts/build_metro_data.py).
 
-Usage: .venv/bin/python scripts/clip_wsf3d.py
+Usage: .venv/bin/python scripts/clip_wsf3d.py [--metro]
 """
 
 import json
 import os
+import sys
 from pathlib import Path
 
 import rasterio
@@ -21,9 +23,10 @@ SRC = "/vsicurl/https://download.geoservice.dlr.de/WSF3D/files/global/WSF3D_V02_
 
 def main():
     cfg = json.loads((ROOT / "scripts" / "city_config.json").read_text())
-    W, S, E, N = cfg["osm"]["bbox"]
+    metro = "--metro" in sys.argv
+    W, S, E, N = cfg["metro"]["bbox"] if metro else cfg["osm"]["bbox"]
     pad = 0.02
-    out = ROOT / cfg["wsf3d"]["path"]
+    out = ROOT / (cfg["metro"]["wsf3d"] if metro else cfg["wsf3d"]["path"])
     os.environ.setdefault("GDAL_HTTP_USERAGENT", "Mozilla/5.0")
     with rasterio.open(SRC) as ds:
         win = from_bounds(W - pad, S - pad, E + pad, N + pad, ds.transform).round_offsets().round_lengths()

@@ -4,6 +4,7 @@
 #   sh data-raw/download.sh cmab       CMAB building heights: 7.9 GB archive, Shenzhen layer clipped to the bbox
 #   sh data-raw/download.sh wsf3d      WSF3D 90 m building height, only the bbox window of the global file (needs rasterio in .venv)
 #   sh data-raw/download.sh overture   Overture Maps buildings in the bbox (needs overturemaps in .venv)
+#   sh data-raw/download.sh metro      whole-city inputs for scripts/build_metro_data.py (~1.3 GB of reads, ~15 min)
 #   sh data-raw/download.sh all
 cd "$(dirname "$0")"
 ROOT=$(cd .. && pwd)
@@ -60,11 +61,40 @@ overture() {
   } >> download.log 2>&1
 }
 
+# Whole-city scenery (v0.6.0, scripts/build_metro_data.py): Overture buildings / water for the metro and
+# terrain windows, the CMAB layers that cover 深圳市, WSF3D, Copernicus GLO-30 + ESA WorldCover, a cloud-free
+# Sentinel-2 composite and Wikipedia's tallest-building list. Needs the cmab step's archive for its CMAB part.
+METRO_BBOX=113.74,22.39,114.66,22.87
+TERRAIN_BBOX=113.55,22.12,114.80,22.995
+metro() {
+  mkdir -p overture landmarks
+  {
+    echo "[$(date '+%F %T')] metro start"
+    "$ROOT/.venv/bin/overturemaps" download --bbox=$METRO_BBOX -f geoparquet --type=building -o overture/buildings_metro.parquet &&
+      "$ROOT/.venv/bin/overturemaps" download --bbox=$TERRAIN_BBOX -f geoparquet --type=water -o overture/water_terrain.parquet &&
+      echo "METRO_OVERTURE_DONE"
+    if [ -f cmab/CMAB_origin.rar ]; then
+      L=province/广东省
+      (cd cmab && bin/unrar x -o+ -inul CMAB_origin.rar "$L/zhusanjiaoyi20220302.*" "$L/zhusanjiaoliu20220306.*" "$L/zhusanjiaowu20220302.*" \
+        "$L/1921_20220408.*" "$L/1942_20220302.*" extract/) &&
+        "$ROOT/.venv/bin/python" "$ROOT/scripts/clip_cmab.py" --metro cmab/extract/$L/zhusanjiaoyi20220302.shp cmab/extract/$L/zhusanjiaoliu20220306.shp \
+          cmab/extract/$L/zhusanjiaowu20220302.shp cmab/extract/$L/1921_20220408.shp cmab/extract/$L/1942_20220302.shp && echo "METRO_CMAB_DONE"
+    fi
+    "$ROOT/.venv/bin/python" "$ROOT/scripts/clip_wsf3d.py" --metro && echo "METRO_WSF3D_DONE"
+    "$ROOT/.venv/bin/python" "$ROOT/scripts/fetch_terrain.py" cop30 && "$ROOT/.venv/bin/python" "$ROOT/scripts/fetch_terrain.py" worldcover && echo "METRO_TERRAIN_DONE"
+    "$ROOT/.venv/bin/python" -u "$ROOT/scripts/fetch_imagery.py" && echo "METRO_IMAGERY_DONE"
+    curl -sS --retry 5 -A "Mozilla/5.0" -o landmarks/wiki_en.json \
+      "https://en.wikipedia.org/w/api.php?action=parse&page=List_of_tallest_buildings_in_Shenzhen&prop=wikitext&format=json" &&
+      "$ROOT/.venv/bin/python" "$ROOT/scripts/parse_tall_buildings.py" && echo "METRO_TALL_DONE"
+  } >> download.log 2>&1
+}
+
 case "${1:-osm}" in
   osm) osm ;;
   cmab) cmab ;;
   wsf3d) wsf3d ;;
   overture) overture ;;
-  all) osm; cmab; wsf3d; overture ;;
-  *) echo "usage: sh data-raw/download.sh [osm|cmab|wsf3d|overture|all]"; exit 2 ;;
+  metro) metro ;;
+  all) osm; cmab; wsf3d; overture; metro ;;
+  *) echo "usage: sh data-raw/download.sh [osm|cmab|wsf3d|overture|metro|all]"; exit 2 ;;
 esac

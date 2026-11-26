@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "e2e": "playwright test",
-    "data": ".venv/bin/python scripts/build_city_data.py"
+    "data": ".venv/bin/python scripts/build_city_data.py",
+    "data:metro": ".venv/bin/python scripts/build_metro_data.py"
   },
   "dependencies": {
     "postprocessing": "^6.39.6",

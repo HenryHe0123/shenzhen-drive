@@ -6,7 +6,9 @@ data-raw/download.sh), keeps the rooftops intersecting `osm.bbox` of scripts/cit
 writes `cmab.path` (GeoParquet-like: WGS-84 WKB + height, floors, function, age), which
 scripts/build_city_data.py reads.
 
-Usage: .venv/bin/python scripts/clip_cmab.py data-raw/cmab/extract/province/广东省/<id>_<date>.shp [...]
+With --metro the whole-city bbox (`metro.bbox`) goes to `metro.cmab` (scripts/build_metro_data.py).
+
+Usage: .venv/bin/python scripts/clip_cmab.py [--metro] data-raw/cmab/extract/province/广东省/<id>_<date>.shp [...]
 """
 
 import json
@@ -26,11 +28,12 @@ FIELDS = {"pred_h_r": "height", "Floor": "floors", "predict": "function", "Age":
 
 def main():
     cfg = json.loads((ROOT / "scripts" / "city_config.json").read_text())
-    W, S, E, N = cfg["osm"]["bbox"]
-    out = ROOT / cfg["cmab"]["path"]
+    metro = "--metro" in sys.argv
+    W, S, E, N = cfg["metro"]["bbox"] if metro else cfg["osm"]["bbox"]
+    out = ROOT / (cfg["metro"]["cmab"] if metro else cfg["cmab"]["path"])
     cols = {v: [] for v in FIELDS.values()}
     wkb = []
-    for shp in sys.argv[1:]:
+    for shp in (a for a in sys.argv[1:] if not a.startswith("--")):
         info = pyogrio.read_info(shp)
         crs = CRS.from_user_input(info["crs"]) if info["crs"] else CRS.from_epsg(4326)
         to_src = Transformer.from_crs("EPSG:4326", crs, always_xy=True)
