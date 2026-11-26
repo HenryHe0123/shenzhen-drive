@@ -1,6 +1,6 @@
 # SHENZHEN DRIVE｜深圳极速穿越
 
-浏览器 3D 城市计时驾驶。驾驶小米 SU7（极速 350 km/h，可选白天 / 日落两种时段），沿深南大道从南山科技园一路向东，穿过世界之窗、华侨城、车公庙 / 香蜜湖，进入福田中心区后绕行 CBD：右转益田路直奔平安金融中心脚下，左转福华三路、左转金田路平交穿过深南大道，最后左转福中三路，沿深圳市民中心正立面冲线。基于真实 OpenStreetMap 数据，Three.js + TypeScript + Vite。
+浏览器 3D 城市计时驾驶。驾驶小米 SU7（极速 350 km/h，可选白天 / 日落两种时段），沿深南大道从南山科技园一路向东，穿过世界之窗、华侨城、车公庙 / 香蜜湖，进入福田中心区后绕行 CBD：右转益田路直奔平安金融中心脚下，左转福华三路、左转金田路平交穿过深南大道，最后左转福中三路，沿深圳市民中心正立面冲线。沿线之外是整个深圳市的 3D 场景：真实地形和海岸、卫星影像地面、全市约 45 万栋建筑、道路与铁路（v0.6.0，可在“全城巡览”里自由飞越）。基于真实 OpenStreetMap、Overture、Copernicus 数据，Three.js + TypeScript + Vite。
 
 *A browser 3D time-trial: drive a Xiaomi SU7 east along Shenzhen's Shennan Boulevard by day or at sunset, from Nanshan Science Park to the Civic Center.*
 
@@ -13,6 +13,8 @@ npm run dev          # 打开终端打印的地址，默认 http://127.0.0.1:517
 
 - **调试模式**：`http://127.0.0.1:5173/?debug` — 显示 FPS、draw call、三角面数和当前路线坐标 s/d；数字键 1–9 跳到前 9 个检查点（共 10 个），0 跳到下一个转弯前（连按依次切换 4 个转弯），F 切换自由相机。
 - **场景预览**：`http://127.0.0.1:5173/preview.html` — 不含玩法，镜头沿路线自动巡游，用于检查街景。
+- **全城巡览**：`http://127.0.0.1:5173/explore.html`（开始界面也有入口）— 不含比赛，在整个深圳上空自由飞行：左键拖动平移、右键旋转、滚轮缩放，WASD / 方向键平移、Q / E 旋转、R / F 拉近拉远、Shift 加速、T 切换时段，1–9 及面板按钮跳到预设视点（全市俯瞰、福田 CBD、罗湖、后海、宝安、龙华、龙岗、大鹏、深南东路地面等 18 个）。`?view=futian`、`?lon=114.05&lat=22.54&dist=3000&heading=0&pitch=30` 指定初始视角，`?hud=0` 隐藏面板。
+- **只看沿线**：任意页面加 `?noMetro` 不加载全城场景（v0.5.0 的场景，用于对比）。
 - **打包**：`npm run build` 输出到 `dist/`，`npm run preview` 本地预览打包结果。
 - **稳定试玩版**：`npm run playtest` 打包到 `playtest/` 并在 `http://127.0.0.1:4173/` 提供静态服务。开发服务器（5173）在代码变动时会自动刷新页面；试玩请用 4173，它只在重新运行该命令时更新。
 - **新版本试玩**：`npm run playtest:next` 打包到 `playtest-next/` 并在 `http://127.0.0.1:4174/` 提供静态服务，与 4173 上的版本互不影响，用于发布前对比试玩。
@@ -54,6 +56,7 @@ npm run typecheck    # TypeScript 类型检查
 - `tests/damage.test.ts`：撞击分档阈值、重撞受损的线性恢复、严重撞击的停滞、较弱撞击不缩短恢复期、受损车辆的极速上限与超速滑行。
 - `tests/camera.test.ts`：视角切换与监听；车内镜头的眼点位置、跟随车辆朝向、高速时看向弯内、加速度引起的头部偏移上限。
 - `tests/screens.test.ts`、`tests/treeSight.test.ts`：APEC 屏幕选址规则、行道树避让地标视线。
+- `tests/metro.test.ts`：`public/data/metro` 存在时校验与路线同一坐标系、地形网格解码与高程范围、整条路线上地形为旧地面高度、建筑细节块 / 体块 / 天际线 / 道路块 / 水面的解析，以及路线附近没有全城建筑、建筑底部不悬空。
 - `e2e/smoke.spec.ts`：菜单（版本号）→ 开始 → 按住 W 驾驶（HUD、小地图、录像已开始）→ Esc 暂停（计时、车辆、录像冻结）→ 继续 → 失焦自动暂停 → C 切到车内视角再切回 → 左右转向 → R 回到检查点（计时不清零）→ 传送到终点前 60 m 冲线 → 成绩页 → 下载录像并校验文件大小；全程检查控制台无报错，截图保存为 `evidence/smoke-0*.png`。
 - `e2e/audio.spec.ts`：在真实 Chrome 中运行音频引擎，验证静止无声、电机音高随车速变化、静音和挂起 / 恢复。
 - 浏览器：未安装 Playwright 自带的 Chromium（`npx playwright install chromium`）时，自动使用系统 Google Chrome（macOS headless 下通过 ANGLE/Metal 硬件渲染 WebGL 2）；可用 `PW_CHANNEL=chromium` 或 `PW_CHANNEL=chrome` 指定。
@@ -74,6 +77,18 @@ sh data-raw/download.sh overture               # Overture 建筑轮廓（范围�
 - 输出：`public/data/route.json`（中心线、车道宽度、对向车道、辅路、分区、检查点、终点、转弯、路口、地标、路牌、天桥、公交站、地铁口，格式见 `src/route/types.ts`）和 `public/data/buildings.json`（OSM 与 Overture 建筑轮廓、高度、功能、年代，`meta.heightSources` 记录每种高度来源的数量）。
 - 参数（路线各段道路 `route.legs` 与转弯半径、剪切区间、检查点、地标 OSM id、视廊 `viewCorridors`（v0.5.0 起为空）、CMAB 与 Overture 的匹配规则、辅路与路边设施、高度估算规则、圈速估算 `race`）在 `scripts/city_config.json`；重复运行结果一致，运行时打印理想圈速估算、CMAB 校准结果与各项自检。
 
+### 全城场景（v0.6.0）
+
+```bash
+uv pip install --python .venv/bin/python scipy scikit-learn mapbox-earcut
+sh data-raw/download.sh metro                  # Overture 建筑 / 水体、CMAB 深圳分块、WSF3D、Copernicus DEM、WorldCover、Sentinel-2、维基百科超高层列表（约 15 分钟）
+npm run data                                   # 先生成沿线数据（全城管线读 route.json / buildings.json / city_models.json）
+npm run data:metro                             # scripts/build_metro_data.py，约 2 分钟；--only terrain|water|buildings|roads 只重做一部分
+```
+
+- 输出 `public/data/metro/`（格式见 `src/city/metro/types.ts`）：`metro.json`（坐标网格、分块索引、来源统计），30 m / 120 m 地形高度、路线走廊权重、Sentinel-2 反照率贴图、水面网格、2 km 建筑细节块 `bld/`、8 km 建筑体块 `mass/`、60 m 以上的天际线 `skyline.bin.gz`、道路块 `roads/`；`data-raw/metro_report.json` 记录高度模型的留出检验结果。
+- 参数在 `scripts/city_config.json` 的 `metro`（范围、地形去建筑与路线压平、水体、影像校正、建筑分块、高度模型、道路宽度与桥梁）。
+
 ## 项目结构
 
 ```
@@ -89,7 +104,8 @@ src/
   input/           键盘输入
   audio/           Web Audio 程序化音效
   recording/       自动录像（MediaRecorder，画布 + HUD 合成 + 游戏声音）
-  city/            道路、道路设施、建筑、真实建筑模型、地标、APEC 屏幕
+  city/            道路、道路设施、建筑、真实建筑模型、地标、APEC 屏幕；metro/ 全城地形、水面、建筑分块（Worker 生成）、道路
+  explore.ts       全城巡览页（explore.html）
   render/          渲染器、天空与环境贴图、时段预设、后处理
   debug/           ?debug 调试面板
 scripts/           Python 城市数据管线、模型 / 贴图离线处理脚本
@@ -110,12 +126,14 @@ docs/              资产归属、版本记录与版本对比、OSM 数据覆盖
 - **道路横断面**：车行道仍为 4 车道 × 3.5 m（碰撞边界不变）；路边按 OSM 的深南大道辅路建出侧分带（行道树、双臂路灯）、辅路（沥青和标线，车开不进去）、自行车道和人行道，没有辅路的路段保持原来的路缘、绿化带、自行车道、人行道。人行天桥、公交候车亭、地铁出入口雨棚按 OSM 位置放置，只做视觉、不参与碰撞，不使用真实商标和标识。
 - **APEC**：香蜜湖路口的路牌文字（“深圳国际交流中心 · 2026 APEC 主会场”）、路边广告牌和 LED 屏幕上的“APEC China 2026 · 相约深圳 见证奇迹”画面，只用文字和自绘图形，不使用官方徽标，不建模国际交流中心。
 - **真实建筑模型**：沿线部分建筑来自 3D Warehouse 的真实深圳建筑模型，位置按 OSM 轮廓重新配准；模型自带的照片贴图分辨率较低，近看偏糊。
+- **全城场景（v0.6.0）**：路线 320 m 内地形压平到原来的地面高度，900 m 外是真实地形（游戏里 y = 0 对应深南大道标高 9.9 m）；建筑高度有 OSM 标注的用标注，其余约 97% 为管线训练的估算（误差见 CHANGELOG），远处建筑是按功能着色的盒子；地表是 24 m 分辨率的卫星影像，没有三维植被；香港、东莞只有地形。
 - **范围**：MVP 不含交通车辆和行人。
 
 ## 资产归属（摘要）
 
 - 小米 SU7 模型：Sketchfab [Xiaomi SU7](https://sketchfab.com/3d-models/xiaomi-su7-ca2cda599f5341068c992c9f44551bf9)，作者 Car2022（现名 Mona x Supercars），CC BY 4.0；仅在运行时替换车漆材质。本项目与小米公司无关联，未获其认可。
-- 地图数据 © OpenStreetMap contributors，[ODbL 1.0](https://www.openstreetmap.org/copyright)，经 Geofabrik 提取；补充建筑轮廓来自 Overture Maps（ODbL 1.0，机器学习屋顶来源 CC BY 4.0），补充建筑高度来自 CMAB（Zhang、Zhao、Long，CC BY 4.0）和 WSF3D（© DLR，CC BY 4.0）。
+- 地图数据 © OpenStreetMap contributors，[ODbL 1.0](https://www.openstreetmap.org/copyright)，经 Geofabrik 提取；补充建筑轮廓与水体来自 Overture Maps（ODbL 1.0，机器学习屋顶来源 CC BY 4.0），补充建筑高度来自 CMAB（Zhang、Zhao、Long，CC BY 4.0）和 WSF3D（© DLR，CC BY 4.0）。
+- 全城地形：Copernicus DEM GLO-30（© DLR / Airbus，Copernicus 许可）；地表影像：contains modified Copernicus Sentinel data 2025；土地覆盖：ESA WorldCover 2021（CC BY 4.0）；超高层高度：英文维基百科 List of tallest buildings in Shenzhen（CC BY-SA 4.0）。
 - 真实深圳建筑模型：3D Warehouse 多位作者，[General Model License](https://3dwarehouse.sketchup.com/tos/)，仅随游戏分发处理后的文件，逐个署名见资产清单。
 - 小叶榕（Valery.Li）与国标路牌（notbadworks）：Sketchfab，CC BY 4.0，均为离线烘焙 / 减面 / 裁切后的版本。
 - 日落预设的车漆反射 HDRI：Poly Haven Shanghai Riverside（Alex Radosnov），CC0。

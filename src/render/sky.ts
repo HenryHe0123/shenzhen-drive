@@ -9,7 +9,7 @@ export function bearingDir(azimuthDeg: number, elevationDeg: number, out = new T
   return out.set(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
 }
 
-const SKY_VEC4 = 11;
+const SKY_VEC4 = 12;
 
 /**
  * Sky parameters as vec4[SKY_VEC4], shared by reference with every fogged
@@ -17,6 +17,14 @@ const SKY_VEC4 = 11;
  * switch is a buffer write instead of a shader recompile.
  */
 export const skyParams = new Float32Array(SKY_VEC4 * 4);
+
+/** Extinction per metre of distance-only haze on top of the height fog (0 in the game; the aerial explore view raises it). */
+let aerialHaze = 0;
+
+export function setAerialHaze(perMeter: number): void {
+  aerialHaze = perMeter;
+  skyParams[44] = perMeter;
+}
 
 const tmpColor = new THREE.Color();
 const tmpDir = new THREE.Vector3();
@@ -43,6 +51,7 @@ function packSky(p: LightingPreset, out: Float32Array): Float32Array {
   bearingDir(p.sunAzimuthDeg, 0, tmpDir);
   out.set([tmpDir.x, tmpDir.z, s.mieGain, s.mieExp], 36);
   out.set([s.zenEnd, s.glowNarrowExp, s.beltElev, s.beltWidth], 40);
+  out.set([aerialHaze, 0, 0, 0], 44);
   return out;
 }
 
@@ -154,6 +163,7 @@ export function installSkyFog(): void {
     float sdA = exp(-sdY0 * sdFall);
     float sdH = abs(sdDy) > 1e-4 ? sdA * (1.0 - exp(-sdDy)) / sdDy : sdA;
     float fogFactor = 1.0 - exp(-fogDensity * sdDist * sdH);
+    fogFactor = max(fogFactor, 1.0 - exp(-sdDist * sdP(11).x));
   #else
     float fogFactor = smoothstep(fogNear, fogFar, sdDist);
   #endif

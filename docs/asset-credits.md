@@ -119,6 +119,16 @@ Poly Haven 的 [Shanghai Bund](https://polyhaven.com/a/shanghai_bund)（Greg Zaa
 - 建筑高度补充（90 m 网格平均高度）：World Settlement Footprint 3D（WSF3D）Building Height，© DLR（德国航空航天中心），Esch et al. 2022，[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。用于 OSM 没有高度和楼层数、CMAB 也没有或校准后不如它的建筑，规则见 `scripts/city_config.json` 的 `wsf3d`；只截取路线范围内的一小块（`scripts/clip_wsf3d.py`），不入库。
 - 衍生数据：`public/data/route.json`、`public/data/buildings.json` 由 `scripts/build_city_data.py` 生成（深南大道东行中心线、辅路、人行天桥 / 公交站 / 地铁口位置、建筑轮廓与高度；没有任何数据来源的高度按片区规则估算）。二者属于 OSM / Overture 衍生数据库，同样按 ODbL 1.0 提供；文件内 `meta.osmTimestamp` 记录 OSM 数据日期。
 
+### 全城场景（v0.6.0，`public/data/metro/`）
+
+- 建筑、道路、铁路：同上，OpenStreetMap（ODbL 1.0）与 Overture Maps 建筑（release 2026-11-18.0；机器学习屋顶来自 East Asian building footprints，CC BY 4.0），范围为整个深圳市。
+- 海岸线与水体：[Overture Maps](https://overturemaps.org/) `base` 主题的 `water` 类型（海洋多边形、水库、湖泊、河流，源自 OpenStreetMap，[ODbL 1.0](https://opendatacommons.org/licenses/odbl/)）。
+- 地形：Copernicus DEM GLO-30（© DLR e.V. 2010–2014 and © Airbus Defence and Space GmbH 2014–2018 provided under COPERNICUS by the European Union and ESA; all rights reserved），按 [Copernicus DEM 许可](https://spacedata.copernicus.eu/documents/20123/122407/GEO1988-CopernicusDEM-SPE-002_ProductHandbook_I5.0+%281%29.pdf) 免费使用并注明来源；经 AWS Open Data（`copernicus-dem-30m`）下载。城市里的建筑凸起由管线去掉（`scripts/build_metro_data.py` `bare_earth`）。
+- 地表影像：Contains modified Copernicus Sentinel data 2025（Sentinel-2 L2A Collection 1，2025-03-24 / 02-09 / 01-20，ESA，[Copernicus 数据政策](https://sentinels.copernicus.eu/documents/247904/690755/Sentinel_Data_Legal_Notice) 免费开放），经 Element 84 Earth Search（AWS Open Data）读取，去云合成、去地形阴影后作为地面反照率。
+- 土地覆盖：ESA WorldCover 10 m 2021 v200（© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium，[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)），只用其“建成区”类别判断地形里哪些地方要去掉建筑。
+- 建筑高度：OSM `height` / `building:levels` / `building:part` 为准；其余为管线训练的估算（以 OSM 已标注高度的约 1.6 万栋深圳建筑为样本，特征含 WSF3D © DLR（CC BY 4.0）与 CMAB（CC BY 4.0）），17 栋超高层按英文维基百科 [List of tallest buildings in Shenzhen](https://en.wikipedia.org/wiki/List_of_tallest_buildings_in_Shenzhen)（[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)，高度源自 CTBUH）的坐标和高度。
+- 衍生数据：`public/data/metro/` 下的地形高度、反照率贴图、水面网格、建筑与道路分块由 `scripts/build_metro_data.py` 生成；含 OSM / Overture 的部分按 ODbL 1.0 提供，地形与影像部分须保留上述 Copernicus / ESA 署名。
+
 ## 软件库
 
 | 库 | 授权 | 用途 |
@@ -132,7 +142,10 @@ Poly Haven 的 [Shanghai Bund](https://polyhaven.com/a/shanghai_bund)（Greg Zaa
 | Matplotlib | Matplotlib License（PSF 类） | 离线数据管线（路线示意图） |
 | PyArrow、overturemaps | Apache-2.0、MIT | 离线数据管线（Overture 下载、读写 Parquet） |
 | pyogrio、pyproj | MIT | 离线数据管线（读取 CMAB shapefile、坐标转换） |
-| rasterio（含 GDAL） | BSD-3-Clause（GDAL 为 MIT） | 离线数据管线（读取 WSF3D 栅格） |
+| rasterio（含 GDAL） | BSD-3-Clause（GDAL 为 MIT） | 离线数据管线（读取 WSF3D、Copernicus DEM、Sentinel-2、WorldCover 栅格） |
+| SciPy、scikit-learn | BSD-3-Clause | 离线数据管线（地形滤波、建筑高度估算模型） |
+| Pillow | MIT-CMU（HPND） | 离线数据管线（反照率贴图 JPEG） |
+| mapbox-earcut | ISC | 离线数据管线（水面多边形三角化） |
 | UnRAR（RARLAB） | UnRAR 免费许可 | 解压 CMAB 压缩包（本机从源码编译，不随游戏分发） |
 
 ## 程序生成内容（无外部素材）

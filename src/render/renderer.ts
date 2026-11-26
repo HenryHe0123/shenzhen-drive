@@ -5,6 +5,8 @@ import { CONFIG } from '../config';
  * Tone mapping and anti-aliasing happen in the post-processing pipeline
  * (src/render/pipeline.ts), so the renderer itself outputs linear HDR.
  * toneMappingExposure still drives the ToneMappingEffect (it reads three's uniform).
+ * Reversed-Z depth (EXT_clip_control) with the pipeline's float depth target keeps 0.5 m - 60 km
+ * precise enough that terrain, roads and water far away do not z-fight.
  */
 export function createRenderer(container: HTMLElement): THREE.WebGLRenderer {
   const renderer = new THREE.WebGLRenderer({
@@ -12,6 +14,7 @@ export function createRenderer(container: HTMLElement): THREE.WebGLRenderer {
     stencil: false,
     depth: true,
     powerPreference: 'high-performance',
+    reversedDepthBuffer: true,
   });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, CONFIG.render.maxPixelRatio));
   renderer.setSize(window.innerWidth, window.innerHeight);

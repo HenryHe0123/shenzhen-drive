@@ -199,7 +199,10 @@ export async function createCityModels(ctx: WorldContext): Promise<SceneryModule
     });
     const obj = new THREE.Group();
     obj.name = `city-model:${rec.id}`;
-    obj.position.set(rec.x, 0, rec.z);
+    // Skyline models beyond the flat route corridor (KK100, 地王, 华润) stand on the whole-city terrain.
+    const terrain = ctx.metro?.terrain;
+    const y = terrain && rec.footprint.length >= 3 && terrain.corridorAt(rec.x, rec.z) < 0.999 ? terrain.baseOf(rec.footprint) : 0;
+    obj.position.set(rec.x, y, rec.z);
     obj.rotation.y = rec.yaw;
     obj.add(prep.object);
     const acc = accents.build(rec, prep.geometry, prep.bounds);

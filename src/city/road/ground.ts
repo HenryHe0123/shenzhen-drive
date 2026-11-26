@@ -94,12 +94,30 @@ function macroTexture(): THREE.CanvasTexture {
   return canvasTexture(c, { srgb: false, aniso: 1 });
 }
 
+/** Detail and macro textures of the procedural ground (also used by the metro terrain inside the route corridor). */
+export function groundTextures(aniso: number): { detail: THREE.CanvasTexture; macro: THREE.CanvasTexture } {
+  return { detail: detailTexture(aniso), macro: macroTexture() };
+}
+
+/** GLSL: `vec3 sdGroundColor(vec2 xz)`, the procedural ground albedo at world xz (needs uGroundDetail, uGroundMacro). */
+export const GROUND_COLOR_GLSL = /* glsl */ `
+uniform sampler2D uGroundDetail;
+uniform sampler2D uGroundMacro;
+vec3 sdGroundColor(vec2 xz) {
+  vec3 gA = texture2D(uGroundDetail, xz / ${DETAIL_M.toFixed(1)}).rgb;
+  vec3 gB = texture2D(uGroundDetail, xz.yx / 151.0 + vec2(0.37, 0.61)).rgb;
+  vec4 gM = texture2D(uGroundMacro, xz / 1700.0);
+  vec3 gCol = mix(gA, gB, smoothstep(0.38, 0.62, gM.b));
+  float gLawn = smoothstep(0.56, 0.68, gM.r);
+  gCol = mix(gCol, vec3(0.075, 0.13, 0.045) * (0.75 + 0.5 * gA.g), gLawn * 0.8);
+  return gCol * (0.85 + 0.3 * gM.g);
+}
+`;
+
 /** World-space procedural ground (paving, plazas, lawns) that reads in daylight and darkens with the light at dusk. */
 export function groundMaterial(aniso: number) {
-  const detail = detailTexture(aniso);
-  const macro = macroTexture();
+  const { detail, macro } = groundTextures(aniso);
   const mat = new THREE.MeshStandardMaterial({
-    map: detail,
     roughness: 0.95,
     metalness: 0,
     polygonOffset: true,
@@ -107,25 +125,14 @@ export function groundMaterial(aniso: number) {
     polygonOffsetUnits: 4,
   });
   mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uGroundDetail = { value: detail };
     sh.uniforms.uGroundMacro = { value: macro };
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec2 vGroundXZ;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGroundXZ = (modelMatrix * vec4(position, 1.0)).xz;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec2 vGroundXZ;\nuniform sampler2D uGroundMacro;')
-      .replace(
-        '#include <map_fragment>',
-        /* glsl */ `
-  vec3 gA = texture2D(map, vGroundXZ / ${DETAIL_M.toFixed(1)}).rgb;
-  vec3 gB = texture2D(map, vGroundXZ.yx / 151.0 + vec2(0.37, 0.61)).rgb;
-  vec4 gM = texture2D(uGroundMacro, vGroundXZ / 1700.0);
-  vec3 gCol = mix(gA, gB, smoothstep(0.38, 0.62, gM.b));
-  float gLawn = smoothstep(0.56, 0.68, gM.r);
-  gCol = mix(gCol, vec3(0.075, 0.13, 0.045) * (0.75 + 0.5 * gA.g), gLawn * 0.8);
-  gCol *= 0.85 + 0.3 * gM.g;
-  diffuseColor.rgb *= gCol;
-`,
-      );
+      .replace('#include <common>', `#include <common>\nvarying vec2 vGroundXZ;\n${GROUND_COLOR_GLSL}`)
+      .replace('#include <map_fragment>', 'diffuseColor.rgb *= sdGroundColor(vGroundXZ);');
   };
   return { material: mat, textures: [detail, macro] };
 }

@@ -226,6 +226,7 @@ export function buildFacadeGeometry(
   geo.setAttribute('normal', new THREE.BufferAttribute(normal, 3));
   geo.setAttribute('aEdge', new THREE.BufferAttribute(aEdge, 2));
   geo.setAttribute('aFac', new THREE.BufferAttribute(aFac, 4));
+  geo.setAttribute('aBase', new THREE.BufferAttribute(new Float32Array(nTri * 3), 1));
   geo.setAttribute('aTint', new THREE.BufferAttribute(aTint, 3));
   geo.computeBoundingBox();
   geo.computeBoundingSphere();

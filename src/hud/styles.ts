@@ -61,6 +61,8 @@ export const HUD_CSS = /* css */ `
 #ui .btn-hint { margin-top: 10px; font-size: 12px; color: rgba(238, 243, 248, 0.45); }
 #ui .error { margin-top: 14px; color: #ff8a80; font-size: 13px; }
 #ui .credit { margin-top: 18px; font-size: 11px; color: rgba(238, 243, 248, 0.35); }
+#ui .explore-link { display: inline-block; margin-top: 14px; font-size: 13px; color: rgba(160, 205, 255, 0.85); text-decoration: none; pointer-events: auto; }
+#ui .explore-link:hover { color: #cfe6ff; text-decoration: underline; }
 #ui .version { margin-top: 6px; font-size: 11px; letter-spacing: 0.04em; color: rgba(238, 243, 248, 0.38); }
 
 /* ---------- pause menu ---------- */

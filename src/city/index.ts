@@ -4,6 +4,8 @@ import { loadJson } from '../route/Route';
 import type { CityModelsData } from '../route/types';
 import { createBuildings } from './buildings';
 import { createLandmarks } from './landmarks';
+import { createMetro } from './metro';
+import { loadMetro } from './metro/load';
 import { createCityModels } from './models';
 import { createProps } from './props';
 import { createRoad } from './road';
@@ -20,10 +22,16 @@ function loadCityModels(): Promise<CityModelsData | null> {
   return loadJson<CityModelsData>(override ?? import.meta.env.BASE_URL + CONFIG.data.cityModelsUrl).catch(() => null);
 }
 
-/** Builds all static scenery along the route. */
+/** Builds all static scenery: the route corridor and, when public/data/metro exists, the rest of the city. */
 export async function createCity(baseCtx: WorldContext): Promise<SceneryModule> {
-  const cityModels = baseCtx.cityModels !== undefined ? baseCtx.cityModels : await loadCityModels();
-  const ctx: WorldContext = { ...baseCtx, cityModels };
+  const [cityModels, metro] = await Promise.all([
+    baseCtx.cityModels !== undefined ? Promise.resolve(baseCtx.cityModels) : loadCityModels(),
+    baseCtx.metro !== undefined ? Promise.resolve(baseCtx.metro) : loadMetro().catch((e) => {
+      console.warn('[metro] unavailable:', e instanceof Error ? e.message : e);
+      return null;
+    }),
+  ]);
+  const ctx: WorldContext = { ...baseCtx, cityModels, metro };
   const modules = await Promise.all([
     createRoad(ctx),
     createProps(ctx),
@@ -31,6 +39,7 @@ export async function createCity(baseCtx: WorldContext): Promise<SceneryModule> 
     createLandmarks(ctx),
     createCityModels(ctx),
     createScreens(ctx),
+    ...(metro ? [createMetro(ctx, metro)] : []),
   ]);
   return {
     update(frame: FrameInfo) {

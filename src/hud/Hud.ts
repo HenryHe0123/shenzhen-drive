@@ -218,11 +218,16 @@ export class Hud implements OverlaySource {
     this.startBtn.addEventListener('click', () => opts.onStart());
     this.menuError = el('div', 'error hidden');
     card.append(this.startBtn, el('div', 'btn-hint', '按 Enter / 空格 开始'), this.menuError);
+    const explore = el('a', 'explore-link', '全城巡览：自由飞越整个深圳 →') as HTMLAnchorElement;
+    explore.id = 'explore-link';
+    explore.href = `${import.meta.env.BASE_URL}explore.html`;
+    card.append(explore);
     card.append(
       el(
         'div',
         'credit',
-        'Xiaomi SU7 model by Car2022 (CC BY 4.0) · Map data © OpenStreetMap contributors · Buildings: Overture Maps Foundation, CMAB, WSF3D © DLR (CC BY 4.0)',
+        'Xiaomi SU7 model by Car2022 (CC BY 4.0) · Map data © OpenStreetMap contributors · Buildings: Overture Maps Foundation, CMAB, WSF3D © DLR (CC BY 4.0) · ' +
+          'Terrain: Copernicus DEM © DLR / Airbus · Imagery: contains modified Copernicus Sentinel data 2025 · Land cover: ESA WorldCover',
       ),
     );
     const menuVersion = el('div', 'version num', BUILD.label);

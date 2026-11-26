@@ -33,6 +33,10 @@ export function createRenderPipeline(ctx: WorldContext): RenderPipeline {
     multisampling: 0,
     stencilBuffer: false,
   });
+  // The scene renders into inputBuffer: a 32-bit float depth attachment pairs with reversed-Z.
+  const depth = new THREE.DepthTexture(composer.inputBuffer.width, composer.inputBuffer.height, THREE.FloatType);
+  depth.name = 'SceneDepth';
+  composer.inputBuffer.depthTexture = depth;
   composer.addPass(new RenderPass(scene, camera));
 
   const bloom = new BloomEffect({

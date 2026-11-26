@@ -215,8 +215,8 @@ export const CONFIG = {
     jolt: 0.35,
     joltDecay: 4,
     near: 0.5,
-    /** Large enough to see Ping An Finance Center from the start (skyline guide). */
-    far: 15000,
+    /** The horizon mountains (梧桐山 ~28 km from the start, 大帽山 ~30 km); depth stays precise with reversed-Z float depth. */
+    far: 60000,
   },
 
   /** First-person view from the driver's seat (left-hand drive). */
@@ -380,6 +380,41 @@ export const CONFIG = {
     billboardBottom: 11,
     /** Yaw of the billboard face toward oncoming traffic (degrees). */
     billboardAngleDeg: 26,
+  },
+
+  /** Whole-city scenery beyond the corridor (src/city/metro, public/data/metro from scripts/build_metro_data.py). */
+  metro: {
+    /** Terrain quadtree: levels above the 3.84 km leaves; a node splits while the camera is nearer than terrainSplit x its size. */
+    terrainLevels: 5,
+    terrainSplit: 1.7,
+    /** Strength of the sub-texel albedo variation near the camera (the imagery is 24 m per pixel). */
+    terrainDetail: 0.18,
+    waterRoughness: 0.12,
+    /** Sky reflection strength of the water (environment map intensity). */
+    waterEnv: 0.7,
+    /** Albedo of the turbid Pearl River estuary / Shenzhen Bay and of reservoirs (sRGB). */
+    seaColor: '#2c4448',
+    lakeColor: '#2a3d35',
+    /** Beyond the data window: a plane of this size (m) at sea level, sea to the south, distant land (sRGB) to the north. */
+    farPlane: 400000,
+    farLandColor: '#5b6553',
+    /** Camera distance (m) within which 2 km detail tiles (footprints) and 8 km mass tiles (boxes) are loaded; unloaded unloadSlack m further out. */
+    detailRadius: 2400,
+    massRadius: 14000,
+    /** explore.html: wider radii for aerial views, and thinner haze than the game's presets (share of their fog density). */
+    exploreDetailRadius: 3600,
+    exploreMassRadius: 22000,
+    exploreRoadScale: 2.2,
+    exploreFog: 0.6,
+    /** Distance-only haze per metre at full altitude (explore view above ~4 km). */
+    exploreAerialHaze: 1 / 200000,
+    unloadSlack: 600,
+    /** Road / rail tiles load within detailRadius x roadRadiusScale. */
+    roadRadiusScale: 1.4,
+    maxDetailLoads: 3,
+    buildWorkers: 2,
+    /** Mass boxes whose size (max of height and footprint) is below this share of their distance are dropped. */
+    massCull: 0.004,
   },
 
   /** Real-building models (src/city/models); shadows use city.buildingShadowDistance, far fog city.landmarkFogScale. */

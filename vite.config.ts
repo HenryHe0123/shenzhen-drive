@@ -32,12 +32,17 @@ export default defineConfig({
       'three',
       'postprocessing',
       'three/examples/jsm/controls/OrbitControls.js',
+      'three/examples/jsm/controls/MapControls.js',
       'three/examples/jsm/loaders/GLTFLoader.js',
       'three/examples/jsm/libs/meshopt_decoder.module.js',
       'three/examples/jsm/utils/BufferGeometryUtils.js',
     ],
   },
-  build: { target: 'es2022', chunkSizeWarningLimit: 2000 },
+  build: {
+    target: 'es2022',
+    chunkSizeWarningLimit: 2000,
+    rollupOptions: { input: { main: 'index.html', explore: 'explore.html' } },
+  },
   test: {
     include: ['tests/**/*.test.ts'],
     environment: 'node',

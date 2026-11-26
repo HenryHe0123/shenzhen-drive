@@ -1,71 +1,14 @@
 import * as THREE from 'three';
 import { CONFIG } from '../../config';
 import type { FrameInfo, SceneryModule, WorldContext } from '../../game/contracts';
-import type { BuildingUse, SectionId, Vec2 } from '../../route/types';
+import type { SectionId, Vec2 } from '../../route/types';
 import { insideLandmarkSite, resolveLandmarkSites } from '../landmarks/placement';
-import { FacadeBuilder, rectRing, ringArea, ringCentroid } from './builder';
+import { FacadeBuilder, rectRing, ringCentroid } from './builder';
 import { STYLE, createFacadeMaterial } from './facadeMaterial';
+import { addBuilding, mulberry32, pointInRing, seedFromId, styleFor } from './shapes';
 
 const C = CONFIG.city;
 const FAR_CHUNK = 1000;
-
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function seedFromId(id: number): number {
-  const lo = id % 2147483647;
-  const hi = Math.floor(id / 2147483647);
-  let h = Math.imul(lo ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(hi + 0x632be5ab, 0xc2b2ae35);
-  h = Math.imul(h ^ (h >>> 13), 0x27d4eb2f);
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-}
-
-/**
- * Facade family from the building's use and age when the data has them (offices glass, 1980s–90s
- * housing tile, low industrial sheds metal cladding), else by zone: tech-park glass, OCT stone and
- * tile, Chegongmiao mixed, CBD glass towers.
- */
-function styleFor(zone: SectionId, h: number, r: number, use?: BuildingUse, age?: string): number {
-  const old = age === '1980s' || age === '1990s';
-  switch (use) {
-    case 'office':
-      if (old) return r < 0.4 ? STYLE.mixed : r < 0.7 ? STYLE.bronzeGlass : STYLE.tealGlass;
-      return r < 0.45 ? STYLE.blueGlass : r < 0.75 ? STYLE.silverGlass : STYLE.tealGlass;
-    case 'commercial':
-      if (h < 24) return r < 0.6 ? STYLE.mixed : STYLE.stone;
-      if (old) return r < 0.6 ? STYLE.mixed : STYLE.bronzeGlass;
-      return r < 0.45 ? STYLE.blueGlass : r < 0.7 ? STYLE.silverGlass : STYLE.mixed;
-    case 'residential':
-      if (old || h < 60) return r < 0.8 ? STYLE.residential : STYLE.stone;
-      return r < 0.65 ? STYLE.residential : STYLE.mixed;
-    case 'public':
-      return r < 0.55 ? STYLE.stone : STYLE.mixed;
-    case 'industrial':
-      return h < 20 ? STYLE.mech : STYLE.stone;
-  }
-  if (h < 18) return r < 0.45 ? STYLE.stone : r < 0.7 ? STYLE.residential : STYLE.mixed;
-  switch (zone) {
-    case 'nanshan':
-      return r < 0.3 ? STYLE.tealGlass : r < 0.55 ? STYLE.blueGlass : r < 0.7 ? STYLE.silverGlass : r < 0.88 ? STYLE.mixed : STYLE.residential;
-    case 'oct':
-      if (h < 90 && r < 0.6) return r < 0.32 ? STYLE.stone : STYLE.residential;
-      return r < 0.75 ? STYLE.mixed : r < 0.88 ? STYLE.bronzeGlass : STYLE.tealGlass;
-    case 'chegongmiao':
-      if (h < 120 && r < 0.25) return STYLE.residential;
-      return r < 0.45 ? STYLE.mixed : r < 0.65 ? STYLE.blueGlass : r < 0.8 ? STYLE.silverGlass : r < 0.9 ? STYLE.bronzeGlass : STYLE.stone;
-    case 'futian':
-    default:
-      return r < 0.35 ? STYLE.blueGlass : r < 0.55 ? STYLE.silverGlass : r < 0.7 ? STYLE.tealGlass : r < 0.82 ? STYLE.bronzeGlass : STYLE.mixed;
-  }
-}
 
 interface KeepOut {
   ring: Vec2[];
@@ -120,18 +63,6 @@ const HEIGHT_RANGE: Record<SectionId, [number, number]> = {
   chegongmiao: [80, 250],
   futian: [100, 300],
 };
-
-function pointInRing(ring: Vec2[], x: number, z: number): boolean {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const xi = ring[i][0];
-    const zi = ring[i][1];
-    const xj = ring[j][0];
-    const zj = ring[j][1];
-    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
-  }
-  return inside;
-}
 
 /** Uniform-grid set of occupied circles (building footprints) for overlap tests. */
 class Occupancy {
@@ -194,6 +125,7 @@ interface Placed {
  */
 export async function createBuildings(ctx: WorldContext): Promise<SceneryModule> {
   const { route, scene } = ctx;
+  const terrain = ctx.metro?.terrain ?? null;
   const material = createFacadeMaterial();
   const sites = resolveLandmarkSites(route);
   const hill = sites.get('lianhuashan');
@@ -258,51 +190,6 @@ export async function createBuildings(ctx: WorldContext): Promise<SceneryModule>
   };
   const keptClear = (ring: Vec2[]) => hitsAny(ring, zones, 0) || hitsAny(ring, footprints, FOOTPRINT_MARGIN);
   let skippedForSightLines = 0;
-
-  /** Extrudes one building with roof equipment / crown details. */
-  const addBuilding = (b: FacadeBuilder, ring: Vec2[], h: number, seed: number, style: number, podium: number, y0 = 0) => {
-    b.addPrism(ring, y0, h, [seed, style, podium, h]);
-    const rng = mulberry32(Math.floor(seed * 1e9) ^ 0x5bd1e995);
-    const area = Math.abs(ringArea(ring));
-    if (h < 25 || area < 150) return;
-    const [cx, cz] = ringCentroid(ring);
-    if (!pointInRing(ring, cx, cz)) return;
-    // Long-edge axis for aligning roof boxes.
-    let ax = 1;
-    let az = 0;
-    let best = 0;
-    for (let i = 0; i < ring.length; i++) {
-      const p = ring[i];
-      const q = ring[(i + 1) % ring.length];
-      const l = Math.hypot(q[0] - p[0], q[1] - p[1]);
-      if (l > best) {
-        best = l;
-        ax = (q[0] - p[0]) / l;
-        az = (q[1] - p[1]) / l;
-      }
-    }
-    const size = Math.sqrt(area);
-    if (h > 90 && ring.length <= 10 && rng() < 0.75) {
-      const k = 0.62 + rng() * 0.15;
-      const crown = ring.map(([x, z]) => [cx + (x - cx) * k, cz + (z - cz) * k] as Vec2);
-      const ch = 5 + rng() * 9;
-      b.addPrism(crown, h, h + ch, [seed, rng() < 0.5 ? style : STYLE.mech, 0, h + ch]);
-      h += ch;
-    }
-    const boxes = 1 + Math.floor(rng() * 3);
-    for (let i = 0; i < boxes; i++) {
-      const w = Math.min(14, Math.max(3, size * (0.12 + rng() * 0.15)));
-      const d = Math.min(10, Math.max(2.5, size * (0.08 + rng() * 0.12)));
-      const ox = (rng() - 0.5) * size * 0.35;
-      const oz = (rng() - 0.5) * size * 0.35;
-      const bx = cx + ax * ox - az * oz;
-      const bz = cz + az * ox + ax * oz;
-      const box = rectRing(bx, bz, ax, az, w / 2, d / 2);
-      if (!box.every(([x, z]) => pointInRing(ring, x, z))) continue;
-      const bh = 2.5 + rng() * 4;
-      b.addPrism(box, h, h + bh, [seed, STYLE.mech, 0, h + bh]);
-    }
-  };
 
   /** Procedural block at route coords (s, d) with long side along the route. */
   const addBlock = (rng: () => number, s: number, d: number, len: number, dep: number, h: number, isFar: boolean): boolean => {
@@ -370,7 +257,9 @@ export async function createBuildings(ctx: WorldContext): Promise<SceneryModule>
       const seed = seedFromId(rec.id);
       const style = styleFor(rec.zone, rec.h, seed, rec.use, rec.age);
       const podium = rec.far ? 0 : rec.h > 24 ? 5.5 + seed * 6 : rec.h > 8 ? 5 : 0;
-      addBuilding(builderFor(rec.s, !!rec.far), rec.fp, rec.h, seed, style, podium);
+      // Skyline towers beyond the flat route corridor stand on the whole-city terrain.
+      const base = rec.far && terrain && terrain.corridorAt(cx, cz) < 0.999 ? terrain.baseOf(rec.fp) : 0;
+      addBuilding(builderFor(rec.s, !!rec.far), rec.fp, rec.h, seed, style, podium, base ? -1 : 0, base);
       let r = 0;
       for (const p of rec.fp) r = Math.max(r, Math.hypot(p[0] - cx, p[1] - cz));
       occ.add(cx, cz, r);

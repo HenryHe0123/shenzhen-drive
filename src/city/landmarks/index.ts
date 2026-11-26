@@ -90,7 +90,8 @@ export async function createLandmarks(ctx: WorldContext): Promise<SceneryModule>
 
   if (keep('eiffel')) place(buildEiffel(mats), 'eiffel');
 
-  const hill = sites.get('lianhuashan');
+  // The real 莲花山 comes with the whole-city terrain; the hand-built hill only stands in without it.
+  const hill = ctx.metro ? undefined : sites.get('lianhuashan');
   if (hill) {
     const h = hill.height > 40 && hill.height < 200 ? hill.height : 106;
     place(buildHill(mats, Math.min(520, Math.max(260, hill.hx)), h), 'lianhuashan');

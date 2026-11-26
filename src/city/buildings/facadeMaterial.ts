@@ -31,6 +31,7 @@ const C = CONFIG.city;
  * shadows, env reflections and fog). Expects attributes
  *   aEdge = (meters along the current facade face, face length)
  *   aFac  = (building seed 0..1, style id, podium height m, building top y)
+ *   aBase = ground y of the building; heights in aFac and the floor grid count from it
  * and draws curtain walls (tinted reflective panes with per-pane tilt,
  * mullions, spandrels, a parallax interior behind the glass), punched
  * windows in weathered stone/tile, shop fronts with sign bands, parapets and
@@ -56,6 +57,7 @@ export function createFacadeMaterial(opts: { fogScale?: number; litRatio?: numbe
         `#include <common>
 attribute vec2 aEdge;
 attribute vec4 aFac;
+attribute float aBase;
 varying vec2 vEdge;
 varying vec4 vFac;
 varying float vLY;`,
@@ -65,7 +67,7 @@ varying float vLY;`,
         `#include <begin_vertex>
 vEdge = aEdge;
 vFac = aFac;
-vLY = position.y;`,
+vLY = position.y - aBase;`,
       );
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\n${FACADE_GLSL}`)

@@ -440,11 +440,14 @@ export async function createRoad(ctx: WorldContext): Promise<SceneryModule> {
     maxZ = Math.max(maxZ, route.pz[i]);
   }
   const groundMat = ground.material;
-  const groundMesh = new THREE.Mesh(new THREE.PlaneGeometry(24000, 24000).rotateX(-Math.PI / 2), groundMat);
-  groundMesh.position.set((minX + maxX) / 2, -0.02, (minZ + maxZ) / 2);
-  groundMesh.receiveShadow = true;
-  groundMesh.name = 'city-ground';
-  root.add(groundMesh);
+  // The metro terrain carries the same procedural ground inside its flattened route corridor.
+  if (!ctx.metro) {
+    const groundMesh = new THREE.Mesh(new THREE.PlaneGeometry(24000, 24000).rotateX(-Math.PI / 2), groundMat);
+    groundMesh.position.set((minX + maxX) / 2, -0.02, (minZ + maxZ) / 2);
+    groundMesh.receiveShadow = true;
+    groundMesh.name = 'city-ground';
+    root.add(groundMesh);
+  }
   scene.add(root);
   if (ctx.debug) ((window as unknown as { __SCENERY__?: Record<string, THREE.Object3D> }).__SCENERY__ ??= {}).road = root;
 

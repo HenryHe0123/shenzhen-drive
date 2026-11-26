@@ -1,4 +1,5 @@
 import type * as THREE from 'three';
+import type { MetroData } from '../city/metro/load';
 import type { Route } from '../route/Route';
 import type { BuildingsData, CityModelsData } from '../route/types';
 
@@ -16,6 +17,12 @@ export interface WorldContext {
    * Their footprints are keep-out zones for procedural buildings and props.
    */
   cityModels?: CityModelsData | null;
+  /**
+   * Whole-city terrain, water, buildings and roads (public/data/metro), loaded by createCity before the
+   * scenery modules; null when missing or turned off (?noMetro). Corridor modules place far objects on
+   * its terrain and drop the flat ground plane when it is present.
+   */
+  metro?: MetroData | null;
   debug: boolean;
 }
 
