@@ -11,6 +11,7 @@ import { GameRecorder } from './recording/Recorder';
 import { Input } from './input/Input';
 import { createEnvironment } from './render/environment';
 import { createRenderPipeline } from './render/pipeline';
+import { onQualityChange, qualitySettings } from './render/quality';
 import { createRenderer } from './render/renderer';
 import { CarVisual } from './vehicle/CarVisual';
 
@@ -114,11 +115,14 @@ async function boot() {
       hooks.ready = true;
     });
 
-    window.addEventListener('resize', () => {
+    const applySize = () => {
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, qualitySettings().maxPixelRatio));
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       pipeline.setSize(window.innerWidth, window.innerHeight);
-    });
+    };
+    window.addEventListener('resize', applySize);
+    onQualityChange(applySize);
   } catch (e) {
     console.error('[boot] failed:', e);
     hud.setLoading(false, e instanceof Error ? e.message : String(e));

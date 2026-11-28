@@ -10,6 +10,7 @@ import { BUILD } from './hud/version';
 import { createEnvironment } from './render/environment';
 import { createRenderPipeline } from './render/pipeline';
 import { LIGHTING } from './render/presets';
+import { onQualityChange, qualitySettings } from './render/quality';
 import { createRenderer } from './render/renderer';
 import { setAerialHaze } from './render/sky';
 import { getTimeOfDay, setTimeOfDay, TIME_LABELS, TIME_PRESETS } from './render/timeOfDay';
@@ -309,11 +310,14 @@ async function boot() {
     }
     if (++frames > 8) state.ready = true;
   });
-  window.addEventListener('resize', () => {
+  const applySize = () => {
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, qualitySettings().maxPixelRatio));
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     pipeline.setSize(window.innerWidth, window.innerHeight);
-  });
+  };
+  window.addEventListener('resize', applySize);
+  onQualityChange(applySize);
 }
 
 boot();

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config';
+import { qualitySettings } from './quality';
 
 /**
  * Tone mapping and anti-aliasing happen in the post-processing pipeline
@@ -16,7 +17,7 @@ export function createRenderer(container: HTMLElement): THREE.WebGLRenderer {
     powerPreference: 'high-performance',
     reversedDepthBuffer: true,
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, CONFIG.render.maxPixelRatio));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, qualitySettings().maxPixelRatio));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.NoToneMapping;

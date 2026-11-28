@@ -2,6 +2,7 @@
 import type { BuildingUse, Vec2 } from '../../route/types';
 import { FacadeBuilder, ringArea, type FacadeArrays } from '../buildings/builder';
 import { addBuilding, metroStyle, styleSeed } from '../buildings/shapes';
+import { parseMassArrays, type MassArrays } from './massData';
 
 /** Decoded codes of scripts/build_metro_data.py (USE_CODE, AGE_CODE). */
 const USES: (BuildingUse | undefined)[] = [undefined, 'residential', 'office', 'commercial', 'public', 'industrial'];
@@ -10,7 +11,7 @@ const AGES: (string | undefined)[] = [undefined, '1980s', '1990s', '2000s', '201
 export interface DetailTileRequest {
   key: string;
   buf: ArrayBuffer;
-  kind?: 'bld' | 'road';
+  kind?: 'bld' | 'road' | 'mass';
 }
 
 /** Road / rail tile geometry, relative to the tile centre. */
@@ -154,6 +155,7 @@ export function buildRoadTile(buf: ArrayBuffer): { arrays: RoadArrays | null; ox
 export interface DetailTileResult {
   key: string;
   arrays: FacadeArrays | RoadArrays | null;
+  mass?: MassArrays | null;
   /** Tile centre: the geometry is relative to it. */
   ox: number;
   oz: number;
@@ -222,6 +224,12 @@ if (typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScop
   self.onmessage = (e: MessageEvent<DetailTileRequest>) => {
     const { key, buf, kind } = e.data;
     try {
+      if (kind === 'mass') {
+        const m = parseMassArrays(buf);
+        const res: DetailTileResult = { key, arrays: null, mass: m, ox: m.ox, oz: m.oz, count: m.count };
+        (self as unknown as DedicatedWorkerGlobalScope).postMessage(res, [m.pos.buffer, m.size.buffer, m.rs.buffer]);
+        return;
+      }
       const res: DetailTileResult = { key, ...(kind === 'road' ? buildRoadTile(buf) : buildDetailTile(buf)) };
       const a = res.arrays;
       const transfer = a ? Object.values(a).map((v: ArrayBufferView) => v.buffer) : [];

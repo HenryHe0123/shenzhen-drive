@@ -1,5 +1,6 @@
 import { getViewMode, onViewModeChange, setViewMode, VIEW_LABELS, VIEW_MODES } from '../camera/viewMode';
 import { CONFIG } from '../config';
+import { getQuality, onQualityChange, QUALITY_LABELS, QUALITY_LEVELS, setQuality } from '../render/quality';
 import { getTimeOfDay, onTimeOfDayChange, setTimeOfDay, TIME_LABELS, TIME_PRESETS } from '../render/timeOfDay';
 import { penaltySeconds } from '../race/score';
 import type { Route } from '../route/Route';
@@ -208,8 +209,10 @@ export class Hud implements OverlaySource {
     tod.id = 'time-select';
     const view = this.viewSelector(true);
     view.id = 'view-select';
+    const qual = this.qualitySelector(true);
+    qual.id = 'quality-select';
     const menuRow = el('div', 'opt-row');
-    menuRow.append(tod, view, this.recToggle('rec-toggle-menu', true));
+    menuRow.append(tod, view, qual, this.recToggle('rec-toggle-menu', true));
     card.append(menuRow);
 
     this.startBtn = el('button', 'btn');
@@ -333,7 +336,9 @@ export class Hud implements OverlaySource {
     this.muteBtn.setAttribute('aria-pressed', 'false');
     const pview = this.viewSelector(false);
     pview.id = 'pause-view-select';
-    row.append(ptod, this.muteBtn, pview, this.recToggle('rec-toggle-pause', false));
+    const pqual = this.qualitySelector(false);
+    pqual.id = 'pause-quality-select';
+    row.append(ptod, this.muteBtn, pview, pqual, this.recToggle('rec-toggle-pause', false));
     const pauseVersion = el('div', 'version num', BUILD.label);
     pauseVersion.id = 'pause-version';
     pc.append(actions, row, el('div', 'btn-hint', '↑ ↓ 选择 · Enter / 空格 确认 · Esc 继续'), pauseVersion);
@@ -637,6 +642,11 @@ export class Hud implements OverlaySource {
   /** 车外 / 车内 radio group (same as the C key); applies live behind the pause menu. */
   private viewSelector(blurOnClick: boolean): HTMLElement {
     return radioGroup('视角', VIEW_MODES, VIEW_LABELS, getViewMode, setViewMode, onViewModeChange, blurOnClick);
+  }
+
+  /** 标准 / 高 graphics quality radio group; applies live behind the menus. */
+  private qualitySelector(blurOnClick: boolean): HTMLElement {
+    return radioGroup('画质', QUALITY_LEVELS, QUALITY_LABELS, getQuality, setQuality, onQualityChange, blurOnClick);
   }
 
   /** Returns true if the text changed. */

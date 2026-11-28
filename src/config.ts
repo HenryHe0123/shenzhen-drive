@@ -290,6 +290,8 @@ export const CONFIG = {
 
   render: {
     maxPixelRatio: 2,
+    /** Pixel ratio cap for the default 'standard' quality preset (cuts Retina fragment load ~2.5x). */
+    standardPixelRatio: 1.25,
     /** Initial exposure; each time-of-day preset sets its own (src/render/presets.ts). */
     exposure: 1.0,
     shadowMapSize: 2048,
@@ -401,6 +403,11 @@ export const CONFIG = {
     /** Camera distance (m) within which 2 km detail tiles (footprints) and 8 km mass tiles (boxes) are loaded; unloaded unloadSlack m further out. */
     detailRadius: 2400,
     massRadius: 14000,
+    /** Tighter racing-mode radii for the default 'standard' quality preset (skyline >= 60 m remains city-wide). */
+    standardDetailRadius: 1600,
+    standardMassRadius: 9000,
+    standardRoadRadiusScale: 1.2,
+    standardMassCull: 0.006,
     /** explore.html: wider radii for aerial views, and thinner haze than the game's presets (share of their fog density). */
     exploreDetailRadius: 3600,
     exploreMassRadius: 22000,
@@ -412,6 +419,7 @@ export const CONFIG = {
     /** Road / rail tiles load within detailRadius x roadRadiusScale. */
     roadRadiusScale: 1.4,
     maxDetailLoads: 3,
+    maxMassLoads: 2,
     buildWorkers: 2,
     /** Mass boxes whose size (max of height and footprint) is below this share of their distance are dropped. */
     massCull: 0.004,
