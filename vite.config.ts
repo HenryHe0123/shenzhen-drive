@@ -11,14 +11,19 @@ function gitCommit(): string {
   try {
     return execSync('git rev-parse --short HEAD', { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() || 'dev';
   } catch {
-    return 'dev';
+    return process.env.CF_PAGES_COMMIT_SHA?.slice(0, 7) || 'dev';
   }
+}
+function normalizeBase(raw: string | undefined): string {
+  if (!raw || raw === '/') return '/';
+  return `/${raw.replace(/^\/+|\/+$/g, '')}/`;
 }
 const now = new Date();
 const pad = (n: number) => String(n).padStart(2, '0');
 const buildDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 
 export default defineConfig({
+  base: normalizeBase(process.env.VITE_BASE),
   server: { port: 5173, host: '127.0.0.1' },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
